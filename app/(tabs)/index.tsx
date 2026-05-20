@@ -1,5 +1,7 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+'use client';
+
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
 
 import { HelloWave } from '@/components/hello-wave';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
@@ -7,73 +9,119 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Link } from 'expo-router';
 
+const DEFAULT_HOST = Platform.OS === 'android' ? 'http://192.168.10.115:3000' : 'http://localhost:3000';
+const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || DEFAULT_HOST;
+if (process.env.EXPO_PUBLIC_BACKEND_BASE_URL?.includes('localhost') && Platform.OS !== 'web') {
+  console.warn(
+    'EXPO_PUBLIC_BACKEND_BASE_URL uses localhost on a native device. Use a LAN IP or emulator host alias instead of localhost.'
+  );
+}
+
+type LensItem = {
+  id?: string | number;
+  price?: string | number;
+  sph?: string | number;
+  cyl?: string | number;
+  add?: string | number;
+  quantity?: string | number;
+};
+
 export default function HomeScreen() {
+  const [lensData, setLensData] = useState<{
+    type: string;
+    title: string;
+    items: LensItem[];
+  }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLensProducts() {
+      try {
+        const urls = [
+          { type: 'kryptok', title: 'Kryptok Lenses' },
+          { type: 'progressive', title: 'Progressive Lenses' },
+          { type: 'single-vision', title: 'Single Vision Lenses' },
+        ];
+
+        const responses = await Promise.all(
+          urls.map((entry) =>
+            fetch(`${BACKEND_BASE_URL}/api/lenses/${entry.type}`).then(async (res) => {
+              if (!res.ok) {
+                throw new Error(`Failed to load ${entry.type}`);
+              }
+              return { entry, data: await res.json() };
+            })
+          )
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        setLensData(
+          responses.map((response) => ({
+            type: response.entry.type,
+            title: response.entry.title,
+            items: Array.isArray(response.data) ? response.data : [],
+          }))
+        );
+      } catch (fetchError) {
+        if (!isMounted) {
+          return;
+        }
+
+        console.warn('Lens fetch error', fetchError);
+        setError('Unable to load product data from the backend.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadLensProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
+      headerBackgroundColor={{ light: '#FFFFFF', dark: '#0A0A0A' }}>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
+        <ThemedText type="subtitle">Latest Lens Products</ThemedText>
+        {loading ? (
+          <ActivityIndicator color="#0f546d" />
+        ) : error ? (
+          <ThemedText style={styles.errorText}>{error}</ThemedText>
+        ) : (
+          lensData.map((section) => (
+            <ThemedView key={section.type} style={styles.productSection}>
+              <ThemedText type="subtitle">{section.title}</ThemedText>
+              <ThemedText>
+                {section.items.length} available
+              </ThemedText>
+              {section.items.slice(0, 2).map((item, index) => (
+                <View key={(item.id as string) ?? `${section.type}-${index}`} style={styles.productCard}>
+                  <ThemedText type="defaultSemiBold">Price: ₹{item.price ?? 'N/A'}</ThemedText>
+              <ThemedText>
+                SPH: {item.sph ?? '—'} • CYL: {item.cyl ?? '—'}{' '}
+                {section.type !== 'single-vision' ? `• ADD: ${item.add ?? '—'}` : ''}
+              </ThemedText>
+              <ThemedText>Qty: {item.quantity ?? 0}</ThemedText>
+                </View>
+              ))}
+            </ThemedView>
+          ))
+        )}
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
+      
     </ParallaxScrollView>
   );
 }
@@ -94,5 +142,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     position: 'absolute',
+  },
+  productSection: {
+    marginTop: 16,
+    padding: 14,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  productCard: {
+    marginTop: 10,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  errorText: {
+    color: '#b91c1c',
+    marginTop: 8,
   },
 });
