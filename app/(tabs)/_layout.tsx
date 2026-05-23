@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isStaff } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -47,17 +47,43 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="shop"
         options={{
           title: 'Shop',
+          href: isStaff ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="bag.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="my-orders"
+        options={{
+          title: 'My Orders',
+          href: isStaff ? null : undefined,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.clipboard.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="orders"
+        options={{
+          title: 'Orders',
+          href: isStaff ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.clipboard.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="purchase-stock"
+        options={{
+          title: 'Purchase',
+          href: isStaff ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          href: isStaff ? undefined : null,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />
     </Tabs>

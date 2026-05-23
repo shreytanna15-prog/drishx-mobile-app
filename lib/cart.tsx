@@ -2,17 +2,18 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { buildCartLineId } from '@/lib/cart-utils';
 import type { CartItem, LensItem } from '@/lib/types/lens';
 
 type CartContextValue = {
   items: CartItem[];
   itemCount: number;
   totalPrice: number;
-  addToCart: (item: LensItem) => void;
-  removeFromCart: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
+  addToCart: (item: LensItem, quantity: number) => void;
+  removeFromCart: (cartLineId: string) => void;
+  updateQuantity: (cartLineId: string, quantity: number) => void;
   clearCart: () => void;
-  isInCart: (id: string) => boolean;
+  isInCart: (lensId: string) => boolean;
 };
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -20,29 +21,34 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
-  const addToCart = useCallback((item: LensItem) => {
+  const addToCart = useCallback((item: LensItem, quantity: number) => {
+    const safeQuantity = Math.max(1, Math.floor(quantity));
+    const cartLineId = buildCartLineId(item);
+
     setItems((current) => {
-      const existing = current.find((entry) => entry.id === item.id);
+      const existing = current.find((entry) => entry.cartLineId === cartLineId);
       if (existing) {
         return current.map((entry) =>
-          entry.id === item.id ? { ...entry, cartQuantity: entry.cartQuantity + 1 } : entry
+          entry.cartLineId === cartLineId
+            ? { ...entry, ...item, cartLineId, cartQuantity: entry.cartQuantity + safeQuantity }
+            : entry
         );
       }
-      return [...current, { ...item, cartQuantity: 1 }];
+      return [...current, { ...item, cartLineId, cartQuantity: safeQuantity }];
     });
   }, []);
 
-  const removeFromCart = useCallback((id: string) => {
-    setItems((current) => current.filter((entry) => entry.id !== id));
+  const removeFromCart = useCallback((cartLineId: string) => {
+    setItems((current) => current.filter((entry) => entry.cartLineId !== cartLineId));
   }, []);
 
-  const updateQuantity = useCallback((id: string, quantity: number) => {
+  const updateQuantity = useCallback((cartLineId: string, quantity: number) => {
     if (quantity <= 0) {
-      setItems((current) => current.filter((entry) => entry.id !== id));
+      setItems((current) => current.filter((entry) => entry.cartLineId !== cartLineId));
       return;
     }
     setItems((current) =>
-      current.map((entry) => (entry.id === id ? { ...entry, cartQuantity: quantity } : entry))
+      current.map((entry) => (entry.cartLineId === cartLineId ? { ...entry, cartQuantity: quantity } : entry))
     );
   }, []);
 
@@ -51,7 +57,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const isInCart = useCallback(
-    (id: string) => items.some((entry) => entry.id === id),
+    (lensId: string) => items.some((entry) => entry.id === lensId),
     [items]
   );
 

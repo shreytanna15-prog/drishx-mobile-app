@@ -21,6 +21,7 @@ export type LensItem = {
 };
 
 export type CartItem = LensItem & {
+  cartLineId: string;
   cartQuantity: number;
 };
 

@@ -1,6 +1,14 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import type { ApiLensType, CartItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
+
+export type OrderUser = {
+  id: string;
+  name: string | null;
+  email: string;
+  role?: string;
+};
 
 export type OrderRecord = {
   id: string;
@@ -8,8 +16,10 @@ export type OrderRecord = {
   quantity: number;
   unitPrice: number | string;
   totalAmount: number | string;
-  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  status: OrderTrackingStatus;
   createdAt: string;
+  updatedAt?: string;
+  user?: OrderUser;
   singleVisionLens?: { sph: number | string; cyl: number | string | null } | null;
   kryptokLens?: {
     sph: number | string;
@@ -28,6 +38,7 @@ export type OrderRecord = {
 
 type CreateOrderPayload = {
   lensType: ApiLensType;
+  lensId: string;
   quantity: number;
   sph: number;
   cyl?: number | null;
@@ -40,6 +51,7 @@ function buildOrderPayload(item: CartItem): CreateOrderPayload {
   const lensType = toApiLensType(item.lensType ?? 'Progressive');
   const payload: CreateOrderPayload = {
     lensType,
+    lensId: item.id,
     quantity: item.cartQuantity,
     sph: item.sph,
     cyl: item.cyl,
@@ -85,20 +97,28 @@ export async function fetchOrders(headers: Record<string, string>): Promise<Orde
   return response.json();
 }
 
-export async function cancelOrder(
+export async function cancelOrder(orderId: string, headers: Record<string, string>): Promise<void> {
+  await updateOrderStatus(orderId, 'CANCELLED', headers);
+}
+
+export async function updateOrderStatus(
   orderId: string,
+  status: OrderTrackingStatus,
   headers: Record<string, string>
-): Promise<void> {
+): Promise<OrderRecord> {
   const response = await fetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ status: 'CANCELLED' }),
+    body: JSON.stringify({ status }),
   });
 
+  const result = await response.json().catch(() => ({}));
+
   if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
-    throw new Error(result?.error || 'Failed to cancel order.');
+    throw new Error(result?.error || 'Failed to update order status.');
   }
+
+  return result;
 }
 
 export function getOrderLensDetails(order: OrderRecord) {

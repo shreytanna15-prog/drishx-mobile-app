@@ -59,6 +59,11 @@ function CartLineItem({
         SPH {item.sph} · CYL {item.cyl ?? '—'}
         {lensType !== 'Single Vision' && ` · ADD ${item.add ?? '—'}`}
       </ThemedText>
+      {(item.brand || item.coating) && (
+        <ThemedText style={styles.metaText} numberOfLines={1}>
+          {[item.brand, item.coating].filter(Boolean).join(' · ')}
+        </ThemedText>
+      )}
       {item.eye ? <ThemedText style={styles.eyeText}>Eye: {item.eye}</ThemedText> : null}
 
       <View style={styles.cartItemFooter}>
@@ -112,7 +117,7 @@ export default function CartScreen() {
 
     if (failures.length === 0) {
       Alert.alert('Order placed', `Successfully placed ${successCount} order(s).`, [
-        { text: 'View orders', onPress: () => router.replace('/orders') },
+        { text: 'View orders', onPress: () => router.replace('/(tabs)/my-orders') },
         { text: 'Continue shopping', onPress: () => router.back() },
       ]);
       return;
@@ -137,7 +142,7 @@ export default function CartScreen() {
             <MaterialIcons name="arrow-back" size={24} color={tint} />
           </Pressable>
           <ThemedText type="subtitle">Your Cart</ThemedText>
-          <Pressable onPress={() => router.push('/orders')} hitSlop={8}>
+          <Pressable onPress={() => router.push('/(tabs)/my-orders')} hitSlop={8}>
             <MaterialIcons name="receipt-long" size={24} color={tint} />
           </Pressable>
         </View>
@@ -155,16 +160,16 @@ export default function CartScreen() {
           <>
             <FlatList
               data={items}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.cartLineId}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               renderItem={({ item }) => (
                 <CartLineItem
                   item={item}
-                  onIncrease={() => updateQuantity(item.id, item.cartQuantity + 1)}
-                  onDecrease={() => updateQuantity(item.id, item.cartQuantity - 1)}
-                  onRemove={() => removeFromCart(item.id)}
+                  onIncrease={() => updateQuantity(item.cartLineId, item.cartQuantity + 1)}
+                  onDecrease={() => updateQuantity(item.cartLineId, item.cartQuantity - 1)}
+                  onRemove={() => removeFromCart(item.cartLineId)}
                 />
               )}
             />
@@ -231,6 +236,7 @@ const styles = StyleSheet.create({
   },
   typeBadgeText: { fontSize: 13, fontWeight: '700' },
   specText: { fontSize: 14, color: '#64748b', marginBottom: 4 },
+  metaText: { fontSize: 12, color: '#94a3b8', marginBottom: 4 },
   eyeText: { fontSize: 13, color: '#0a7ea4', fontWeight: '600', marginBottom: 8 },
   cartItemFooter: {
     flexDirection: 'row',

@@ -9,8 +9,13 @@ export type AuthUser = {
   role: string;
 };
 
+export function isStaffRole(role: string | undefined | null): boolean {
+  return role === 'ADMIN' || role === 'EMPLOYEE';
+}
+
 type AuthContextValue = {
   isSignedIn: boolean;
+  isStaff: boolean;
   user: AuthUser | null;
   token: string | null;
   signIn: (token: string, user: AuthUser) => void;
@@ -47,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       isSignedIn: Boolean(token),
+      isStaff: isStaffRole(user?.role),
       user,
       token,
       signIn,

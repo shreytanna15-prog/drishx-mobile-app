@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { AddToCartSheet } from '@/components/add-to-cart-sheet';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useCart } from '@/lib/cart';
@@ -147,6 +148,7 @@ export default function ShopScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [cartSheetItem, setCartSheetItem] = useState<LensItem | null>(null);
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -253,9 +255,13 @@ export default function ShopScreen() {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
 
-  const handleAddToCart = useCallback(
-    (item: LensItem) => {
-      addToCart(item);
+  const handleOpenCartSheet = useCallback((item: LensItem) => {
+    setCartSheetItem(item);
+  }, []);
+
+  const handleConfirmAddToCart = useCallback(
+    (item: LensItem, quantity: number) => {
+      addToCart(item, quantity);
     },
     [addToCart]
   );
@@ -265,10 +271,10 @@ export default function ShopScreen() {
       <LensProductCard
         item={item}
         inCart={isInCart(item.id)}
-        onAddToCart={() => handleAddToCart(item)}
+        onAddToCart={() => handleOpenCartSheet(item)}
       />
     ),
-    [handleAddToCart, isInCart]
+    [handleOpenCartSheet, isInCart]
   );
 
   const subtitleText = (() => {
@@ -435,6 +441,12 @@ export default function ShopScreen() {
             )}
           </>
         )}
+        <AddToCartSheet
+          visible={cartSheetItem !== null}
+          item={cartSheetItem}
+          onClose={() => setCartSheetItem(null)}
+          onConfirm={handleConfirmAddToCart}
+        />
       </SafeAreaView>
     </ThemedView>
   );
