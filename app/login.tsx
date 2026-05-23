@@ -18,16 +18,9 @@ import { useState } from 'react';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useAuth } from '@/lib/auth';
+import { BACKEND_BASE_URL } from '@/lib/api-config';
 
-const DEFAULT_HOST = Platform.OS === 'android' ? 'http://192.168.10.115:3000' : 'http://localhost:3000';
-const BACKEND_BASE_URL = process.env.EXPO_PUBLIC_BACKEND_BASE_URL || DEFAULT_HOST;
-if (process.env.EXPO_PUBLIC_BACKEND_BASE_URL?.includes('localhost') && Platform.OS !== 'web') {
-  console.warn(
-    'EXPO_PUBLIC_BACKEND_BASE_URL uses localhost on a native device. Use a LAN IP or emulator host alias instead of localhost.'
-  );
-}
 const LOGIN_URL = `${BACKEND_BASE_URL}/api/auth/login`;
-console.log('Login backend URL:', LOGIN_URL);
 
 export const options = {
   headerShown: false,
@@ -68,7 +61,7 @@ export default function LoginScreen() {
 
       setEmail('');
       setPassword('');
-      signIn();
+      signIn(result.token, result.user);
       router.replace('/');
     } catch (error) {
       Alert.alert(

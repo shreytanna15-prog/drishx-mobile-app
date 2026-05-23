@@ -1,25 +1,59 @@
 'use client';
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+};
 
 type AuthContextValue = {
   isSignedIn: boolean;
-  signIn: () => void;
+  user: AuthUser | null;
+  token: string | null;
+  signIn: (token: string, user: AuthUser) => void;
   signOut: () => void;
+  getAuthHeaders: () => Record<string, string>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  const signIn = useCallback((authToken: string, authUser: AuthUser) => {
+    setToken(authToken);
+    setUser(authUser);
+  }, []);
+
+  const signOut = useCallback(() => {
+    setToken(null);
+    setUser(null);
+  }, []);
+
+  const getAuthHeaders = useCallback((): Record<string, string> => {
+    if (!token) {
+      return { 'Content-Type': 'application/json' };
+    }
+    return {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+  }, [token]);
 
   const value = useMemo(
     () => ({
-      isSignedIn,
-      signIn: () => setIsSignedIn(true),
-      signOut: () => setIsSignedIn(false),
+      isSignedIn: Boolean(token),
+      user,
+      token,
+      signIn,
+      signOut,
+      getAuthHeaders,
     }),
-    [isSignedIn]
+    [token, user, signIn, signOut, getAuthHeaders]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
