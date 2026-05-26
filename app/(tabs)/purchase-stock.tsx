@@ -624,7 +624,7 @@ export default function PurchaseStockScreen() {
                     style={[styles.input, styles.inputMultiline, isDark && styles.inputDark]}
                     multiline
                   />
-                </>
+                </> 
               )}
 
               <Pressable
