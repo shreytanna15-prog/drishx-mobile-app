@@ -6,6 +6,7 @@ export type ApiLensType = 'KRYPTOK' | 'PROGRESSIVE' | 'SINGLE_VISION';
 
 export type LensItem = {
   id: string;
+  costPrice: number | null;
   price: number;
   sph: number;
   cyl: number | null;

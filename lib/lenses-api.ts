@@ -8,6 +8,7 @@ export type LensesPageResponse = {
   items: Array<{
     id: string;
     lensType: 'KRYPTOK' | 'PROGRESSIVE' | 'SINGLE_VISION';
+    costPrice: number | null;
     price: number;
     sph: number;
     cyl: number | null;
@@ -53,6 +54,7 @@ export function filterToApiType(filter: FilterOption): string {
 export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem {
   return {
     id: item.id,
+    costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
     price: Number(item.price),
     sph: Number(item.sph),
     cyl: item.cyl !== null ? Number(item.cyl) : null,

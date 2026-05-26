@@ -39,6 +39,28 @@ export function sanitizePositiveIntegerInput(text: string): string {
   return text.replace(/\D/g, '');
 }
 
+/** Allow only non-negative decimals for currency fields. */
+export function sanitizePositiveDecimalInput(text: string): string {
+  const cleaned = text.replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+  if (parts.length <= 1) {
+    return cleaned;
+  }
+  return `${parts[0]}.${parts.slice(1).join('')}`;
+}
+
+export function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function formatMoneyInput(value: number): string {
+  const rounded = roundMoney(value);
+  if (!Number.isFinite(rounded)) {
+    return '';
+  }
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+}
+
 /**
  * Prescription value must be less than or equal to the lens product maximum.
  * Example: product SPH -4 → user may enter -5, -4 but not -3 or 0.
