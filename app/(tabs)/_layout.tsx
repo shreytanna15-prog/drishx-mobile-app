@@ -5,13 +5,11 @@ import React, { useEffect, useState } from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { getCustomerNextRoute } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const router = useRouter();
   const { isSignedIn, isStaff, user } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -55,9 +53,20 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarActiveTintColor: BrandColors.primary,
+        tabBarInactiveTintColor: BrandColors.textMuted,
+        tabBarStyle: {
+          backgroundColor: BrandColors.card,
+          borderTopWidth: 1,
+          borderTopColor: BrandColors.cardBorder,
+          elevation: 0,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
       }}>
       <Tabs.Screen
         name="index"
