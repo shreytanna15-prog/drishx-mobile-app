@@ -1,6 +1,8 @@
 'use client';
 
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,14 +11,14 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { BrandColors } from '@/constants/brand-colors';
+import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
@@ -28,11 +30,18 @@ export const options = {
 
 export default function LoginScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string }>();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (params.email && typeof params.email === 'string') {
+      setEmail(params.email);
+    }
+  }, [params.email]);
 
   async function handleLogin() {
     setMessage('');
@@ -54,16 +63,41 @@ export default function LoginScreen() {
       const result = await response.json();
 
       if (!response.ok) {
+        if (response.status === 403 && result?.user) {
+          Alert.alert(
+            'Account rejected',
+            result?.rejectionReason || result?.error || 'Your account was rejected by admin.'
+          );
+          router.replace({
+            pathname: '/pending-approval',
+            params: {
+              email: email.trim().toLowerCase(),
+              rejected: '1',
+              reason: result?.rejectionReason || '',
+            },
+          });
+          return;
+        }
         const errorMessage = result?.error || 'Login failed. Please try again.';
         Alert.alert('Login failed', errorMessage);
         return;
       }
 
+      const mapped = mapApiUser(result.user as Record<string, unknown>);
       setEmail('');
       setPassword('');
-      signIn(result.token, result.user);
-      router.replace('/');
-    } catch (error) {
+      signIn(result.token, mapped);
+
+      const nextRoute = getCustomerNextRoute(mapped);
+      if (nextRoute === '/gst-details') {
+        router.replace({
+          pathname: '/gst-details',
+          params: { userId: mapped.id, email: mapped.email },
+        });
+      } else {
+        router.replace(nextRoute);
+      }
+    } catch {
       Alert.alert(
         'Network error',
         `Unable to connect to the login backend at ${LOGIN_URL}. Make sure the Drishx-admin-and-backend server is running and reachable from this device.`
@@ -75,24 +109,23 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}
-      >
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <ThemedView style={styles.card}>
-            <ThemedText type="title" style={styles.heading}>
-              Login
-            </ThemedText>
+          <View style={styles.card}>
+            <Text style={styles.heading}>Login</Text>
+            <Text style={styles.subheading}>Welcome back to DrishX</Text>
 
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Email</ThemedText>
+              <Text style={styles.label}>Email</Text>
               <TextInput
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
-                placeholderTextColor="#8b8b8b"
+                placeholderTextColor={BrandColors.placeholder}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -102,12 +135,12 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.field}>
-              <ThemedText style={styles.label}>Password</ThemedText>
+              <Text style={styles.label}>Password</Text>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Password"
-                placeholderTextColor="#8b8b8b"
+                placeholderTextColor={BrandColors.placeholder}
                 secureTextEntry
                 autoCapitalize="none"
                 style={styles.input}
@@ -115,20 +148,20 @@ export default function LoginScreen() {
               />
             </View>
 
-            {message ? <ThemedText style={styles.message}>{message}</ThemedText> : null}
+            {message ? <Text style={styles.message}>{message}</Text> : null}
 
             <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
               {loading ? (
-                <ActivityIndicator color="#ffffff" />
+                <ActivityIndicator color={BrandColors.primaryText} />
               ) : (
-                <ThemedText style={styles.buttonText}>Log in</ThemedText>
+                <Text style={styles.buttonText}>Log in</Text>
               )}
             </Pressable>
 
             <Link href="/signup" style={styles.backLink}>
-              <ThemedText type="link">Create account</ThemedText>
+              <Text style={styles.linkText}>Create account</Text>
             </Link>
-          </ThemedView>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -138,10 +171,11 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: BrandColors.background,
   },
   root: {
     flex: 1,
+    backgroundColor: BrandColors.background,
   },
   container: {
     flexGrow: 1,
@@ -149,17 +183,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    backgroundColor: '#ffffff',
+    backgroundColor: BrandColors.card,
+    borderWidth: 1,
+    borderColor: BrandColors.cardBorder,
   },
   heading: {
-    marginBottom: 8,
+    color: BrandColors.text,
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  subheading: {
+    color: BrandColors.textMuted,
+    fontSize: 14,
+    marginBottom: 24,
   },
   field: {
     marginBottom: 16,
@@ -168,19 +207,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     fontWeight: '600',
+    color: BrandColors.label,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 16,
+    borderColor: BrandColors.inputBorder,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8fafc',
+    color: BrandColors.text,
+    backgroundColor: BrandColors.inputBg,
   },
   message: {
     marginBottom: 16,
-    color: '#0f766e',
+    color: BrandColors.success,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -190,15 +231,20 @@ const styles = StyleSheet.create({
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0f546d',
+    backgroundColor: BrandColors.primary,
   },
   buttonText: {
-    color: '#ffffff',
+    color: BrandColors.primaryText,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   backLink: {
     marginTop: 18,
     alignItems: 'center',
+  },
+  linkText: {
+    color: BrandColors.link,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

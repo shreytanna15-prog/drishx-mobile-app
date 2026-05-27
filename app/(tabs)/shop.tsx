@@ -1,7 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,6 +25,18 @@ import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
 const SEARCH_DEBOUNCE_MS = 500;
+
+function parseFilterParam(raw: string | undefined): FilterOption | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const normalized = decodeURIComponent(raw).replace(/\+/g, ' ').trim().toLowerCase();
+  if (normalized === 'all') return 'All';
+  for (const opt of FILTER_OPTIONS) {
+    if (opt === 'All') continue;
+    if (opt.toLowerCase() === normalized) return opt;
+    if (opt.replace(/\s+/g, '').toLowerCase() === normalized.replace(/\s+/g, '')) return opt;
+  }
+  return null;
+}
 
 const LENS_TYPE_CONFIG: Record<LensType, { color: string; bg: string; icon: keyof typeof MaterialIcons.glyphMap }> = {
   Kryptok: { color: '#0a7ea4', bg: '#e0f2fe', icon: 'visibility' },
@@ -131,6 +143,7 @@ function LensProductCard({
 
 export default function ShopScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ filter?: string }>();
   const colorScheme = useColorScheme() ?? 'light';
   const isDark = colorScheme === 'dark';
   const tint = Colors[colorScheme].tint;
@@ -159,6 +172,13 @@ export default function ShopScreen() {
 
   activeFilterRef.current = activeFilter;
   debouncedSearchRef.current = debouncedSearch;
+
+  useEffect(() => {
+    const parsed = parseFilterParam(params.filter);
+    if (parsed) {
+      setActiveFilter(parsed);
+    }
+  }, [params.filter]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), SEARCH_DEBOUNCE_MS);

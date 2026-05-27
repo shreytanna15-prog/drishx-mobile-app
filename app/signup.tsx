@@ -1,6 +1,8 @@
 'use client';
 
 import { Link, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,19 +11,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState } from 'react';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useAuth } from '@/lib/auth';
+import { BrandColors } from '@/constants/brand-colors';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
 const SIGNUP_URL = `${BACKEND_BASE_URL}/api/auth/signup`;
-
 
 export const options = {
   headerShown: false,
@@ -29,7 +28,6 @@ export const options = {
 
 export default function SignupScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -67,13 +65,23 @@ export default function SignupScreen() {
         return;
       }
 
+      const userId = result?.user?.id;
+      if (!userId) {
+        Alert.alert('Signup failed', 'Account was created but user id was missing.');
+        return;
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
       setName('');
       setEmail('');
       setPassword('');
       setConfirmPassword('');
-      signIn(result.token, result.user);
-      router.replace('/');
-    } catch (error) {
+
+      router.replace({
+        pathname: '/gst-details',
+        params: { userId, email: normalizedEmail },
+      });
+    } catch {
       Alert.alert(
         'Network error',
         `Unable to connect to the signup backend at ${SIGNUP_URL}. Make sure the Drishx-admin-and-backend server is running and reachable from this device.`
@@ -85,87 +93,87 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <StatusBar style="light" />
       <KeyboardAvoidingView
         style={styles.root}
         behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}
-      >
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <ThemedView style={styles.card}>
-            <ThemedText type="title" style={styles.heading}>
-              Signup
-            </ThemedText>
-          <View style={styles.field}>
-            <ThemedText style={styles.label}>Full name</ThemedText>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="John Doe"
-              placeholderTextColor="#8b8b8b"
-              style={styles.input}
-              autoCapitalize="words"
-              returnKeyType="next"
-            />
+          <View style={styles.card}>
+            <Text style={styles.heading}>Create account</Text>
+            <Text style={styles.subheading}>Join DrishX to shop and track orders</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Full name</Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="John Doe"
+                placeholderTextColor={BrandColors.placeholder}
+                style={styles.input}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                placeholderTextColor={BrandColors.placeholder}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                style={styles.input}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor={BrandColors.placeholder}
+                secureTextEntry
+                autoCapitalize="none"
+                style={styles.input}
+                returnKeyType="next"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Confirm password</Text>
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Confirm password"
+                placeholderTextColor={BrandColors.placeholder}
+                secureTextEntry
+                autoCapitalize="none"
+                style={styles.input}
+                returnKeyType="done"
+              />
+            </View>
+
+            {message ? <Text style={styles.message}>{message}</Text> : null}
+
+            <Pressable style={styles.button} onPress={handleSignup} disabled={loading}>
+              {loading ? (
+                <ActivityIndicator color={BrandColors.primaryText} />
+              ) : (
+                <Text style={styles.buttonText}>Sign up</Text>
+              )}
+            </Pressable>
+
+            <Link href="/login" style={styles.backLink}>
+              <Text style={styles.linkText}>Already have an account? Log in</Text>
+            </Link>
           </View>
-
-          <View style={styles.field}>
-            <ThemedText style={styles.label}>Email</ThemedText>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor="#8b8b8b"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              style={styles.input}
-              returnKeyType="next"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <ThemedText style={styles.label}>Password</ThemedText>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor="#8b8b8b"
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-              returnKeyType="next"
-            />
-          </View>
-
-          <View style={styles.field}>
-            <ThemedText style={styles.label}>Confirm password</ThemedText>
-            <TextInput
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm password"
-              placeholderTextColor="#8b8b8b"
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-              returnKeyType="done"
-            />
-          </View>
-
-          {message ? <ThemedText style={styles.message}>{message}</ThemedText> : null}
-
-          <Pressable style={styles.button} onPress={handleSignup} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <ThemedText style={styles.buttonText}>Sign up</ThemedText>
-            )}
-          </Pressable>
-
-          <Link href="/login" style={styles.backLink}>
-            <ThemedText type="link">Already have an account? Login</ThemedText>
-          </Link>
-        </ThemedView>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -174,10 +182,11 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: BrandColors.background,
   },
   root: {
     flex: 1,
+    backgroundColor: BrandColors.background,
   },
   container: {
     flexGrow: 1,
@@ -185,21 +194,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    borderRadius: 24,
+    borderRadius: 20,
     padding: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 8 },
-    backgroundColor: '#ffffff',
+    backgroundColor: BrandColors.card,
+    borderWidth: 1,
+    borderColor: BrandColors.cardBorder,
   },
   heading: {
-    marginBottom: 8,
+    color: BrandColors.text,
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 6,
   },
-  description: {
+  subheading: {
+    color: BrandColors.textMuted,
+    fontSize: 14,
     marginBottom: 24,
-    lineHeight: 22,
   },
   field: {
     marginBottom: 16,
@@ -208,19 +218,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     fontWeight: '600',
+    color: BrandColors.label,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 16,
+    borderColor: BrandColors.inputBorder,
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    backgroundColor: '#f8fafc',
+    color: BrandColors.text,
+    backgroundColor: BrandColors.inputBg,
   },
   message: {
     marginBottom: 16,
-    color: '#0f766e',
+    color: BrandColors.success,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -230,15 +242,20 @@ const styles = StyleSheet.create({
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0f546d',
+    backgroundColor: BrandColors.primary,
   },
   buttonText: {
-    color: '#ffffff',
+    color: BrandColors.primaryText,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   backLink: {
     marginTop: 18,
     alignItems: 'center',
+  },
+  linkText: {
+    color: BrandColors.link,
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

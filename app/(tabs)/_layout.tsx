@@ -7,12 +7,13 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getCustomerNextRoute } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const router = useRouter();
-  const { isSignedIn, isStaff } = useAuth();
+  const { isSignedIn, isStaff, user } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -20,15 +21,34 @@ export default function TabLayout() {
   }, []);
 
   useEffect(() => {
-    if (mounted && !isSignedIn) {
+    if (!mounted) return;
+
+    if (!isSignedIn) {
       const timeout = setTimeout(() => {
         router.replace('/signup');
       }, 0);
       return () => clearTimeout(timeout);
     }
-  }, [mounted, isSignedIn, router]);
 
-  if (!isSignedIn) {
+    if (user) {
+      const nextRoute = getCustomerNextRoute(user);
+      if (nextRoute !== '/(tabs)') {
+        const timeout = setTimeout(() => {
+          if (nextRoute === '/gst-details') {
+            router.replace({
+              pathname: '/gst-details',
+              params: { userId: user.id, email: user.email },
+            });
+          } else {
+            router.replace(nextRoute);
+          }
+        }, 0);
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [mounted, isSignedIn, user, router]);
+
+  if (!isSignedIn || (user && getCustomerNextRoute(user) !== '/(tabs)')) {
     return null;
   }
 
