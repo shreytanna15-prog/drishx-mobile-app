@@ -1,10 +1,9 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import {
   getMainStepIndex,
   isSpecialStatus,
@@ -18,20 +17,20 @@ type OrderTrackingTimelineProps = {
   status: string;
 };
 
+const GOLD = BrandColors.primary;
+
 export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimelineProps) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
   const status = normalizeOrderStatus(rawStatus);
   const activeMainIndex = getMainStepIndex(status);
 
   if (status === 'CANCELLED') {
     const config = TERMINAL_STATUS_CONFIG.CANCELLED;
     return (
-      <View style={[styles.specialBanner, { backgroundColor: isDark ? `${config.color}22` : config.bg }]}>
+      <View style={[styles.specialBanner, styles.specialBannerCard]}>
         <MaterialIcons name="cancel" size={22} color={config.color} />
         <View style={styles.specialTextBlock}>
-          <ThemedText style={[styles.specialTitle, { color: config.color }]}>{config.label}</ThemedText>
-          <ThemedText style={styles.specialDescription}>{config.description}</ThemedText>
+          <Text style={[styles.specialTitle, { color: config.color }]}>{config.label}</Text>
+          <Text style={styles.specialDescription}>{config.description}</Text>
         </View>
       </View>
     );
@@ -52,20 +51,17 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
                   styles.dot,
                   isDone && styles.dotDone,
                   isCurrent && styles.dotCurrent,
-                  isDark && styles.dotDark,
                 ]}>
-                {isDone ? <MaterialIcons name="check" size={14} color="#fff" /> : null}
+                {isDone ? <MaterialIcons name="check" size={14} color={BrandColors.primaryText} /> : null}
               </View>
               {!isLast && <View style={[styles.line, isDone && styles.lineDone]} />}
             </View>
             <View style={styles.stepContent}>
-              <ThemedText
-                type="defaultSemiBold"
-                style={[styles.stepLabel, isCurrent && styles.stepLabelCurrent, isDone && styles.stepLabelDone]}>
+              <Text style={[styles.stepLabel, isCurrent && styles.stepLabelCurrent, isDone && styles.stepLabelDone]}>
                 {step.label}
-              </ThemedText>
+              </Text>
               {(isCurrent || (status === 'COMPLETED' && index === MAIN_TRACKING_STEPS.length - 1)) && (
-                <ThemedText style={styles.stepDescription}>{step.description}</ThemedText>
+                <Text style={styles.stepDescription}>{step.description}</Text>
               )}
             </View>
           </View>
@@ -73,13 +69,13 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
       })}
 
       {status === 'COMPLETED' && (
-        <View style={[styles.specialBanner, { backgroundColor: isDark ? '#05966922' : TERMINAL_STATUS_CONFIG.COMPLETED.bg }]}>
+        <View style={[styles.specialBanner, styles.specialBannerCard]}>
           <MaterialIcons name="check-circle" size={22} color={TERMINAL_STATUS_CONFIG.COMPLETED.color} />
           <View style={styles.specialTextBlock}>
-            <ThemedText style={[styles.specialTitle, { color: TERMINAL_STATUS_CONFIG.COMPLETED.color }]}>
+            <Text style={[styles.specialTitle, { color: TERMINAL_STATUS_CONFIG.COMPLETED.color }]}>
               {TERMINAL_STATUS_CONFIG.COMPLETED.label}
-            </ThemedText>
-            <ThemedText style={styles.specialDescription}>{TERMINAL_STATUS_CONFIG.COMPLETED.description}</ThemedText>
+            </Text>
+            <Text style={styles.specialDescription}>{TERMINAL_STATUS_CONFIG.COMPLETED.description}</Text>
           </View>
         </View>
       )}
@@ -88,7 +84,7 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
         <View
           style={[
             styles.specialBanner,
-            { backgroundColor: isDark ? `${SPECIAL_STATUS_CONFIG[status].color}22` : SPECIAL_STATUS_CONFIG[status].bg },
+            styles.specialBannerCard,
           ]}>
           <MaterialIcons
             name={status === 'PARTIALLY_FULFILLED' ? 'inventory' : 'schedule'}
@@ -96,10 +92,10 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
             color={SPECIAL_STATUS_CONFIG[status].color}
           />
           <View style={styles.specialTextBlock}>
-            <ThemedText style={[styles.specialTitle, { color: SPECIAL_STATUS_CONFIG[status].color }]}>
+            <Text style={[styles.specialTitle, { color: SPECIAL_STATUS_CONFIG[status].color }]}>
               {SPECIAL_STATUS_CONFIG[status].label}
-            </ThemedText>
-            <ThemedText style={styles.specialDescription}>{SPECIAL_STATUS_CONFIG[status].description}</ThemedText>
+            </Text>
+            <Text style={styles.specialDescription}>{SPECIAL_STATUS_CONFIG[status].description}</Text>
           </View>
         </View>
       )}
@@ -125,31 +121,27 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#fff',
+    borderColor: BrandColors.textMuted,
+    backgroundColor: BrandColors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#475569',
-  },
   dotDone: {
-    backgroundColor: '#0a7ea4',
-    borderColor: '#0a7ea4',
+    backgroundColor: GOLD,
+    borderColor: GOLD,
   },
   dotCurrent: {
-    borderColor: '#0a7ea4',
+    borderColor: GOLD,
     borderWidth: 3,
   },
   line: {
     flex: 1,
     width: 2,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: BrandColors.cardBorder,
     marginVertical: 4,
   },
   lineDone: {
-    backgroundColor: '#0a7ea4',
+    backgroundColor: GOLD,
   },
   stepContent: {
     flex: 1,
@@ -158,18 +150,19 @@ const styles = StyleSheet.create({
   },
   stepLabel: {
     fontSize: 15,
-    color: '#64748b',
+    color: BrandColors.textMuted,
+    fontWeight: '600',
   },
   stepLabelCurrent: {
-    color: '#0a7ea4',
+    color: GOLD,
   },
   stepLabelDone: {
-    color: '#0f172a',
+    color: BrandColors.text,
   },
   stepDescription: {
     marginTop: 4,
     fontSize: 13,
-    color: '#64748b',
+    color: BrandColors.textMuted,
     lineHeight: 18,
   },
   specialBanner: {
@@ -178,6 +171,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     marginTop: 4,
+  },
+  specialBannerCard: {
+    backgroundColor: BrandColors.background,
+    borderWidth: 1,
+    borderColor: BrandColors.cardBorder,
   },
   specialTextBlock: {
     flex: 1,
@@ -189,7 +187,7 @@ const styles = StyleSheet.create({
   },
   specialDescription: {
     fontSize: 13,
-    color: '#64748b',
+    color: BrandColors.textMuted,
     lineHeight: 18,
   },
 });

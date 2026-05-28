@@ -8,23 +8,24 @@ import {
   FlatList,
   Pressable,
   StyleSheet,
+  Text,
   TextInput,
   View,
   type ViewToken,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { AddToCartSheet } from '@/components/add-to-cart-sheet';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { useCart } from '@/lib/cart';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
 const SEARCH_DEBOUNCE_MS = 500;
+const GOLD = BrandColors.primary;
+const BG = BrandColors.background;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
 
 function parseFilterParam(raw: string | undefined): FilterOption | null {
   if (!raw || typeof raw !== 'string') return null;
@@ -44,110 +45,44 @@ const LENS_TYPE_CONFIG: Record<LensType, { color: string; bg: string; icon: keyo
   'Single Vision': { color: '#059669', bg: '#d1fae5', icon: 'remove-red-eye' },
 };
 
-function SpecPill({ label, value, muted }: { label: string; value: string | number; muted?: boolean }) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-
-  return (
-    <View style={[styles.specPill, { backgroundColor: isDark ? '#1e293b' : '#f1f5f9' }]}>
-      <ThemedText style={[styles.specLabel, muted && styles.specMuted]}>{label}</ThemedText>
-      <ThemedText type="defaultSemiBold" style={styles.specValue}>
-        {value}
-      </ThemedText>
-    </View>
-  );
-}
-
-function DetailRow({ label, value }: { label: string; value?: string | null }) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-
-  return (
-    <View style={styles.detailRow}>
-      <ThemedText style={styles.detailLabel}>{label}</ThemedText>
-      <ThemedText
-        type="defaultSemiBold"
-        style={[styles.detailValue, isDark && styles.detailValueDark]}
-        numberOfLines={2}>
-        {value?.trim() ? value : '—'}
-      </ThemedText>
-    </View>
-  );
-}
-
 function LensProductCard({
   item,
-  onAddToCart,
-  inCart,
+  onPress,
 }: {
   item: LensItem;
-  onAddToCart: () => void;
-  inCart: boolean;
+  onPress: () => void;
 }) {
   const lensType = item.lensType ?? 'Progressive';
-  const config = LENS_TYPE_CONFIG[lensType];
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-  const tint = Colors[colorScheme].tint;
+  const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
+  const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
+  const sphCyl = `${item.sph}/${item.cyl ?? '—'}`;
 
   return (
-    <View style={[styles.productCard, isDark && styles.productCardDark]}>
-      <View style={styles.cardHeader}>
-        <View style={[styles.typeBadge, { backgroundColor: isDark ? `${config.color}22` : config.bg }]}>
-          <MaterialIcons name={config.icon} size={16} color={config.color} />
-          <ThemedText style={[styles.typeBadgeText, { color: config.color }]}>{lensType}</ThemedText>
+    <Pressable style={styles.productCard} onPress={onPress}>
+      <View style={styles.compactTopRow}>
+        <View style={styles.compactTopLeft}>
+          <Text style={styles.compactTitle} numberOfLines={1}>
+            {brand} {sphCyl}
+          </Text>
         </View>
         <View style={styles.priceBlock}>
-          <ThemedText style={styles.priceCurrency}>₹</ThemedText>
-          <ThemedText style={styles.priceAmount}>{item.price}</ThemedText>
+          <Text style={styles.priceCurrency}>₹</Text>
+          <Text style={styles.priceAmount}>{item.price}</Text>
         </View>
       </View>
 
-      <View style={styles.specRow}>
-        <SpecPill label="SPH" value={item.sph} />
-        <SpecPill label="CYL" value={item.cyl ?? '—'} />
-        {lensType !== 'Single Vision' && <SpecPill label="ADD" value={item.add ?? '—'} />}
-      </View>
-
-      <View style={[styles.detailsSection, isDark && styles.detailsSectionDark]}>
-        <DetailRow label="Brand" value={item.brand} />
-        <DetailRow label="Item" value={item.item} />
-        <DetailRow label="Coating" value={item.coating} />
-      </View>
-
-      <View style={styles.cardFooter}>
-        {item.eye ? (
-          <View style={[styles.eyeBadge, isDark && styles.eyeBadgeDark]}>
-            <MaterialIcons name="visibility" size={14} color={tint} />
-            <ThemedText style={styles.eyeBadgeText}>{item.eye}</ThemedText>
-          </View>
-        ) : (
-          <View />
-        )}
-        {item.axis !== null && item.axis !== undefined && (
-          <ThemedText style={styles.axisText}>Axis {item.axis}°</ThemedText>
-        )}
-      </View>
-
-      <Pressable
-        style={[styles.addButton, inCart && styles.addButtonInCart, { borderColor: tint }]}
-        onPress={onAddToCart}>
-        <MaterialIcons name={inCart ? 'check' : 'add-shopping-cart'} size={18} color={inCart ? '#fff' : tint} />
-        <ThemedText style={[styles.addButtonText, { color: inCart ? '#fff' : tint }, inCart && styles.addButtonTextInCart]}>
-          {inCart ? 'Added to Cart' : 'Add to Cart'}
-        </ThemedText>
-      </Pressable>
-    </View>
+      <Text style={styles.categoryText}>{lensType}</Text>
+      <Text style={styles.itemText} numberOfLines={1}>
+        {itemName}
+      </Text>
+    </Pressable>
   );
 }
 
 export default function ShopScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-  const tint = Colors[colorScheme].tint;
-  const { addToCart, itemCount, isInCart } = useCart();
+  const { itemCount } = useCart();
 
   const [lenses, setLenses] = useState<LensItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -161,7 +96,6 @@ export default function ShopScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchActive, setSearchActive] = useState(false);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [cartSheetItem, setCartSheetItem] = useState<LensItem | null>(null);
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -275,26 +209,21 @@ export default function ShopScreen() {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
 
-  const handleOpenCartSheet = useCallback((item: LensItem) => {
-    setCartSheetItem(item);
-  }, []);
-
-  const handleConfirmAddToCart = useCallback(
-    (item: LensItem, quantity: number) => {
-      addToCart(item, quantity);
-    },
-    [addToCart]
-  );
-
   const renderItem = useCallback(
     ({ item }: { item: LensItem }) => (
       <LensProductCard
         item={item}
-        inCart={isInCart(item.id)}
-        onAddToCart={() => handleOpenCartSheet(item)}
+        onPress={() =>
+          router.push({
+            pathname: '/lens-product',
+            params: {
+              payload: encodeURIComponent(JSON.stringify(item)),
+            },
+          })
+        }
       />
     ),
-    [handleOpenCartSheet, isInCart]
+    [router]
   );
 
   const subtitleText = (() => {
@@ -311,30 +240,26 @@ export default function ShopScreen() {
     <View style={[styles.header, styles.headerFixed]}>
       <View style={styles.titleRow}>
         <View style={styles.titleBlock}>
-          <ThemedText type="title" style={styles.screenTitle}>
-            Shop
-          </ThemedText>
+          <Text style={styles.screenTitle}>Shop</Text>
           <View style={styles.subtitleRow}>
             {isRefreshing && hasLoadedOnce ? (
-              <ActivityIndicator size="small" color={tint} style={styles.subtitleSpinner} />
+              <ActivityIndicator size="small" color={GOLD} style={styles.subtitleSpinner} />
             ) : null}
-            <ThemedText style={styles.subtitle}>{subtitleText}</ThemedText>
+            <Text style={styles.subtitle}>{subtitleText}</Text>
           </View>
         </View>
 
         <View style={styles.headerActions}>
           <Pressable
-            style={[styles.iconButton, isDark && styles.iconButtonDark, searchActive && styles.iconButtonActive]}
+            style={[styles.iconButton, searchActive && styles.iconButtonActive]}
             onPress={() => setSearchActive((current) => !current)}>
-            <MaterialIcons name="search" size={22} color={searchActive ? '#fff' : tint} />
+            <MaterialIcons name="search" size={22} color={searchActive ? BrandColors.primaryText : GOLD} />
           </Pressable>
-          <Pressable
-            style={[styles.iconButton, isDark && styles.iconButtonDark]}
-            onPress={() => router.push('/cart')}>
-            <MaterialIcons name="shopping-cart" size={22} color={tint} />
+          <Pressable style={styles.iconButton} onPress={() => router.push('/cart')}>
+            <MaterialIcons name="shopping-cart" size={22} color={GOLD} />
             {itemCount > 0 && (
-              <View style={[styles.cartBadge, { backgroundColor: tint }]}>
-                <ThemedText style={styles.cartBadgeText}>{itemCount > 99 ? '99+' : itemCount}</ThemedText>
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
               </View>
             )}
           </Pressable>
@@ -342,14 +267,14 @@ export default function ShopScreen() {
       </View>
 
       {searchActive && (
-        <View style={[styles.searchBar, isDark && styles.searchBarDark]}>
-          <MaterialIcons name="search" size={20} color="#94a3b8" />
+        <View style={styles.searchBar}>
+          <MaterialIcons name="search" size={20} color={BrandColors.textMuted} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search SPH, CYL, price, brand, eye..."
-            placeholderTextColor="#94a3b8"
-            style={[styles.searchInput, isDark && styles.searchInputDark]}
+            placeholderTextColor={BrandColors.placeholder}
+            style={styles.searchInput}
             autoFocus
             returnKeyType="search"
             autoCorrect={false}
@@ -357,11 +282,11 @@ export default function ShopScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <MaterialIcons name="close" size={20} color="#94a3b8" />
+              <MaterialIcons name="close" size={20} color={BrandColors.textMuted} />
             </Pressable>
           )}
           {isRefreshing && searchQuery.length > 0 ? (
-            <ActivityIndicator size="small" color={tint} />
+            <ActivityIndicator size="small" color={GOLD} />
           ) : null}
         </View>
       )}
@@ -377,19 +302,8 @@ export default function ShopScreen() {
           return (
             <Pressable
               onPress={() => setActiveFilter(filter)}
-              style={[
-                styles.filterChip,
-                isDark && styles.filterChipDark,
-                isActive && { backgroundColor: tint, borderColor: tint },
-              ]}>
-              <ThemedText
-                style={[
-                  styles.filterChipText,
-                  isActive && styles.filterChipTextActive,
-                  isActive && { color: '#fff' },
-                ]}>
-                {filter}
-              </ThemedText>
+              style={[styles.filterChip, isActive && styles.filterChipActive]}>
+              <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{filter}</Text>
             </Pressable>
           );
         }}
@@ -398,22 +312,22 @@ export default function ShopScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {initialLoading && !hasLoadedOnce ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={tint} />
-            <ThemedText style={styles.stateText}>Loading products…</ThemedText>
+            <ActivityIndicator size="large" color={GOLD} />
+            <Text style={styles.stateText}>Loading products…</Text>
           </View>
         ) : (
           <>
             {shopHeader}
             {error && lenses.length === 0 ? (
               <View style={styles.inlineError}>
-                <MaterialIcons name="cloud-off" size={32} color="#b91c1c" />
-                <ThemedText style={styles.errorText}>{error}</ThemedText>
-                <Pressable style={[styles.retryButton, { backgroundColor: tint }]} onPress={() => loadPage(1, true)}>
-                  <ThemedText style={styles.retryText}>Retry</ThemedText>
+                <MaterialIcons name="cloud-off" size={32} color="#f87171" />
+                <Text style={styles.errorText}>{error}</Text>
+                <Pressable style={styles.retryButton} onPress={() => loadPage(1, true)}>
+                  <Text style={styles.retryText}>Retry</Text>
                 </Pressable>
               </View>
             ) : (
@@ -437,23 +351,23 @@ export default function ShopScreen() {
                 ListFooterComponent={
                   loadingMore ? (
                     <View style={styles.footerLoader}>
-                      <ActivityIndicator color={tint} />
-                      <ThemedText style={styles.footerText}>Loading more lenses…</ThemedText>
+                      <ActivityIndicator color={GOLD} />
+                      <Text style={styles.footerText}>Loading more lenses…</Text>
                     </View>
                   ) : null
                 }
                 ListEmptyComponent={
                   isRefreshing ? (
                     <View style={styles.emptyState}>
-                      <ActivityIndicator color={tint} />
-                      <ThemedText style={styles.stateText}>Searching…</ThemedText>
+                      <ActivityIndicator color={GOLD} />
+                      <Text style={styles.stateText}>Searching…</Text>
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
-                      <MaterialIcons name="search-off" size={40} color="#94a3b8" />
-                      <ThemedText style={styles.stateText}>
+                      <MaterialIcons name="search-off" size={40} color={BrandColors.textMuted} />
+                      <Text style={styles.stateText}>
                         {debouncedSearch ? 'No lenses match your search' : 'No lenses found for this filter'}
-                      </ThemedText>
+                      </Text>
                     </View>
                   )
                 }
@@ -461,19 +375,13 @@ export default function ShopScreen() {
             )}
           </>
         )}
-        <AddToCartSheet
-          visible={cartSheetItem !== null}
-          item={cartSheetItem}
-          onClose={() => setCartSheetItem(null)}
-          onConfirm={handleConfirmAddToCart}
-        />
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   productList: { flex: 1 },
@@ -487,19 +395,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   titleBlock: { flex: 1, paddingRight: 8 },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
-  subtitle: { fontSize: 14, color: '#64748b', flexShrink: 1 },
+  screenTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: BrandColors.text,
+  },
+  subtitle: { fontSize: 14, color: BrandColors.textMuted, flexShrink: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#e0f2fe',
+    backgroundColor: 'rgba(240, 161, 50, 0.12)',
+    borderWidth: 1,
+    borderColor: BORDER,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconButtonDark: { backgroundColor: '#0a7ea422' },
-  iconButtonActive: { backgroundColor: '#0a7ea4' },
+  iconButtonActive: { backgroundColor: GOLD, borderColor: GOLD },
   cartBadge: {
     position: 'absolute',
     top: -4,
@@ -510,8 +424,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    backgroundColor: GOLD,
   },
-  cartBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  cartBadgeText: { color: BrandColors.primaryText, fontSize: 11, fontWeight: '800' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -520,158 +435,67 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
-  },
-  searchBarDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
+    borderColor: BORDER,
+    backgroundColor: CARD,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: '#0f172a',
+    color: BrandColors.text,
     padding: 0,
   },
-  searchInputDark: { color: '#f1f5f9' },
   filterList: { gap: 8, paddingRight: 4 },
   filterChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
+    borderColor: BORDER,
+    backgroundColor: CARD,
   },
-  filterChipDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
-  filterChipText: { fontSize: 14, fontWeight: '600', color: '#475569' },
-  filterChipTextActive: { fontWeight: '700' },
+  filterChipActive: {
+    backgroundColor: GOLD,
+    borderColor: GOLD,
+  },
+  filterChipText: { fontSize: 14, fontWeight: '600', color: BrandColors.textMuted },
+  filterChipTextActive: { fontWeight: '700', color: BrandColors.primaryText },
   productCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  productCardDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  typeBadgeText: { fontSize: 13, fontWeight: '700' },
-  priceBlock: { flexDirection: 'row', alignItems: 'flex-start' },
-  priceCurrency: { fontSize: 16, fontWeight: '700', color: '#0a7ea4', marginTop: 2, marginRight: 1 },
-  priceAmount: { fontSize: 24, fontWeight: '800', color: '#0a7ea4', lineHeight: 28 },
-  specRow: { flexDirection: 'row', gap: 8 },
-  specPill: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-  },
-  specLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  specMuted: { color: '#94a3b8' },
-  specValue: { fontSize: 15 },
-  detailsSection: {
-    marginTop: 12,
-    gap: 8,
     padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BORDER,
   },
-  detailsSectionDark: {
-    backgroundColor: '#0f172a',
-    borderColor: '#334155',
-  },
-  detailRow: {
+  compactTopRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-  },
-  detailLabel: {
-    width: 64,
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    paddingTop: 2,
-  },
-  detailValue: {
-    flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#0f172a',
-  },
-  detailValueDark: {
-    color: '#e2e8f0',
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#e2e8f0',
-  },
-  eyeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: '#f0f9ff',
-  },
-  eyeBadgeDark: { backgroundColor: '#0a7ea418' },
-  eyeBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0a7ea4',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  axisText: { fontSize: 13, color: '#64748b' },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 6,
     gap: 8,
-    marginTop: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
   },
-  addButtonInCart: { backgroundColor: '#0a7ea4', borderColor: '#0a7ea4' },
-  addButtonText: { fontSize: 15, fontWeight: '700' },
-  addButtonTextInCart: { color: '#fff' },
+  compactTopLeft: {
+    flex: 1,
+    gap: 0,
+  },
+  compactTitle: {
+    fontSize: 16,
+    color: BrandColors.text,
+    fontWeight: '700',
+  },
+  priceBlock: { flexDirection: 'row', alignItems: 'flex-start' },
+  priceCurrency: { fontSize: 13, fontWeight: '700', color: GOLD, marginTop: 1, marginRight: 1 },
+  priceAmount: { fontSize: 17, fontWeight: '800', color: GOLD, lineHeight: 21 },
+  categoryText: {
+    fontSize: 12,
+    color: BrandColors.text,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  itemText: {
+    fontSize: 11,
+    color: BrandColors.textMuted,
+    fontWeight: '600',
+  },
   separator: { height: 12 },
   footerLoader: {
     flexDirection: 'row',
@@ -680,7 +504,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 20,
   },
-  footerText: { fontSize: 14, color: '#64748b' },
+  footerText: { fontSize: 14, color: BrandColors.textMuted },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
@@ -696,13 +520,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyState: { alignItems: 'center', paddingVertical: 48, gap: 12 },
-  stateText: { fontSize: 15, color: '#64748b', textAlign: 'center' },
-  errorText: { fontSize: 15, color: '#b91c1c', textAlign: 'center' },
+  stateText: { fontSize: 15, color: BrandColors.textMuted, textAlign: 'center' },
+  errorText: { fontSize: 15, color: '#f87171', textAlign: 'center' },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
+    backgroundColor: GOLD,
   },
-  retryText: { color: '#fff', fontWeight: '700' },
+  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
 });

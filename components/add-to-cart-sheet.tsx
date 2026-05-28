@@ -7,15 +7,15 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import {
   canAcceptPrescriptionInput,
   parseNumericInput,
@@ -24,6 +24,10 @@ import {
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
 import type { LensItem, LensType } from '@/lib/types/lens';
+
+const GOLD = BrandColors.primary;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
 
 type AddToCartSheetProps = {
   visible: boolean;
@@ -47,9 +51,6 @@ function formatInitial(value: number | null | undefined): string {
 
 export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartSheetProps) {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-  const tint = Colors[colorScheme].tint;
 
   const [sph, setSph] = useState('');
   const [cyl, setCyl] = useState('');
@@ -174,99 +175,97 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdrop} onPress={onClose} />
-        <View style={[styles.sheet, isDark && styles.sheetDark, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.handle} />
 
           <View style={styles.sheetHeader}>
             <View>
-              <ThemedText type="subtitle">Add to cart</ThemedText>
-              <ThemedText style={styles.lensTypeLabel}>{LENS_TYPE_LABEL[lensType]}</ThemedText>
+              <Text style={styles.sheetTitle}>Add to cart</Text>
+              <Text style={styles.lensTypeLabel}>{LENS_TYPE_LABEL[lensType]}</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8}>
-              <MaterialIcons name="close" size={24} color="#64748b" />
+              <MaterialIcons name="close" size={24} color={BrandColors.textMuted} />
             </Pressable>
           </View>
 
-          <View style={[styles.productSummary, isDark && styles.productSummaryDark]}>
-            <ThemedText type="defaultSemiBold" numberOfLines={1}>
-              {item.brand || 'Lens'}
-            </ThemedText>
-            {(item.item || item.coating) && (
-              <ThemedText style={styles.summaryMeta} numberOfLines={2}>
-                {[item.item, item.coating].filter(Boolean).join(' · ')}
-              </ThemedText>
-            )}
-            <ThemedText style={styles.summaryPrice}>₹{item.price} each</ThemedText>
-          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View style={styles.productSummary}>
+              <Text style={styles.productName} numberOfLines={1}>
+                {item.brand || 'Lens'}
+              </Text>
+              {(item.item || item.coating) && (
+                <Text style={styles.summaryMeta} numberOfLines={2}>
+                  {[item.item, item.coating].filter(Boolean).join(' · ')}
+                </Text>
+              )}
+              <Text style={styles.summaryPrice}>₹{item.price} each</Text>
+            </View>
 
-          <ThemedText style={styles.sectionTitle}>Prescription</ThemedText>
-          <ThemedText style={styles.validationHint}>{prescriptionHint}</ThemedText>
-          <View style={styles.fieldRow}>
-            <View style={styles.field}>
-              <ThemedText style={styles.fieldLabel}>SPH</ThemedText>
-              <ThemedText style={styles.maxHint}>max {maxSph}</ThemedText>
-              <TextInput
-                value={sph}
-                onChangeText={handleSphChange}
-                keyboardType="numbers-and-punctuation"
-                placeholder={String(maxSph)}
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-            </View>
-            <View style={styles.field}>
-              <ThemedText style={styles.fieldLabel}>CYL</ThemedText>
-              <ThemedText style={styles.maxHint}>max {maxCyl}</ThemedText>
-              <TextInput
-                value={cyl}
-                onChangeText={handleCylChange}
-                keyboardType="numbers-and-punctuation"
-                placeholder={String(maxCyl)}
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-            </View>
-            {showAdd && (
+            <Text style={styles.sectionTitle}>Prescription</Text>
+            <Text style={styles.validationHint}>{prescriptionHint}</Text>
+            <View style={styles.fieldRow}>
               <View style={styles.field}>
-                <ThemedText style={styles.fieldLabel}>ADD</ThemedText>
-                <ThemedText style={styles.maxHint}>max {maxAdd}</ThemedText>
+                <Text style={styles.fieldLabel}>SPH</Text>
+                <Text style={styles.maxHint}>max {maxSph}</Text>
                 <TextInput
-                  value={add}
-                  onChangeText={handleAddChange}
+                  value={sph}
+                  onChangeText={handleSphChange}
                   keyboardType="numbers-and-punctuation"
-                  placeholder={String(maxAdd)}
-                  placeholderTextColor="#94a3b8"
-                  style={[styles.input, isDark && styles.inputDark]}
+                  placeholder={String(maxSph)}
+                  placeholderTextColor={BrandColors.placeholder}
+                  style={styles.input}
                 />
               </View>
-            )}
-          </View>
+              <View style={styles.field}>
+                <Text style={styles.fieldLabel}>CYL</Text>
+                <Text style={styles.maxHint}>max {maxCyl}</Text>
+                <TextInput
+                  value={cyl}
+                  onChangeText={handleCylChange}
+                  keyboardType="numbers-and-punctuation"
+                  placeholder={String(maxCyl)}
+                  placeholderTextColor={BrandColors.placeholder}
+                  style={styles.input}
+                />
+              </View>
+              {showAdd && (
+                <View style={styles.field}>
+                  <Text style={styles.fieldLabel}>ADD</Text>
+                  <Text style={styles.maxHint}>max {maxAdd}</Text>
+                  <TextInput
+                    value={add}
+                    onChangeText={handleAddChange}
+                    keyboardType="numbers-and-punctuation"
+                    placeholder={String(maxAdd)}
+                    placeholderTextColor={BrandColors.placeholder}
+                    style={styles.input}
+                  />
+                </View>
+              )}
+            </View>
 
-          <ThemedText style={styles.sectionTitle}>Quantity</ThemedText>
-          <View style={styles.qtyRow}>
-            <Pressable
-              style={[styles.qtyButton, { borderColor: tint }]}
-              onPress={() => setQuantity((current) => String(Math.max(1, Number(current || 1) - 1)))}>
-              <MaterialIcons name="remove" size={22} color={tint} />
-            </Pressable>
-            <TextInput
-              value={quantity}
-              onChangeText={handleQuantityChange}
-              keyboardType="number-pad"
-              style={[styles.qtyInput, isDark && styles.inputDark]}
-            />
-            <Pressable
-              style={[styles.qtyButton, { borderColor: tint }]}
-              onPress={() => setQuantity((current) => String(Number(current || 0) + 1))}>
-              <MaterialIcons name="add" size={22} color={tint} />
-            </Pressable>
-          </View>
+            <Text style={styles.sectionTitle}>Quantity</Text>
+            <View style={styles.qtyRow}>
+              <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Math.max(1, Number(current || 1) - 1)))}>
+                <MaterialIcons name="remove" size={22} color={GOLD} />
+              </Pressable>
+              <TextInput
+                value={quantity}
+                onChangeText={handleQuantityChange}
+                keyboardType="number-pad"
+                style={styles.qtyInput}
+              />
+              <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Number(current || 0) + 1))}>
+                <MaterialIcons name="add" size={22} color={GOLD} />
+              </Pressable>
+            </View>
 
-          {error ? <ThemedText style={styles.errorText}>{error}</ThemedText> : null}
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          </ScrollView>
 
-          <Pressable style={[styles.confirmButton, { backgroundColor: tint }]} onPress={handleConfirm}>
-            <MaterialIcons name="add-shopping-cart" size={20} color="#fff" />
-            <ThemedText style={styles.confirmText}>Add to cart</ThemedText>
+          <Pressable style={styles.confirmButton} onPress={handleConfirm}>
+            <MaterialIcons name="add-shopping-cart" size={20} color={BrandColors.primaryText} />
+            <Text style={styles.confirmText}>Add to cart</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -281,25 +280,24 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
   },
   sheet: {
-    backgroundColor: '#ffffff',
+    backgroundColor: CARD,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    borderColor: BORDER,
     paddingHorizontal: 20,
     paddingTop: 8,
     maxHeight: '88%',
-  },
-  sheetDark: {
-    backgroundColor: '#1e293b',
   },
   handle: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#cbd5e1',
+    backgroundColor: 'rgba(240, 161, 50, 0.35)',
     marginBottom: 16,
   },
   sheetHeader: {
@@ -308,45 +306,51 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 16,
   },
+  sheetTitle: {
+    color: BrandColors.text,
+    fontSize: 20,
+    fontWeight: '800',
+  },
   lensTypeLabel: {
     marginTop: 4,
     fontSize: 14,
-    color: '#64748b',
+    color: BrandColors.textMuted,
   },
   productSummary: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: '#f8fafc',
+    backgroundColor: BrandColors.background,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BORDER,
     marginBottom: 20,
   },
-  productSummaryDark: {
-    backgroundColor: '#0f172a',
-    borderColor: '#334155',
+  productName: {
+    color: BrandColors.text,
+    fontSize: 16,
+    fontWeight: '700',
   },
   summaryMeta: {
     marginTop: 4,
     fontSize: 13,
-    color: '#64748b',
+    color: BrandColors.textMuted,
   },
   summaryPrice: {
     marginTop: 8,
     fontSize: 16,
     fontWeight: '700',
-    color: '#0a7ea4',
+    color: GOLD,
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#64748b',
+    color: BrandColors.label,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   validationHint: {
     fontSize: 12,
-    color: '#64748b',
+    color: BrandColors.textMuted,
     lineHeight: 18,
     marginBottom: 12,
   },
@@ -361,31 +365,26 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748b',
+    color: BrandColors.label,
     marginBottom: 2,
   },
   maxHint: {
     fontSize: 11,
-    color: '#0a7ea4',
+    color: GOLD,
     fontWeight: '600',
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BrandColors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
     fontWeight: '600',
-    color: '#0f172a',
-    backgroundColor: '#fff',
+    color: BrandColors.text,
+    backgroundColor: BrandColors.inputBg,
     textAlign: 'center',
-  },
-  inputDark: {
-    backgroundColor: '#0f172a',
-    borderColor: '#334155',
-    color: '#f1f5f9',
   },
   qtyRow: {
     flexDirection: 'row',
@@ -399,24 +398,25 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1.5,
+    borderColor: GOLD,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyInput: {
     minWidth: 56,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BrandColors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 18,
     fontWeight: '700',
-    color: '#0f172a',
+    color: BrandColors.text,
     textAlign: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: BrandColors.inputBg,
   },
   errorText: {
-    color: '#dc2626',
+    color: '#f87171',
     fontSize: 14,
     marginBottom: 12,
     textAlign: 'center',
@@ -428,11 +428,12 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 14,
-    marginTop: 4,
+    marginTop: 8,
+    backgroundColor: GOLD,
   },
   confirmText: {
-    color: '#fff',
+    color: BrandColors.primaryText,
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });

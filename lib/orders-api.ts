@@ -10,6 +10,9 @@ export type OrderUser = {
   role?: string;
 };
 
+/** Max length for order notes — must match backend `ORDER_NOTES_MAX_LENGTH`. */
+export const ORDER_NOTES_MAX_LENGTH = 2000;
+
 export type OrderRecord = {
   id: string;
   lensType: ApiLensType;
@@ -17,6 +20,7 @@ export type OrderRecord = {
   unitPrice: number | string;
   totalAmount: number | string;
   status: OrderTrackingStatus;
+  notes?: string | null;
   createdAt: string;
   updatedAt?: string;
   user?: OrderUser;
@@ -45,6 +49,7 @@ type CreateOrderPayload = {
   axis?: number | null;
   add?: number | null;
   eye?: string;
+  notes?: string;
 };
 
 function buildOrderPayload(item: CartItem): CreateOrderPayload {
@@ -71,12 +76,16 @@ function buildOrderPayload(item: CartItem): CreateOrderPayload {
 
 export async function createOrder(
   item: CartItem,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  notes?: string
 ): Promise<{ success: true; orderId: string } | { success: false; error: string }> {
+  const body = buildOrderPayload(item);
+  const payload = notes?.trim() ? { ...body, notes: notes.trim() } : body;
+
   const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(buildOrderPayload(item)),
+    body: JSON.stringify(payload),
   });
 
   const result = await response.json();

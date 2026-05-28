@@ -1,31 +1,38 @@
-"use client";
+'use client';
 
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
+  Text,
+  TextInput,
   View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { useAuth } from "@/lib/auth";
-import { useCart } from "@/lib/cart";
-import { createOrder } from "@/lib/orders-api";
-import type { CartItem, LensType } from "@/lib/types/lens";
+import { OrderPlacedModal } from '@/components/order-placed-modal';
+import { BrandColors } from '@/constants/brand-colors';
+import { useAuth } from '@/lib/auth';
+import { useCart } from '@/lib/cart';
+import { createOrder, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
+import type { CartItem, LensType } from '@/lib/types/lens';
 
-const LENS_TYPE_CONFIG: Record<LensType, { color: string; bg: string }> = {
-  Kryptok: { color: "#0a7ea4", bg: "#e0f2fe" },
-  Progressive: { color: "#7c3aed", bg: "#ede9fe" },
-  "Single Vision": { color: "#059669", bg: "#d1fae5" },
+const GOLD = BrandColors.primary;
+const BG = BrandColors.background;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
+
+const LENS_TYPE_COLORS: Record<LensType, string> = {
+  Kryptok: '#5BC0EB',
+  Progressive: '#C084FC',
+  'Single Vision': '#7DD3A8',
 };
 
 function CartLineItem({
@@ -39,55 +46,42 @@ function CartLineItem({
   onDecrease: () => void;
   onRemove: () => void;
 }) {
-  const lensType = item.lensType ?? "Progressive";
-  const config = LENS_TYPE_CONFIG[lensType];
-  const colorScheme = useColorScheme() ?? "light";
-  const isDark = colorScheme === "dark";
+  const lensType = item.lensType ?? 'Progressive';
+  const badgeColor = LENS_TYPE_COLORS[lensType];
 
   return (
-    <View style={[styles.cartItem, isDark && styles.cartItemDark]}>
+    <View style={styles.cartItem}>
       <View style={styles.cartItemHeader}>
-        <View
-          style={[
-            styles.typeBadge,
-            { backgroundColor: isDark ? `${config.color}22` : config.bg },
-          ]}
-        >
-          <ThemedText style={[styles.typeBadgeText, { color: config.color }]}>
-            {lensType}
-          </ThemedText>
+        <View style={[styles.typeBadge, { backgroundColor: `${badgeColor}22` }]}>
+          <Text style={[styles.typeBadgeText, { color: badgeColor }]}>{lensType}</Text>
         </View>
         <Pressable onPress={onRemove} hitSlop={8}>
-          <MaterialIcons name="delete-outline" size={22} color="#ef4444" />
+          <MaterialIcons name="delete-outline" size={22} color="#f87171" />
         </Pressable>
       </View>
 
-      <ThemedText style={styles.specText}>
-        SPH {item.sph} · CYL {item.cyl ?? "—"}
-        {lensType !== "Single Vision" && ` · ADD ${item.add ?? "—"}`}
-      </ThemedText>
+      <Text style={styles.specText}>
+        SPH {item.sph} · CYL {item.cyl ?? '—'}
+        {lensType !== 'Single Vision' && ` · ADD ${item.add ?? '—'}`}
+      </Text>
       {(item.brand || item.coating) && (
-        <ThemedText style={styles.metaText} numberOfLines={1}>
-          {[item.brand, item.coating].filter(Boolean).join(" · ")}
-        </ThemedText>
+        <Text style={styles.metaText} numberOfLines={1}>
+          {[item.brand, item.coating].filter(Boolean).join(' · ')}
+        </Text>
       )}
-      {item.eye ? (
-        <ThemedText style={styles.eyeText}>Eye: {item.eye}</ThemedText>
-      ) : null}
+      {item.eye ? <Text style={styles.eyeText}>Eye: {item.eye}</Text> : null}
 
       <View style={styles.cartItemFooter}>
         <View style={styles.qtyControls}>
           <Pressable style={styles.qtyButton} onPress={onDecrease}>
-            <MaterialIcons name="remove" size={18} color="#0a7ea4" />
+            <MaterialIcons name="remove" size={18} color={GOLD} />
           </Pressable>
-          <ThemedText style={styles.qtyValue}>{item.cartQuantity}</ThemedText>
+          <Text style={styles.qtyValue}>{item.cartQuantity}</Text>
           <Pressable style={styles.qtyButton} onPress={onIncrease}>
-            <MaterialIcons name="add" size={18} color="#0a7ea4" />
+            <MaterialIcons name="add" size={18} color={GOLD} />
           </Pressable>
         </View>
-        <ThemedText style={styles.lineTotal}>
-          ₹{item.price * item.cartQuantity}
-        </ThemedText>
+        <Text style={styles.lineTotal}>₹{item.price * item.cartQuantity}</Text>
       </View>
     </View>
   );
@@ -95,37 +89,38 @@ function CartLineItem({
 
 export default function CartScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme() ?? "light";
-  const tint = Colors[colorScheme].tint;
-  const isDark = colorScheme === "dark";
   const { getAuthHeaders } = useAuth();
-  const {
-    items,
-    itemCount,
-    totalPrice,
-    updateQuantity,
-    removeFromCart,
-    clearCart,
-  } = useCart();
+  const { items, itemCount, totalPrice, updateQuantity, removeFromCart, clearCart } = useCart();
   const [placingOrder, setPlacingOrder] = useState(false);
+  const [orderNotes, setOrderNotes] = useState('');
+  const [orderPlacedModal, setOrderPlacedModal] = useState<{
+    message: string;
+    notes?: string;
+  } | null>(null);
 
   async function handlePlaceOrder() {
     if (items.length === 0) {
       return;
     }
 
+    const trimmedNotes = orderNotes.trim();
+    if (trimmedNotes.length > ORDER_NOTES_MAX_LENGTH) {
+      Alert.alert(
+        'Notes too long',
+        `Order notes must be at most ${ORDER_NOTES_MAX_LENGTH} characters.`
+      );
+      return;
+    }
     setPlacingOrder(true);
     const failures: string[] = [];
     let successCount = 0;
 
     for (const item of items) {
-      const result = await createOrder(item, getAuthHeaders());
+      const result = await createOrder(item, getAuthHeaders(), trimmedNotes || undefined);
       if (result.success) {
         successCount += 1;
       } else {
-        failures.push(
-          `${item.lensType ?? "Lens"} (SPH ${item.sph}): ${result.error}`,
-        );
+        failures.push(`${item.lensType ?? 'Lens'} (SPH ${item.sph}): ${result.error}`);
       }
     }
 
@@ -133,156 +128,173 @@ export default function CartScreen() {
 
     if (successCount > 0) {
       clearCart();
+      setOrderNotes('');
     }
 
     if (failures.length === 0) {
-      Alert.alert(
-        "Order placed",
-        `Successfully placed ${successCount} order(s).`,
-        [
-          {
-            text: "View orders",
-            onPress: () => router.replace("/(tabs)/my-orders"),
-          },
-          { text: "Continue shopping", onPress: () => router.back() },
-        ],
-      );
+      setOrderPlacedModal({
+        message: `Successfully placed ${successCount} order(s).`,
+        notes: trimmedNotes || undefined,
+      });
       return;
     }
 
     if (successCount > 0) {
       Alert.alert(
-        "Partial success",
-        `${successCount} order(s) placed. Some items failed:\n\n${failures.join("\n")}`,
+        'Partial success',
+        `${successCount} order(s) placed. Some items failed:\n\n${failures.join('\n')}`
       );
       return;
     }
 
-    Alert.alert("Order failed", failures.join("\n\n"));
+    Alert.alert('Order failed', failures.join('\n\n'));
   }
 
+  const listFooter = (
+    <View style={styles.listFooter}>
+      <Pressable style={styles.addMoreBtn} onPress={() => router.push('/(tabs)/shop')}>
+        <MaterialIcons name="add" size={20} color={GOLD} />
+        <Text style={styles.addMoreBtnText}>Add more items</Text>
+      </Pressable>
+
+      <Text style={styles.notesTitle}>Order notes</Text>
+      <TextInput
+        style={styles.notesInput}
+        placeholder="Enter any special instructions..."
+        placeholderTextColor={BrandColors.placeholder}
+        value={orderNotes}
+        onChangeText={setOrderNotes}
+        multiline
+        numberOfLines={4}
+        maxLength={ORDER_NOTES_MAX_LENGTH}
+        textAlignVertical="top"
+      />
+    </View>
+  );
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+    <View style={styles.container}>
+      <OrderPlacedModal
+        visible={orderPlacedModal !== null}
+        message={orderPlacedModal?.message ?? ''}
+        notes={orderPlacedModal?.notes}
+        onViewOrders={() => {
+          setOrderPlacedModal(null);
+          router.replace('/(tabs)/my-orders');
+        }}
+        onContinueShopping={() => {
+          setOrderPlacedModal(null);
+          router.push('/(tabs)/shop');
+        }}
+      />
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            style={styles.backButton}
-            hitSlop={8}
-          >
-            <MaterialIcons name="arrow-back" size={24} color={tint} />
+          <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
+            <MaterialIcons name="arrow-back" size={24} color={GOLD} />
           </Pressable>
-          <ThemedText type="subtitle">Your Cart</ThemedText>
-          <Pressable
-            onPress={() => router.push("/(tabs)/my-orders")}
-            hitSlop={8}
-          >
-            <MaterialIcons name="receipt-long" size={24} color={tint} />
+          <Text style={styles.screenTitle}>Your cart</Text>
+          <Pressable onPress={() => router.push('/(tabs)/my-orders')} style={styles.iconBtn} hitSlop={8}>
+            <MaterialIcons name="receipt-long" size={24} color={GOLD} />
           </Pressable>
         </View>
 
         {items.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialIcons name="shopping-cart" size={56} color="#94a3b8" />
-            <ThemedText type="subtitle">Your cart is empty</ThemedText>
-            <ThemedText style={styles.emptyText}>
-              Add lenses from the Shop tab to get started.
-            </ThemedText>
-            <Pressable
-              style={[styles.primaryButton, { backgroundColor: tint }]}
-              onPress={() => router.back()}
-            >
-              <ThemedText style={styles.primaryButtonText}>
-                Browse Shop
-              </ThemedText>
+            <MaterialIcons name="shopping-cart" size={56} color={BrandColors.textMuted} />
+            <Text style={styles.emptyTitle}>Your cart is empty</Text>
+            <Text style={styles.emptyText}>Add lenses from the Shop tab to get started.</Text>
+            <Pressable style={styles.primaryButton} onPress={() => router.push('/(tabs)/shop')}>
+              <Text style={styles.primaryButtonText}>Browse shop</Text>
             </Pressable>
           </View>
         ) : (
-          <>
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}>
             <FlatList
               data={items}
               keyExtractor={(item) => item.cartLineId}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              ListHeaderComponent={<Text style={styles.sectionTitle}>Select products</Text>}
+              ListFooterComponent={listFooter}
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               renderItem={({ item }) => (
                 <CartLineItem
                   item={item}
-                  onIncrease={() =>
-                    updateQuantity(item.cartLineId, item.cartQuantity + 1)
-                  }
-                  onDecrease={() =>
-                    updateQuantity(item.cartLineId, item.cartQuantity - 1)
-                  }
+                  onIncrease={() => updateQuantity(item.cartLineId, item.cartQuantity + 1)}
+                  onDecrease={() => updateQuantity(item.cartLineId, item.cartQuantity - 1)}
                   onRemove={() => removeFromCart(item.cartLineId)}
                 />
               )}
             />
 
-            <View style={[styles.summaryBar, isDark && styles.summaryBarDark]}>
+            <View style={styles.summaryBar}>
               <View>
-                <ThemedText style={styles.summaryLabel}>
-                  {itemCount} item(s)
-                </ThemedText>
-                <ThemedText style={styles.summaryTotal}>
-                  ₹{totalPrice}
-                </ThemedText>
+                <Text style={styles.summaryLabel}>{itemCount} item(s)</Text>
+                <Text style={styles.summaryTotal}>₹{totalPrice}</Text>
               </View>
               <Pressable
-                style={[
-                  styles.primaryButton,
-                  { backgroundColor: tint },
-                  placingOrder && styles.buttonDisabled,
-                ]}
+                style={[styles.primaryButton, placingOrder && styles.buttonDisabled]}
                 onPress={handlePlaceOrder}
-                disabled={placingOrder}
-              >
+                disabled={placingOrder}>
                 {placingOrder ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={BrandColors.primaryText} />
                 ) : (
                   <>
-                    <MaterialIcons name="shopping-bag" size={20} color="#fff" />
-                    <ThemedText style={styles.primaryButtonText}>
-                      Place Order
-                    </ThemedText>
+                    <MaterialIcons name="shopping-bag" size={20} color={BrandColors.primaryText} />
+                    <Text style={styles.primaryButtonText}>Place order</Text>
                   </>
                 )}
               </Pressable>
             </View>
-          </>
+          </KeyboardAvoidingView>
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1 },
+  flex: { flex: 1 },
   topBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
   },
-  backButton: { padding: 4 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 16 },
+  iconBtn: { padding: 4, width: 32 },
+  screenTitle: {
+    color: BrandColors.text,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+  sectionTitle: {
+    color: BrandColors.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 14,
+    marginTop: 8,
+  },
   cartItem: {
     padding: 16,
     borderRadius: 16,
-    backgroundColor: "#fff",
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  cartItemDark: {
-    backgroundColor: "#1e293b",
-    borderColor: "#334155",
+    borderColor: BORDER,
   },
   cartItemHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
   typeBadge: {
@@ -290,27 +302,27 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
   },
-  typeBadgeText: { fontSize: 13, fontWeight: "700" },
-  specText: { fontSize: 14, color: "#64748b", marginBottom: 4 },
-  metaText: { fontSize: 12, color: "#94a3b8", marginBottom: 4 },
+  typeBadgeText: { fontSize: 13, fontWeight: '700' },
+  specText: { fontSize: 14, color: BrandColors.textMuted, marginBottom: 4 },
+  metaText: { fontSize: 12, color: BrandColors.label, marginBottom: 4 },
   eyeText: {
     fontSize: 13,
-    color: "#0a7ea4",
-    fontWeight: "600",
+    color: GOLD,
+    fontWeight: '700',
     marginBottom: 8,
   },
   cartItemFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#e2e8f0",
+    borderTopColor: BORDER,
   },
   qtyControls: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
   qtyButton: {
@@ -318,55 +330,99 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#0a7ea4",
-    alignItems: "center",
-    justifyContent: "center",
+    borderColor: GOLD,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   qtyValue: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: '700',
     minWidth: 24,
-    textAlign: "center",
+    textAlign: 'center',
+    color: BrandColors.text,
   },
-  lineTotal: { fontSize: 18, fontWeight: "800", color: "#0a7ea4" },
+  lineTotal: { fontSize: 18, fontWeight: '800', color: GOLD },
   separator: { height: 12 },
+  listFooter: {
+    marginTop: 20,
+    gap: 12,
+  },
+  addMoreBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: GOLD,
+    backgroundColor: 'rgba(240, 161, 50, 0.08)',
+  },
+  addMoreBtnText: {
+    color: GOLD,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  notesTitle: {
+    color: BrandColors.text,
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  notesInput: {
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    minHeight: 100,
+    color: BrandColors.text,
+    fontSize: 15,
+  },
   summaryBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    backgroundColor: "#fff",
+    borderTopColor: BORDER,
+    backgroundColor: CARD,
   },
-  summaryBarDark: {
-    backgroundColor: "#1e293b",
-    borderTopColor: "#334155",
-  },
-  summaryLabel: { fontSize: 13, color: "#64748b" },
-  summaryTotal: { fontSize: 24, fontWeight: "800", color: "#0a7ea4" },
+  summaryLabel: { fontSize: 13, color: BrandColors.textMuted },
+  summaryTotal: { fontSize: 24, fontWeight: '800', color: GOLD },
   primaryButton: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 14,
+    backgroundColor: GOLD,
   },
-  primaryButtonText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  primaryButtonText: {
+    color: BrandColors.primaryText,
+    fontSize: 16,
+    fontWeight: '800',
+  },
   buttonDisabled: { opacity: 0.7 },
   emptyState: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 32,
     gap: 12,
   },
+  emptyTitle: {
+    color: BrandColors.text,
+    fontSize: 18,
+    fontWeight: '700',
+  },
   emptyText: {
     fontSize: 15,
-    color: "#64748b",
-    textAlign: "center",
+    color: BrandColors.textMuted,
+    textAlign: 'center',
     marginBottom: 8,
   },
 });

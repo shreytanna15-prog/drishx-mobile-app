@@ -116,6 +116,13 @@ function EmployeeOrderCard({
 
       <ThemedText style={styles.qtyText}>Quantity: {order.quantity}</ThemedText>
 
+      {order.notes?.trim() ? (
+        <View style={[styles.notesBox, isDark && styles.notesBoxDark]}>
+          <ThemedText style={styles.notesLabel}>Order notes</ThemedText>
+          <ThemedText style={styles.notesText}>{order.notes.trim()}</ThemedText>
+        </View>
+      ) : null}
+
       <ThemedText style={styles.trackingTitle}>Order tracking</ThemedText>
       <OrderTrackingTimeline status={order.status} />
 
@@ -301,6 +308,27 @@ const styles = StyleSheet.create({
   totalText: { fontSize: 18, fontWeight: '800', color: '#0a7ea4' },
   specText: { fontSize: 14, color: '#64748b', marginBottom: 4 },
   qtyText: { fontSize: 13, color: '#64748b', marginBottom: 8 },
+  notesBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  notesBoxDark: {
+    backgroundColor: '#0f172a',
+    borderColor: '#334155',
+  },
+  notesLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0a7ea4',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  notesText: { fontSize: 14, lineHeight: 20 },
   trackingTitle: {
     fontSize: 12,
     fontWeight: '700',

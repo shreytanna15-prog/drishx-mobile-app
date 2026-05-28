@@ -1,29 +1,111 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OrderTrackingTimeline } from '@/components/order-tracking-timeline';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { cancelOrder, fetchOrders, getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
 import { formatLensType } from '@/lib/types/lens';
 
-function OrderCard({
+const GOLD = BrandColors.primary;
+const BG = BrandColors.background;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
+
+type FilterKey = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+type FilterOption = {
+  key: FilterKey;
+  label: string;
+};
+
+const FILTER_OPTIONS: FilterOption[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'IN_PROGRESS', label: 'In Progress' },
+  { key: 'COMPLETED', label: 'Completed' },
+  { key: 'CANCELLED', label: 'Cancelled' },
+];
+
+function formatOrderDate(value: string): string {
+  return new Date(value).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function isInProgressStatus(status: string): boolean {
+  const normalized = normalizeOrderStatus(status);
+  return (
+    normalized === 'PENDING' ||
+    normalized === 'PICKING' ||
+    normalized === 'PACKED' ||
+    normalized === 'DISPATCHED' ||
+    normalized === 'PARTIALLY_FULFILLED' ||
+    normalized === 'AWAITING_PROCUREMENT'
+  );
+}
+
+function orderMatchesFilter(order: OrderRecord, filter: FilterKey): boolean {
+  const normalized = normalizeOrderStatus(order.status);
+  if (filter === 'ALL') return true;
+  if (filter === 'COMPLETED') return normalized === 'COMPLETED';
+  if (filter === 'CANCELLED') return normalized === 'CANCELLED';
+  return isInProgressStatus(normalized);
+}
+
+function ListOrderRow({
+  order,
+  onPress,
+}: {
+  order: OrderRecord;
+  onPress: () => void;
+}) {
+  const lensLabel = formatLensType(order.lensType);
+  const total = Number(order.totalAmount);
+  const status = normalizeOrderStatus(order.status);
+  const statusLabel = status.replaceAll('_', ' ');
+
+  return (
+    <Pressable style={styles.listRow} onPress={onPress}>
+      <View style={styles.listRowLeft}>
+        <View style={styles.listIconWrap}>
+          <MaterialIcons
+            name={status === 'CANCELLED' ? 'cancel' : 'inventory'}
+            size={15}
+            color={status === 'CANCELLED' ? '#f87171' : GOLD}
+          />
+        </View>
+        <View style={styles.listMeta}>
+          <Text style={styles.listOrderId}>#{order.id.slice(-8).toUpperCase()}</Text>
+          <Text style={styles.listLensType}>{lensLabel}</Text>
+          <Text style={styles.listDate}>{formatOrderDate(order.createdAt)}</Text>
+        </View>
+      </View>
+      <View style={styles.listRowRight}>
+        <Text style={styles.listAmount}>₹{total.toLocaleString('en-IN')}</Text>
+        <Text style={styles.listStatus}>{statusLabel}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function DetailOrderCard({
   order,
   onCancel,
   cancelling,
@@ -32,8 +114,6 @@ function OrderCard({
   onCancel: () => void;
   cancelling: boolean;
 }) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
   const details = getOrderLensDetails(order);
   const lensLabel = formatLensType(order.lensType);
   const total = Number(order.totalAmount);
@@ -41,12 +121,12 @@ function OrderCard({
   const canCancel = status === 'PENDING';
 
   return (
-    <View style={[styles.orderCard, isDark && styles.orderCardDark]}>
+    <View style={styles.orderCard}>
       <View style={styles.orderHeader}>
         <View style={styles.orderHeaderLeft}>
-          <ThemedText type="defaultSemiBold">{lensLabel}</ThemedText>
-          <ThemedText style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</ThemedText>
-          <ThemedText style={styles.orderDate}>
+          <Text style={styles.orderTitle}>{lensLabel}</Text>
+          <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
+          <Text style={styles.orderDate}>
             {new Date(order.createdAt).toLocaleDateString(undefined, {
               day: 'numeric',
               month: 'short',
@@ -54,22 +134,29 @@ function OrderCard({
               hour: '2-digit',
               minute: '2-digit',
             })}
-          </ThemedText>
+          </Text>
         </View>
-        <ThemedText style={styles.totalText}>₹{total}</ThemedText>
+        <Text style={styles.totalText}>₹{total}</Text>
       </View>
 
       {details ? (
-        <ThemedText style={styles.specText}>
+        <Text style={styles.specText}>
           SPH {details.sph} · CYL {details.cyl ?? '—'}
           {'add' in details && details.add !== undefined && ` · ADD ${details.add}`}
           {'eye' in details && details.eye ? ` · ${details.eye}` : ''}
-        </ThemedText>
+        </Text>
       ) : null}
 
-      <ThemedText style={styles.qtyText}>Quantity: {order.quantity}</ThemedText>
+      <Text style={styles.qtyText}>Quantity: {order.quantity}</Text>
 
-      <ThemedText style={styles.trackingTitle}>Order tracking</ThemedText>
+      {order.notes?.trim() ? (
+        <View style={styles.notesBox}>
+          <Text style={styles.notesLabel}>Order notes</Text>
+          <Text style={styles.notesText}>{order.notes.trim()}</Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.trackingTitle}>Order tracking</Text>
       <OrderTrackingTimeline status={order.status} />
 
       {canCancel && (
@@ -78,9 +165,9 @@ function OrderCard({
           onPress={onCancel}
           disabled={cancelling}>
           {cancelling ? (
-            <ActivityIndicator size="small" color="#dc2626" />
+            <ActivityIndicator size="small" color={GOLD} />
           ) : (
-            <ThemedText style={styles.cancelText}>Cancel order</ThemedText>
+            <Text style={styles.cancelText}>Cancel order</Text>
           )}
         </Pressable>
       )}
@@ -89,14 +176,14 @@ function OrderCard({
 }
 
 export default function MyOrdersScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const tint = Colors[colorScheme].tint;
   const { getAuthHeaders } = useAuth();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -114,6 +201,22 @@ export default function MyOrdersScreen() {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  const selectedOrder = useMemo(
+    () => (selectedOrderId ? orders.find((entry) => entry.id === selectedOrderId) ?? null : null),
+    [orders, selectedOrderId]
+  );
+
+  useEffect(() => {
+    if (selectedOrderId && !selectedOrder) {
+      setSelectedOrderId(null);
+    }
+  }, [selectedOrder, selectedOrderId]);
+
+  const filteredOrders = useMemo(
+    () => orders.filter((order) => orderMatchesFilter(order, activeFilter)),
+    [orders, activeFilter]
+  );
 
   function handleCancel(orderId: string) {
     Alert.alert('Cancel order', 'Are you sure you want to cancel this order?', [
@@ -137,33 +240,41 @@ export default function MyOrdersScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <ThemedText type="title" style={styles.screenTitle}>
-            My Orders
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>Track your lens orders</ThemedText>
+          {selectedOrder ? (
+            <View style={styles.detailHeaderRow}>
+              <Pressable onPress={() => setSelectedOrderId(null)} style={styles.backButton} hitSlop={10}>
+                <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+              </Pressable>
+              <Text style={styles.detailHeaderTitle}>Order #{selectedOrder.id.slice(-8).toUpperCase()}</Text>
+              <View style={styles.backButton} />
+            </View>
+          ) : (
+            <>
+              <Text style={styles.screenTitle}>My Orders</Text>
+              <Text style={styles.subtitle}>Track your lens orders</Text>
+            </>
+          )}
         </View>
 
         {loading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={tint} />
-            <ThemedText style={styles.stateText}>Loading your orders…</ThemedText>
+            <ActivityIndicator size="large" color={GOLD} />
+            <Text style={styles.stateText}>Loading your orders...</Text>
           </View>
         ) : error ? (
           <View style={styles.centeredState}>
-            <MaterialIcons name="error-outline" size={48} color="#b91c1c" />
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
-            <Pressable style={[styles.retryButton, { backgroundColor: tint }]} onPress={loadOrders}>
-              <ThemedText style={styles.retryText}>Retry</ThemedText>
+            <MaterialIcons name="error-outline" size={48} color="#f87171" />
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={loadOrders}>
+              <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
-        ) : (
-          <FlatList
-            data={orders}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
+        ) : selectedOrder ? (
+          <ScrollView
+            contentContainerStyle={styles.detailContent}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -171,52 +282,158 @@ export default function MyOrdersScreen() {
                   setRefreshing(true);
                   loadOrders();
                 }}
-                tintColor={tint}
+                tintColor={GOLD}
               />
-            }
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListEmptyComponent={
-              <View style={styles.centeredState}>
-                <MaterialIcons name="receipt-long" size={48} color="#94a3b8" />
-                <ThemedText style={styles.emptyTitle}>No orders yet</ThemedText>
-                <ThemedText style={styles.stateText}>Place an order from the Shop tab to track it here.</ThemedText>
-              </View>
-            }
-            renderItem={({ item }) => (
-              <OrderCard
-                order={item}
-                onCancel={() => handleCancel(item.id)}
-                cancelling={cancellingId === item.id}
-              />
-            )}
-          />
+            }>
+            <DetailOrderCard
+              order={selectedOrder}
+              onCancel={() => handleCancel(selectedOrder.id)}
+              cancelling={cancellingId === selectedOrder.id}
+            />
+          </ScrollView>
+        ) : (
+          <>
+            <View style={styles.filterRow}>
+              {FILTER_OPTIONS.map((option) => {
+                const isActive = option.key === activeFilter;
+                return (
+                  <Pressable
+                    key={option.key}
+                    style={[styles.filterChip, isActive && styles.filterChipActive]}
+                    onPress={() => setActiveFilter(option.key)}>
+                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <FlatList
+              data={filteredOrders}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    loadOrders();
+                  }}
+                  tintColor={GOLD}
+                />
+              }
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListEmptyComponent={
+                <View style={styles.centeredState}>
+                  <MaterialIcons name="receipt-long" size={48} color={BrandColors.textMuted} />
+                  <Text style={styles.emptyTitle}>No orders in this section</Text>
+                  <Text style={styles.stateText}>Try another filter or place a new order from Shop.</Text>
+                </View>
+              }
+              renderItem={({ item }) => <ListOrderRow order={item} onPress={() => setSelectedOrderId(item.id)} />}
+            />
+          </>
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1 },
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
   },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
-  subtitle: { marginTop: 4, fontSize: 14, color: '#64748b' },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailHeaderTitle: {
+    color: BrandColors.text,
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  screenTitle: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: BrandColors.text },
+  subtitle: { marginTop: 4, fontSize: 14, color: BrandColors.textMuted },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  filterChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  filterChipActive: {
+    borderColor: GOLD,
+    backgroundColor: 'rgba(240, 161, 50, 0.15)',
+  },
+  filterChipText: {
+    fontSize: 12,
+    color: BrandColors.textMuted,
+    fontWeight: '600',
+  },
+  filterChipTextActive: {
+    color: GOLD,
+    fontWeight: '700',
+  },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+  listRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  listRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 12,
+    gap: 10,
+  },
+  listIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+  },
+  listMeta: { flex: 1 },
+  listOrderId: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
+  listLensType: { color: BrandColors.textMuted, fontSize: 12, marginTop: 2 },
+  listDate: { color: BrandColors.label, fontSize: 11, marginTop: 2 },
+  listRowRight: { alignItems: 'flex-end', gap: 4 },
+  listAmount: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
+  listStatus: { color: GOLD, fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
+  detailContent: { paddingHorizontal: 16, paddingBottom: 24 },
   orderCard: {
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#fff',
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  orderCardDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
+    borderColor: BORDER,
   },
   orderHeader: {
     flexDirection: 'row',
@@ -225,15 +442,37 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   orderHeaderLeft: { flex: 1, paddingRight: 12 },
-  orderId: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  orderDate: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  totalText: { fontSize: 18, fontWeight: '800', color: '#0a7ea4' },
-  specText: { fontSize: 14, color: '#64748b', marginBottom: 4 },
-  qtyText: { fontSize: 13, color: '#64748b', marginBottom: 8 },
+  orderTitle: { color: BrandColors.text, fontSize: 24, fontWeight: '700' },
+  orderId: { fontSize: 12, color: BrandColors.label, marginTop: 2 },
+  orderDate: { fontSize: 12, color: BrandColors.label, marginTop: 2 },
+  totalText: { fontSize: 30, fontWeight: '800', color: GOLD },
+  specText: { fontSize: 14, color: BrandColors.textMuted, marginBottom: 4 },
+  qtyText: { fontSize: 13, color: BrandColors.textMuted, marginBottom: 8 },
+  notesBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: BrandColors.background,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  notesLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: GOLD,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  notesText: {
+    fontSize: 14,
+    color: BrandColors.text,
+    lineHeight: 20,
+  },
   trackingTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748b',
+    color: BrandColors.label,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 4,
@@ -243,10 +482,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: BORDER,
+    backgroundColor: 'rgba(240, 161, 50, 0.08)',
     alignItems: 'center',
   },
-  cancelText: { color: '#dc2626', fontWeight: '600', fontSize: 14 },
+  cancelText: { color: GOLD, fontWeight: '700', fontSize: 14 },
   buttonDisabled: { opacity: 0.6 },
   separator: { height: 12 },
   centeredState: {
@@ -257,14 +497,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 8,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700' },
-  stateText: { fontSize: 15, color: '#64748b', textAlign: 'center' },
-  errorText: { fontSize: 15, color: '#b91c1c', textAlign: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: BrandColors.text },
+  stateText: { fontSize: 15, color: BrandColors.textMuted, textAlign: 'center' },
+  errorText: { fontSize: 15, color: '#f87171', textAlign: 'center' },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
+    backgroundColor: GOLD,
   },
-  retryText: { color: '#fff', fontWeight: '700' },
+  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
 });

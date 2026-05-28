@@ -153,7 +153,7 @@ export default function HomeScreen() {
               <View style={styles.avatarCircle}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
-              <Pressable onPress={comingSoon} hitSlop={12} style={styles.bellBtn}>
+              <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
                 <MaterialIcons name="notifications-none" size={24} color={GOLD} />
               </Pressable>
             </View>
