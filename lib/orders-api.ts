@@ -106,6 +106,15 @@ export async function fetchOrders(headers: Record<string, string>): Promise<Orde
   return response.json();
 }
 
+export async function fetchOrderById(orderId: string, headers: Record<string, string>): Promise<OrderRecord> {
+  const response = await fetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, { headers });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to load order.');
+  }
+  return result as OrderRecord;
+}
+
 export async function cancelOrder(orderId: string, headers: Record<string, string>): Promise<void> {
   await updateOrderStatus(orderId, 'CANCELLED', headers);
 }

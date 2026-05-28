@@ -1,166 +1,83 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OrderTrackingTimeline } from '@/components/order-tracking-timeline';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import {
-  formatOrderStatusLabel,
-  getStaffStatusOptions,
-  normalizeOrderStatus,
-  type OrderTrackingStatus,
-} from '@/lib/order-tracking';
-import {
-  fetchOrders,
-  getOrderLensDetails,
-  updateOrderStatus,
-  type OrderRecord,
-} from '@/lib/orders-api';
+import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
+import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { formatLensType } from '@/lib/types/lens';
 
-function StatusChip({
-  label,
-  onPress,
-  disabled,
-  variant,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  variant: 'primary' | 'danger';
-}) {
-  const isPrimary = variant === 'primary';
+type StaffOrderFilter = 'ALL' | 'IN_PROGRESS' | 'COMPLETED';
+
+const FILTERS: { key: StaffOrderFilter; label: string }[] = [
+  { key: 'ALL', label: 'All' },
+  { key: 'IN_PROGRESS', label: 'In Progress' },
+  { key: 'COMPLETED', label: 'Completed' },
+];
+
+function isInProgressStatus(status: string): boolean {
+  const normalized = normalizeOrderStatus(status);
+  return normalized !== 'COMPLETED' && normalized !== 'CANCELLED';
+}
+
+function CompactOrderRow({ order, onPress }: { order: OrderRecord; onPress: () => void }) {
+  const status = normalizeOrderStatus(order.status);
+  const customerName = order.user?.name?.trim() || order.user?.email || 'Customer';
+  const lensLabel = formatLensType(order.lensType);
+  const total = Number(order.totalAmount || 0);
+  const shortId = order.id.slice(-7).toUpperCase();
+  const dateLabel = new Date(order.createdAt).toLocaleDateString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
   return (
-    <Pressable
-      style={[
-        styles.statusChip,
-        isPrimary ? styles.statusChipPrimary : styles.statusChipDanger,
-        disabled && styles.buttonDisabled,
-      ]}
-      onPress={onPress}
-      disabled={disabled}>
-      <ThemedText style={[styles.statusChipText, isPrimary ? styles.statusChipTextPrimary : styles.statusChipTextDanger]}>
-        {label}
-      </ThemedText>
+    <Pressable style={styles.rowCard} onPress={onPress}>
+      <View style={styles.rowTop}>
+        <View style={styles.rowTopLeft}>
+          <Text style={styles.rowName}>{customerName}</Text>
+          <Text style={styles.rowSub}>{lensLabel}</Text>
+        </View>
+        <Text style={styles.rowAmount}>Rs {total}</Text>
+      </View>
+
+      <View style={styles.rowBottom}>
+        <Text style={styles.rowOrderId}>#DRX{shortId}</Text>
+        <View style={styles.statusPill}>
+          <Text style={styles.statusPillText}>{formatOrderStatusLabel(status)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.rowMeta}>
+        <Text style={styles.rowDate}>{dateLabel}</Text>
+        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
+      </View>
     </Pressable>
   );
 }
 
-function EmployeeOrderCard({
-  order,
-  onStatusUpdate,
-  updating,
-}: {
-  order: OrderRecord;
-  onStatusUpdate: (status: OrderTrackingStatus) => void;
-  updating: boolean;
-}) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
-  const details = getOrderLensDetails(order);
-  const lensLabel = formatLensType(order.lensType);
-  const total = Number(order.totalAmount);
-  const status = normalizeOrderStatus(order.status);
-  const statusOptions = getStaffStatusOptions(status);
-  const customerName = order.user?.name?.trim() || order.user?.email || 'Customer';
-
-  return (
-    <View style={[styles.orderCard, isDark && styles.orderCardDark]}>
-      <View style={styles.orderHeader}>
-        <View style={styles.orderHeaderLeft}>
-          <ThemedText type="defaultSemiBold">{customerName}</ThemedText>
-          <ThemedText style={styles.orderMeta}>{lensLabel}</ThemedText>
-          <ThemedText style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</ThemedText>
-          <ThemedText style={styles.orderDate}>
-            {new Date(order.createdAt).toLocaleDateString(undefined, {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </ThemedText>
-        </View>
-        <View style={styles.headerRight}>
-          <View style={styles.currentStatusBadge}>
-            <ThemedText style={styles.currentStatusText}>{formatOrderStatusLabel(status)}</ThemedText>
-          </View>
-          <ThemedText style={styles.totalText}>₹{total}</ThemedText>
-        </View>
-      </View>
-
-      {order.user?.email ? <ThemedText style={styles.emailText}>{order.user.email}</ThemedText> : null}
-
-      {details ? (
-        <ThemedText style={styles.specText}>
-          SPH {details.sph} · CYL {details.cyl ?? '—'}
-          {'add' in details && details.add !== undefined && ` · ADD ${details.add}`}
-          {'eye' in details && details.eye ? ` · ${details.eye}` : ''}
-        </ThemedText>
-      ) : null}
-
-      <ThemedText style={styles.qtyText}>Quantity: {order.quantity}</ThemedText>
-
-      {order.notes?.trim() ? (
-        <View style={[styles.notesBox, isDark && styles.notesBoxDark]}>
-          <ThemedText style={styles.notesLabel}>Order notes</ThemedText>
-          <ThemedText style={styles.notesText}>{order.notes.trim()}</ThemedText>
-        </View>
-      ) : null}
-
-      <ThemedText style={styles.trackingTitle}>Order tracking</ThemedText>
-      <OrderTrackingTimeline status={order.status} />
-
-      {statusOptions.length > 0 && (
-        <View style={styles.statusActions}>
-          <ThemedText style={styles.updateTitle}>Update status</ThemedText>
-          <View style={styles.statusChipRow}>
-            {statusOptions.map((nextStatus) => (
-              <StatusChip
-                key={nextStatus}
-                label={formatOrderStatusLabel(nextStatus)}
-                variant={nextStatus === 'CANCELLED' ? 'danger' : 'primary'}
-                disabled={updating}
-                onPress={() => onStatusUpdate(nextStatus)}
-              />
-            ))}
-          </View>
-          {updating && (
-            <View style={styles.updatingRow}>
-              <ActivityIndicator size="small" color="#0a7ea4" />
-              <ThemedText style={styles.updatingText}>Updating…</ThemedText>
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
 export default function EmployeeOrdersScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const tint = Colors[colorScheme].tint;
+  const router = useRouter();
   const { getAuthHeaders } = useAuth();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<StaffOrderFilter>('ALL');
 
   const loadOrders = useCallback(async () => {
     try {
@@ -179,57 +96,54 @@ export default function EmployeeOrdersScreen() {
     loadOrders();
   }, [loadOrders]);
 
-  function confirmStatusUpdate(orderId: string, nextStatus: OrderTrackingStatus) {
-    const message =
-      nextStatus === 'CANCELLED'
-        ? 'Cancel this order? Stock will be restored.'
-        : `Mark this order as "${formatOrderStatusLabel(nextStatus)}"?`;
-
-    Alert.alert('Update order status', message, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, update',
-        onPress: async () => {
-          setUpdatingId(orderId);
-          try {
-            await updateOrderStatus(orderId, nextStatus, getAuthHeaders());
-            await loadOrders();
-          } catch (err) {
-            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update order.');
-          } finally {
-            setUpdatingId(null);
-          }
-        },
-      },
-    ]);
-  }
+  const filteredOrders = useMemo(() => {
+    if (activeFilter === 'ALL') {
+      return orders;
+    }
+    if (activeFilter === 'COMPLETED') {
+      return orders.filter((order) => normalizeOrderStatus(order.status) === 'COMPLETED');
+    }
+    return orders.filter((order) => isInProgressStatus(order.status));
+  }, [activeFilter, orders]);
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <ThemedText type="title" style={styles.screenTitle}>
-            Orders
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>Manage and update customer orders</ThemedText>
+          <Text style={styles.screenTitle}>Orders</Text>
+          <Text style={styles.subtitle}>Manage and update customer orders</Text>
+        </View>
+
+        <View style={styles.filterRow}>
+          {FILTERS.map((filter) => {
+            const active = filter.key === activeFilter;
+            return (
+              <Pressable
+                key={filter.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setActiveFilter(filter.key)}>
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {loading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={tint} />
-            <ThemedText style={styles.stateText}>Loading orders…</ThemedText>
+            <ActivityIndicator size="large" color={BrandColors.primary} />
+            <Text style={styles.stateText}>Loading orders...</Text>
           </View>
         ) : error ? (
           <View style={styles.centeredState}>
-            <MaterialIcons name="error-outline" size={48} color="#b91c1c" />
-            <ThemedText style={styles.errorText}>{error}</ThemedText>
-            <Pressable style={[styles.retryButton, { backgroundColor: tint }]} onPress={loadOrders}>
-              <ThemedText style={styles.retryText}>Retry</ThemedText>
+            <MaterialIcons name="error-outline" size={48} color="#f87171" />
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryButton} onPress={loadOrders}>
+              <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
         ) : (
           <FlatList
-            data={orders}
+            data={filteredOrders}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             refreshControl={
@@ -239,134 +153,77 @@ export default function EmployeeOrdersScreen() {
                   setRefreshing(true);
                   loadOrders();
                 }}
-                tintColor={tint}
+                tintColor={BrandColors.primary}
               />
             }
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.centeredState}>
-                <MaterialIcons name="receipt-long" size={48} color="#94a3b8" />
-                <ThemedText style={styles.emptyTitle}>No customer orders</ThemedText>
-                <ThemedText style={styles.stateText}>New orders from customers will appear here.</ThemedText>
+                <MaterialIcons name="receipt-long" size={48} color={BrandColors.textMuted} />
+                <Text style={styles.emptyTitle}>No orders found</Text>
+                <Text style={styles.stateText}>Try switching filters or refresh the list.</Text>
               </View>
             }
             renderItem={({ item }) => (
-              <EmployeeOrderCard
+              <CompactOrderRow
                 order={item}
-                updating={updatingId === item.id}
-                onStatusUpdate={(status) => confirmStatusUpdate(item.id, status)}
+                onPress={() => router.push({ pathname: '/order-details', params: { id: item.id } } as never)}
               />
             )}
           />
         )}
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BrandColors.background },
   safeArea: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
-  subtitle: { marginTop: 4, fontSize: 14, color: '#64748b' },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
-  orderCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#fff',
+  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  screenTitle: { fontSize: 30, fontWeight: '800', color: BrandColors.text },
+  subtitle: { marginTop: 4, fontSize: 14, color: BrandColors.textMuted },
+  filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 6, marginBottom: 8, gap: 10 },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BrandColors.cardBorder,
+    backgroundColor: BrandColors.card,
   },
-  orderCardDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
+  filterChipActive: {
+    borderColor: BrandColors.primary,
+    backgroundColor: 'rgba(242, 170, 76, 0.12)',
   },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+  filterChipText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '700' },
+  filterChipTextActive: { color: BrandColors.primary },
+  listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+  rowCard: {
+    backgroundColor: BrandColors.card,
+    borderWidth: 1,
+    borderColor: BrandColors.cardBorder,
+    borderRadius: 14,
+    padding: 12,
   },
-  orderHeaderLeft: { flex: 1, paddingRight: 12 },
-  headerRight: { alignItems: 'flex-end', gap: 6 },
-  orderMeta: { fontSize: 14, color: '#64748b', marginTop: 2 },
-  orderId: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  orderDate: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  emailText: { fontSize: 13, color: '#64748b', marginBottom: 6 },
-  currentStatusBadge: {
-    backgroundColor: '#e0f2fe',
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowTopLeft: { flex: 1, paddingRight: 10 },
+  rowName: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
+  rowSub: { color: BrandColors.textMuted, fontSize: 13, marginTop: 2 },
+  rowAmount: { color: BrandColors.primary, fontWeight: '800', fontSize: 20 },
+  rowBottom: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowOrderId: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '600' },
+  statusPill: {
+    backgroundColor: 'rgba(242, 170, 76, 0.14)',
+    borderColor: BrandColors.primary,
+    borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  currentStatusText: { fontSize: 11, fontWeight: '700', color: '#0a7ea4', textTransform: 'uppercase' },
-  totalText: { fontSize: 18, fontWeight: '800', color: '#0a7ea4' },
-  specText: { fontSize: 14, color: '#64748b', marginBottom: 4 },
-  qtyText: { fontSize: 13, color: '#64748b', marginBottom: 8 },
-  notesBox: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  notesBoxDark: {
-    backgroundColor: '#0f172a',
-    borderColor: '#334155',
-  },
-  notesLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#0a7ea4',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  notesText: { fontSize: 14, lineHeight: 20 },
-  trackingTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  statusActions: { marginTop: 16 },
-  updateTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748b',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  statusChipPrimary: {
-    borderColor: '#0a7ea4',
-    backgroundColor: '#f0f9ff',
-  },
-  statusChipDanger: {
-    borderColor: '#fecaca',
-    backgroundColor: '#fef2f2',
-  },
-  statusChipText: { fontSize: 13, fontWeight: '600' },
-  statusChipTextPrimary: { color: '#0a7ea4' },
-  statusChipTextDanger: { color: '#dc2626' },
-  updatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  updatingText: { fontSize: 13, color: '#64748b' },
-  buttonDisabled: { opacity: 0.6 },
+  statusPillText: { color: BrandColors.primary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+  rowMeta: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowDate: { color: BrandColors.textMuted, fontSize: 12 },
   separator: { height: 12 },
   centeredState: {
     flex: 1,
@@ -376,14 +233,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: 8,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700' },
-  stateText: { fontSize: 15, color: '#64748b', textAlign: 'center' },
-  errorText: { fontSize: 15, color: '#b91c1c', textAlign: 'center' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: BrandColors.text },
+  stateText: { fontSize: 15, color: BrandColors.textMuted, textAlign: 'center' },
+  errorText: { fontSize: 15, color: '#f87171', textAlign: 'center' },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
+    backgroundColor: BrandColors.primary,
   },
-  retryText: { color: '#fff', fontWeight: '700' },
+  retryText: { color: '#111', fontWeight: '700' },
 });
