@@ -18,13 +18,14 @@ import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
 import { fetchHomeCategoryCards, type HomeCategoryCard } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
-import { fetchOrders } from '@/lib/orders-api';
+import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import type { FilterOption } from '@/lib/types/lens';
 
 const GOLD = BrandColors.primary;
 const BG = BrandColors.background;
 const CARD = BrandColors.card;
 const BORDER = BrandColors.cardBorder;
+const STAFF_PENDING_STATUSES = ['PENDING', 'PICKING', 'PACKED', 'DISPATCHED', 'PARTIALLY_FULFILLED', 'AWAITING_PROCUREMENT'];
 
 const DEFAULT_CATEGORIES: HomeCategoryCard[] = [
   { id: 'all-1', label: 'All lenses', filter: 'All' },
@@ -90,6 +91,16 @@ export default function HomeScreen() {
   const { user, isStaff, getAuthHeaders } = useAuth();
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
+  const [staffOverview, setStaffOverview] = useState({
+    tasksAssigned: '—',
+    tasksCompleted: '—',
+    ordersReceived: 0,
+    ordersPending: 0,
+  });
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
+  const [showPendingTasks, setShowPendingTasks] = useState(true);
+  const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [categories, setCategories] = useState<HomeCategoryCard[]>(DEFAULT_CATEGORIES);
 
   const loadOrders = useCallback(async () => {
@@ -108,6 +119,52 @@ export default function HomeScreen() {
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
+
+  useEffect(() => {
+    if (!isStaff || !user) return;
+    let cancelled = false;
+    const loadStaffOverview = async () => {
+      setStaffLoading(true);
+      try {
+        const orders = await fetchOrders(getAuthHeaders());
+        const now = new Date();
+        const todayOrders = orders.filter((order) => {
+          const d = new Date(order.createdAt);
+          return (
+            d.getFullYear() === now.getFullYear() &&
+            d.getMonth() === now.getMonth() &&
+            d.getDate() === now.getDate()
+          );
+        });
+        const completedToday = todayOrders.filter((order) => order.status === 'COMPLETED').length;
+        const pendingToday = todayOrders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status)).length;
+        const pendingOrders = orders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status));
+
+        if (!cancelled) {
+          setStaffOverview({
+            tasksAssigned: '—',
+            tasksCompleted: '—',
+            ordersReceived: todayOrders.length,
+            ordersPending: pendingToday,
+          });
+          setStaffPendingOrders(pendingOrders);
+        }
+      } catch {
+        if (!cancelled) {
+          setStaffOverview({ tasksAssigned: '—', tasksCompleted: '—', ordersReceived: 0, ordersPending: 0 });
+          setStaffPendingOrders([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setStaffLoading(false);
+        }
+      }
+    };
+    void loadStaffOverview();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAuthHeaders, isStaff, user]);
 
   useEffect(() => {
     if (isStaff || !user) return;
@@ -132,34 +189,127 @@ export default function HomeScreen() {
   }, [isStaff, user]);
 
   const clientId = useMemo(() => (user ? user.id : ''), [user]);
+  const staffPendingTasks = useMemo(
+    () =>
+      staffPendingOrders.slice(0, 10).map((order) => ({
+        id: `task-${order.id}`,
+        title: `Follow up #${order.id.slice(-6).toUpperCase()}`,
+      })),
+    [staffPendingOrders]
+  );
 
   const comingSoon = () => {
     Alert.alert('Coming soon', 'This feature will be available in a future update.');
   };
 
   if (isStaff) {
+    const staffDisplayName = user ? getDisplayNameFull(user.name, user.email) : 'Team';
+    const staffInitials = user ? getInitials(user.name, user.email) : 'ST';
     return (
       <View style={styles.root}>
         <SafeAreaView style={styles.safeTop} edges={['top']}>
           <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
-            <Text style={styles.staffHello}>Hello,</Text>
-            <Text style={styles.staffName}>{user ? getDisplayNameFull(user.name, user.email) : 'Team'}</Text>
-            <Text style={styles.staffRole}>Staff dashboard</Text>
+            <View style={styles.staffHeaderRow}>
+              <View style={styles.staffHeaderText}>
+                <Text style={styles.staffWelcome}>Welcome back,</Text>
+                <Text style={styles.staffNameLarge}>{staffDisplayName}</Text>
+                <Text style={styles.staffRole}>Operations Manager</Text>
+              </View>
+              <View style={styles.staffAvatarCircle}>
+                <Text style={styles.staffAvatarText}>{staffInitials}</Text>
+              </View>
+            </View>
 
-            <View style={styles.staffGrid}>
-              <Pressable style={styles.staffCard} onPress={() => router.push('/orders')}>
-                <MaterialIcons name="assignment" size={28} color={GOLD} />
-                <Text style={styles.staffCardTitle}>Orders</Text>
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Today's overview</Text>
+              </View>
+              {staffLoading ? (
+                <View style={styles.overviewLoading}>
+                  <ActivityIndicator color={GOLD} />
+                </View>
+              ) : (
+                <View style={styles.overviewRow}>
+                  <OverviewCell label="Task assigned" value={staffOverview.tasksAssigned} />
+                  <OverviewCell label="Task completed" value={staffOverview.tasksCompleted} />
+                  <OverviewCell label="Orders received" value={String(staffOverview.ordersReceived)} />
+                  <OverviewCell label="Orders pending" value={String(staffOverview.ordersPending)} highlight />
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.sectionTitleOutside}>Quick access</Text>
+            <View style={styles.staffQuickGrid}>
+              <Pressable style={styles.staffQuickCard} onPress={comingSoon}>
+                <MaterialIcons name="task-alt" size={24} color={GOLD} />
+                <Text style={styles.staffQuickLabel}>Tasks</Text>
               </Pressable>
-              <Pressable style={styles.staffCard} onPress={() => router.push('/purchase-stock')}>
-                <MaterialIcons name="shopping-cart" size={28} color={GOLD} />
-                <Text style={styles.staffCardTitle}>Purchase</Text>
+              <Pressable style={styles.staffQuickCard} onPress={() => router.push('/orders')}>
+                <MaterialIcons name="receipt-long" size={24} color={GOLD} />
+                <Text style={styles.staffQuickLabel}>Orders</Text>
               </Pressable>
-              <Pressable style={styles.staffCard} onPress={() => router.push('/profile')}>
-                <MaterialIcons name="person" size={28} color={GOLD} />
-                <Text style={styles.staffCardTitle}>Profile</Text>
+              <Pressable style={styles.staffQuickCard} onPress={comingSoon}>
+                <MaterialIcons name="inventory-2" size={24} color={GOLD} />
+                <Text style={styles.staffQuickLabel}>Inventory</Text>
+              </Pressable>
+              <Pressable style={styles.staffQuickCard} onPress={() => router.push('/purchase-stock')}>
+                <MaterialIcons name="shopping-cart" size={24} color={GOLD} />
+                <Text style={styles.staffQuickLabel}>Procurement</Text>
               </Pressable>
             </View>
+
+            <Pressable style={styles.dropdownHeader} onPress={() => setShowPendingTasks((value) => !value)}>
+              <Text style={styles.dropdownTitle}>Pending tasks</Text>
+              <MaterialIcons name={showPendingTasks ? 'expand-less' : 'expand-more'} size={22} color={GOLD} />
+            </Pressable>
+            {showPendingTasks ? (
+              <View style={styles.dropdownBody}>
+                {staffPendingTasks.length > 0 ? (
+                  <View style={styles.pendingTaskList}>
+                    {staffPendingTasks.map((task) => (
+                      <View key={task.id} style={styles.pendingTaskRow}>
+                        <View style={styles.pendingTaskLeft}>
+                          <MaterialIcons name="pending-actions" size={16} color={GOLD} />
+                          <Text style={styles.pendingTaskText}>{task.title}</Text>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyDropdownText}>No pending tasks.</Text>
+                )}
+              </View>
+            ) : null}
+
+            <Pressable style={styles.dropdownHeader} onPress={() => setShowPendingOrders((value) => !value)}>
+              <Text style={styles.dropdownTitle}>Pending orders</Text>
+              <MaterialIcons name={showPendingOrders ? 'expand-less' : 'expand-more'} size={22} color={GOLD} />
+            </Pressable>
+            {showPendingOrders ? (
+              <View style={styles.dropdownBody}>
+                {staffPendingOrders.length > 0 ? (
+                  <View style={styles.pendingOrderList}>
+                    {staffPendingOrders.slice(0, 8).map((order) => (
+                      <Pressable key={order.id} style={styles.pendingOrderRow} onPress={() => router.push('/orders')}>
+                        <View style={styles.pendingOrderLeft}>
+                          <MaterialIcons name="receipt-long" size={16} color={GOLD} />
+                          <View>
+                            <Text style={styles.pendingOrderId}>#{order.id.slice(-8).toUpperCase()}</Text>
+                            <Text style={styles.pendingOrderMeta}>
+                              {order.user?.name?.trim() || order.user?.email || 'Customer'} • {order.status.replaceAll('_', ' ')}
+                            </Text>
+                          </View>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.emptyDropdownText}>No pending orders.</Text>
+                )}
+              </View>
+            ) : null}
           </ScrollView>
         </SafeAreaView>
       </View>
@@ -451,20 +601,97 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
-  staffHello: { color: BrandColors.textMuted, fontSize: 14 },
+  staffHeaderRow: {
+    marginTop: 8,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  staffHeaderText: { flex: 1, paddingRight: 10 },
+  staffWelcome: { color: BrandColors.textMuted, fontSize: 14 },
   staffName: { color: BrandColors.text, fontSize: 24, fontWeight: '800', marginTop: 4 },
-  staffRole: { color: GOLD, fontSize: 14, marginTop: 6, marginBottom: 20 },
-  staffGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  staffCard: {
-    width: '30%',
-    flexGrow: 1,
+  staffNameLarge: { color: BrandColors.text, fontSize: 32, fontWeight: '800', marginTop: 2 },
+  staffAvatarCircle: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  staffAvatarText: { color: GOLD, fontSize: 18, fontWeight: '800' },
+  staffRole: { color: GOLD, fontSize: 14, marginTop: 6 },
+  staffQuickGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  staffQuickCard: {
+    width: '23%',
     backgroundColor: CARD,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: BORDER,
-    paddingVertical: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
   },
-  staffCardTitle: { color: BrandColors.text, fontSize: 13, fontWeight: '700' },
+  staffQuickLabel: { color: BrandColors.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  dropdownHeader: {
+    marginTop: 14,
+    backgroundColor: CARD,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownTitle: { color: BrandColors.text, fontSize: 16, fontWeight: '700' },
+  dropdownBody: {
+    marginTop: 8,
+    backgroundColor: CARD,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 12,
+  },
+  pendingTaskList: { gap: 8 },
+  pendingTaskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  pendingTaskLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
+  pendingTaskText: { color: BrandColors.text, fontSize: 13, fontWeight: '600' },
+  pendingOrderList: { gap: 8 },
+  pendingOrderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  pendingOrderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
+  pendingOrderId: { color: BrandColors.text, fontSize: 13, fontWeight: '700' },
+  pendingOrderMeta: { color: BrandColors.textMuted, fontSize: 11, marginTop: 2 },
+  emptyDropdownText: { color: BrandColors.textMuted, fontSize: 13 },
 });
