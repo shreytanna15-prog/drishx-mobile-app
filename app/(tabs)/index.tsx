@@ -228,7 +228,7 @@ export default function HomeScreen() {
               onPress={() => goToShop(router)}
             />
             <QuickIcon icon="receipt-long" label="My orders" onPress={() => router.push('/my-orders')} />
-            <QuickIcon icon="description" label="Invoices" onPress={comingSoon} />
+            <QuickIcon icon="description" label="Invoices" onPress={() => router.push('/invoices' as never)} />
             <QuickIcon icon="headset-mic" label="Support" onPress={comingSoon} />
           </View>
 

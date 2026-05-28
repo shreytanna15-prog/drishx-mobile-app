@@ -117,7 +117,7 @@ export default function ProfileScreen() {
                 icon="description"
                 label="Invoices"
                 variant="base"
-                onPress={() => router.push({ pathname: '/profile-placeholder', params: { title: 'Invoices' } })}
+                onPress={() => router.push('/invoices' as never)}
               />
               <MenuRow icon="history" label="Recent Orders" variant="alt" onPress={() => router.push('/my-orders')} />
               <MenuRow
