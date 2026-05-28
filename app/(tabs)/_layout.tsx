@@ -111,7 +111,7 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: 'Profile',
-          href: isStaff ? undefined : null,
+          href: undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
         }}
       />

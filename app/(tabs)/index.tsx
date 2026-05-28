@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
+import { fetchHomeCategoryCards, type HomeCategoryCard } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { fetchOrders } from '@/lib/orders-api';
 import type { FilterOption } from '@/lib/types/lens';
@@ -25,23 +26,39 @@ const BG = BrandColors.background;
 const CARD = BrandColors.card;
 const BORDER = BrandColors.cardBorder;
 
-type CategoryChip = {
-  id: string;
-  label: string;
-  filter: FilterOption;
-};
-
-const PRODUCT_CATEGORIES: CategoryChip[] = [
-  { id: 'sv', label: 'Single Vision', filter: 'Single Vision' },
-  { id: 'kr', label: 'Kryptok', filter: 'Kryptok' },
-  { id: 'pr', label: 'Progressive', filter: 'Progressive' },
-  { id: 'all', label: 'All lenses', filter: 'All' },
+const DEFAULT_CATEGORIES: HomeCategoryCard[] = [
+  { id: 'all-1', label: 'All lenses', filter: 'All' },
+  { id: 'sv-1', label: 'Single Vision', filter: 'Single Vision' },
+  { id: 'kr-1', label: 'Kryptok', filter: 'Kryptok' },
+  { id: 'pr-1', label: 'Progressive', filter: 'Progressive' },
+  { id: 'sv-2', label: 'Blue Cut', filter: 'Single Vision' },
+  { id: 'sv-3', label: 'Photo Grey', filter: 'Single Vision' },
+  { id: 'kr-2', label: 'Kryptok HMC', filter: 'Kryptok' },
+  { id: 'pr-2', label: 'Premium Progressive', filter: 'Progressive' },
+  { id: 'pr-3', label: 'Digital Progressive', filter: 'Progressive' },
+  { id: 'sv-4', label: 'Regular SV', filter: 'Single Vision' },
 ];
 
-function getClientIdLabel(userId: string): string {
-  const compact = userId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  const tail = compact.slice(-4).padStart(4, '0');
-  return `CLT-${tail}`;
+function mergeUniqueCategories(...lists: HomeCategoryCard[][]): HomeCategoryCard[] {
+  const merged: HomeCategoryCard[] = [];
+  const seen = new Set<string>();
+  for (const list of lists) {
+    for (const card of list) {
+      const key = card.label.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      merged.push(card);
+    }
+  }
+
+  const allIndex = merged.findIndex((card) => card.label.trim().toLowerCase() === 'all lenses');
+  if (allIndex > 0) {
+    const allCard = merged.splice(allIndex, 1)[0];
+    merged.unshift(allCard);
+  } else if (allIndex < 0) {
+    merged.unshift({ id: 'all-lenses-fallback', label: 'All lenses', filter: 'All' });
+  }
+  return merged;
 }
 
 function getDisplayNameFull(name: string | null | undefined, email: string): string {
@@ -73,6 +90,7 @@ export default function HomeScreen() {
   const { user, isStaff, getAuthHeaders } = useAuth();
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
+  const [categories, setCategories] = useState<HomeCategoryCard[]>(DEFAULT_CATEGORIES);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
@@ -91,7 +109,29 @@ export default function HomeScreen() {
     void loadOrders();
   }, [loadOrders]);
 
-  const clientId = useMemo(() => (user ? getClientIdLabel(user.id) : ''), [user]);
+  useEffect(() => {
+    if (isStaff || !user) return;
+    let cancelled = false;
+    const loadCategories = async () => {
+      try {
+        const cards = await fetchHomeCategoryCards();
+        if (!cancelled) {
+          const merged = mergeUniqueCategories(cards, DEFAULT_CATEGORIES);
+          setCategories(merged.slice(0, 12));
+        }
+      } catch {
+        if (!cancelled) {
+          setCategories(mergeUniqueCategories(DEFAULT_CATEGORIES).slice(0, 12));
+        }
+      }
+    };
+    void loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [isStaff, user]);
+
+  const clientId = useMemo(() => (user ? user.id : ''), [user]);
 
   const comingSoon = () => {
     Alert.alert('Coming soon', 'This feature will be available in a future update.');
@@ -150,9 +190,9 @@ export default function HomeScreen() {
               <Text style={styles.clientId}>Client ID: {clientId}</Text>
             </View>
             <View style={styles.headerIcons}>
-              <View style={styles.avatarCircle}>
+              <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
                 <Text style={styles.avatarText}>{initials}</Text>
-              </View>
+              </Pressable>
               <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
                 <MaterialIcons name="notifications-none" size={24} color={GOLD} />
               </Pressable>
@@ -198,13 +238,15 @@ export default function HomeScreen() {
           </Pressable>
 
           <Text style={styles.sectionTitleOutside}>Product categories</Text>
-          <View style={styles.categoryWrap}>
-            {PRODUCT_CATEGORIES.map((cat) => (
+          <View style={styles.categoryGrid}>
+            {categories.map((cat) => (
               <Pressable
                 key={cat.id}
-                style={styles.categoryChip}
+                style={styles.categoryCard}
                 onPress={() => goToShop(router, cat.filter)}>
-                <Text style={styles.categoryChipText}>{cat.label}</Text>
+                <Text style={styles.categoryCardText} numberOfLines={3}>
+                  {cat.label}
+                </Text>
                 <MaterialIcons name="chevron-right" size={18} color={GOLD} />
               </Pressable>
             ))}
@@ -386,19 +428,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
-  categoryWrap: { gap: 10 },
-  categoryChip: {
+  categoryGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
+    rowGap: 12,
+    columnGap: 12,
+  },
+  categoryCard: {
+    width: '48%',
     backgroundColor: CARD,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: BORDER,
-    paddingVertical: 14,
+    minHeight: 120,
     paddingHorizontal: 16,
+    paddingVertical: 14,
+    justifyContent: 'space-between',
   },
-  categoryChipText: {
+   categoryCardText: {
     color: BrandColors.text,
     fontSize: 15,
     fontWeight: '600',

@@ -2,54 +2,85 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
 
-function formatRoleLabel(role: string): string {
-  switch (role) {
-    case 'ADMIN':
-      return 'Administrator';
-    case 'EMPLOYEE':
-      return 'Employee';
-    case 'CUSTOMER':
-      return 'Customer';
-    default:
-      return role;
-  }
+const GOLD = BrandColors.primary;
+const BG = BrandColors.background;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
+
+function getInitials(name: string | null | undefined, email: string): string {
+  const source = name?.trim() || email;
+  const parts = source.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return source.slice(0, 2).toUpperCase();
 }
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
+function MenuRow({
+  icon,
+  label,
+  onPress,
+  danger,
+  variant,
+}: {
+  icon: keyof typeof MaterialIcons.glyphMap;
+  label: string;
+  onPress: () => void;
+  danger?: boolean;
+  variant?: 'base' | 'alt';
+}) {
+  const isDanger = Boolean(danger);
   return (
-    <View style={styles.profileRow}>
-      <ThemedText style={styles.profileLabel}>{label}</ThemedText>
-      <ThemedText type="defaultSemiBold" style={styles.profileValue}>
-        {value}
-      </ThemedText>
-    </View>
+    <Pressable style={[styles.menuRow, variant === 'alt' && styles.menuRowAlt]} onPress={onPress}>
+      <View style={styles.menuLeft}>
+        <MaterialIcons name={icon} size={20} color={isDanger ? '#FCA5A5' : BrandColors.textMuted} />
+        <Text style={[styles.menuLabel, isDanger && styles.menuLabelDanger]}>{label}</Text>
+      </View>
+      <MaterialIcons name="chevron-right" size={20} color={isDanger ? '#FCA5A5' : BrandColors.textMuted} />
+    </Pressable>
   );
 }
 
 export default function ProfileScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const tint = Colors[colorScheme].tint;
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isStaff } = useAuth();
 
-  if (!user) {
-    return null;
+  if (!user) return null;
+
+  if (isStaff) {
+    return (
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top']}>
+          <View style={styles.staffWrap}>
+            <Text style={styles.staffTitle}>Profile</Text>
+            <Text style={styles.staffText}>Staff profile is available here.</Text>
+            <Pressable
+              style={styles.logoutButton}
+              onPress={() => {
+                signOut();
+                router.replace('/login');
+              }}>
+              <MaterialIcons name="logout" size={18} color={BrandColors.primaryText} />
+              <Text style={styles.logoutText}>Logout</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
+    );
   }
 
-  function handleSignOut() {
-    Alert.alert('Sign out', 'Are you sure you want to sign out?', [
+  const displayName = user.name?.trim() || 'Customer';
+  const initials = getInitials(user.name, user.email);
+
+  function handleLogout() {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign out',
+        text: 'Logout',
         style: 'destructive',
         onPress: () => {
           signOut();
@@ -59,105 +90,119 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const displayName = user.name?.trim() || '—';
-  const shortId = user.id.slice(-8).toUpperCase();
-
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.header}>
-          <ThemedText type="title" style={styles.screenTitle}>
-            Profile
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>Your employee account</ThemedText>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.avatarBlock}>
-            <View style={[styles.avatarCircle, { backgroundColor: `${tint}22` }]}>
-              <MaterialIcons name="person" size={40} color={tint} />
+        <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
+          <View style={styles.mainContent}>
+            <View style={styles.profileHeaderCard}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarText}>{initials}</Text>
+              </View>
+              <View style={styles.headerText}>
+                <Text style={styles.customerName}>{displayName}</Text>
+                <Text style={styles.clientId}>Client ID: {user.id}</Text>
+              </View>
             </View>
-            <ThemedText type="subtitle" style={styles.avatarName}>
-              {displayName !== '—' ? displayName : user.email}
-            </ThemedText>
-            <View style={styles.roleBadge}>
-              <ThemedText style={styles.roleBadgeText}>{formatRoleLabel(user.role)}</ThemedText>
+
+            <View style={styles.menuCard}>
+              <MenuRow icon="apartment" label="Company Profile" variant="base" onPress={() => router.push('/company-profile')} />
+              <MenuRow
+                icon="location-on"
+                label="Billing Address"
+                variant="alt"
+                onPress={() => router.push({ pathname: '/profile-placeholder', params: { title: 'Billing Address' } })}
+              />
+              <MenuRow
+                icon="description"
+                label="Invoices"
+                variant="base"
+                onPress={() => router.push({ pathname: '/profile-placeholder', params: { title: 'Invoices' } })}
+              />
+              <MenuRow icon="history" label="Recent Orders" variant="alt" onPress={() => router.push('/my-orders')} />
+              <MenuRow
+                icon="payments"
+                label="Outstanding/Payments"
+                variant="base"
+                onPress={() =>
+                  router.push({ pathname: '/profile-placeholder', params: { title: 'Outstanding/Payments' } })
+                }
+              />
+              <MenuRow icon="logout" label="Logout" variant="alt" danger onPress={handleLogout} />
             </View>
           </View>
-
-          <View style={styles.card}>
-            <ProfileRow label="Name" value={displayName} />
-            <View style={styles.divider} />
-            <ProfileRow label="Email" value={user.email} />
-            <View style={styles.divider} />
-            <ProfileRow label="Employee ID" value={shortId} />
-            <View style={styles.divider} />
-            <ProfileRow label="Role" value={formatRoleLabel(user.role)} />
-          </View>
-
-          <Pressable style={[styles.signOutButton, { borderColor: tint }]} onPress={handleSignOut}>
-            <MaterialIcons name="logout" size={20} color={tint} />
-            <ThemedText style={[styles.signOutText, { color: tint }]}>Sign out</ThemedText>
-          </Pressable>
-        </View>
+        </ScrollView>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1 },
-  header: {
+  scrollPad: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 20,
+    minHeight: '100%',
   },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
-  subtitle: { marginTop: 4, fontSize: 14, color: '#64748b' },
-  content: { paddingHorizontal: 16, gap: 20 },
-  avatarBlock: { alignItems: 'center', paddingVertical: 8, gap: 10 },
+  mainContent: {
+    minHeight: '84%',
+    gap: 12,
+  },
+  profileHeaderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#101A2A',
+  },
   avatarCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarName: { fontSize: 20, textAlign: 'center' },
-  roleBadge: {
-    backgroundColor: '#e0f2fe',
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
+  avatarText: { color: GOLD, fontSize: 18, fontWeight: '800' },
+  headerText: { flex: 1 },
+  customerName: { color: BrandColors.text, fontSize: 20, fontWeight: '800' },
+  clientId: { color: BrandColors.textMuted, fontSize: 13, marginTop: 2 },
+  menuCard: {
+    borderRadius: 14,
+    backgroundColor: '#101A2A',
+    overflow: 'hidden',
   },
-  roleBadgeText: { fontSize: 12, fontWeight: '700', color: '#0a7ea4', textTransform: 'uppercase' },
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-    padding: 16,
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    backgroundColor: '#111F31',
   },
-  profileRow: { gap: 4 },
-  profileLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#94a3b8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+  menuRowAlt: {
+    backgroundColor: '#0D1726',
   },
-  profileValue: { fontSize: 16 },
-  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 14 },
-  signOutButton: {
+  menuLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  menuLabel: { color: BrandColors.text, fontSize: 15, fontWeight: '600' },
+  menuLabelDanger: { color: '#FCA5A5' },
+  logoutButton: {
+    marginTop: 8,
+    borderRadius: 12,
+    backgroundColor: GOLD,
+    paddingVertical: 13,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    marginTop: 8,
   },
-  signOutText: { fontSize: 16, fontWeight: '700' },
+  logoutText: { color: BrandColors.primaryText, fontWeight: '800', fontSize: 16 },
+  staffWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+  staffTitle: { color: BrandColors.text, fontSize: 24, fontWeight: '800' },
+  staffText: { color: BrandColors.textMuted, fontSize: 14, textAlign: 'center' },
 });
