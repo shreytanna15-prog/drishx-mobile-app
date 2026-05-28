@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 import { fetchHomeCategoryCards, type HomeCategoryCard } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
 
 const GOLD = BrandColors.primary;
@@ -99,6 +100,7 @@ export default function HomeScreen() {
   });
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
+  const [staffPendingTasks, setStaffPendingTasks] = useState<TaskRecord[]>([]);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [categories, setCategories] = useState<HomeCategoryCard[]>(DEFAULT_CATEGORIES);
@@ -126,7 +128,7 @@ export default function HomeScreen() {
     const loadStaffOverview = async () => {
       setStaffLoading(true);
       try {
-        const orders = await fetchOrders(getAuthHeaders());
+        const [orders, tasks] = await Promise.all([fetchOrders(getAuthHeaders()), fetchMyTasks(getAuthHeaders())]);
         const now = new Date();
         const todayOrders = orders.filter((order) => {
           const d = new Date(order.createdAt);
@@ -136,23 +138,34 @@ export default function HomeScreen() {
             d.getDate() === now.getDate()
           );
         });
-        const completedToday = todayOrders.filter((order) => order.status === 'COMPLETED').length;
         const pendingToday = todayOrders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status)).length;
         const pendingOrders = orders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status));
+        const todayTasks = tasks.filter((task) => {
+          const d = new Date(task.dueDate);
+          return (
+            d.getFullYear() === now.getFullYear() &&
+            d.getMonth() === now.getMonth() &&
+            d.getDate() === now.getDate()
+          );
+        });
+        const pendingTasks = tasks.filter((task) => task.status === 'PENDING');
+        const completedTasksToday = todayTasks.filter((task) => task.status === 'COMPLETED').length;
 
         if (!cancelled) {
           setStaffOverview({
-            tasksAssigned: '—',
-            tasksCompleted: '—',
+            tasksAssigned: String(todayTasks.length),
+            tasksCompleted: String(completedTasksToday),
             ordersReceived: todayOrders.length,
             ordersPending: pendingToday,
           });
           setStaffPendingOrders(pendingOrders);
+          setStaffPendingTasks(pendingTasks);
         }
       } catch {
         if (!cancelled) {
-          setStaffOverview({ tasksAssigned: '—', tasksCompleted: '—', ordersReceived: 0, ordersPending: 0 });
+          setStaffOverview({ tasksAssigned: '0', tasksCompleted: '0', ordersReceived: 0, ordersPending: 0 });
           setStaffPendingOrders([]);
+          setStaffPendingTasks([]);
         }
       } finally {
         if (!cancelled) {
@@ -189,15 +202,6 @@ export default function HomeScreen() {
   }, [isStaff, user]);
 
   const clientId = useMemo(() => (user ? user.id : ''), [user]);
-  const staffPendingTasks = useMemo(
-    () =>
-      staffPendingOrders.slice(0, 10).map((order) => ({
-        id: `task-${order.id}`,
-        title: `Follow up #${order.id.slice(-6).toUpperCase()}`,
-      })),
-    [staffPendingOrders]
-  );
-
   const comingSoon = () => {
     Alert.alert('Coming soon', 'This feature will be available in a future update.');
   };
@@ -240,7 +244,7 @@ export default function HomeScreen() {
 
             <Text style={styles.sectionTitleOutside}>Quick access</Text>
             <View style={styles.staffQuickGrid}>
-              <Pressable style={styles.staffQuickCard} onPress={comingSoon}>
+              <Pressable style={styles.staffQuickCard} onPress={() => router.push('/my-tasks' as never)}>
                 <MaterialIcons name="task-alt" size={24} color={GOLD} />
                 <Text style={styles.staffQuickLabel}>Tasks</Text>
               </Pressable>
@@ -266,7 +270,7 @@ export default function HomeScreen() {
               <View style={styles.dropdownBody}>
                 {staffPendingTasks.length > 0 ? (
                   <View style={styles.pendingTaskList}>
-                    {staffPendingTasks.map((task) => (
+                    {staffPendingTasks.slice(0, 10).map((task) => (
                       <View key={task.id} style={styles.pendingTaskRow}>
                         <View style={styles.pendingTaskLeft}>
                           <MaterialIcons name="pending-actions" size={16} color={GOLD} />
