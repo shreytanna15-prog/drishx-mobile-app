@@ -163,8 +163,12 @@ export default function LensProductScreen() {
       coating: currentItem.coating,
     };
 
-    addToCart(updatedItem, parsedQty);
     setAddedToCart(true);
+    setError(null);
+    void addToCart(updatedItem, parsedQty).catch((err) => {
+      setAddedToCart(false);
+      setError(err instanceof Error ? err.message : 'Failed to add to cart.');
+    });
   }
 
   return (
@@ -248,7 +252,9 @@ export default function LensProductScreen() {
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Pressable style={[styles.addBtn, addedToCart && styles.addBtnSuccess]} onPress={handleAddToCart}>
+          <Pressable
+            style={[styles.addBtn, addedToCart && styles.addBtnSuccess]}
+            onPress={handleAddToCart}>
             <MaterialIcons
               name={addedToCart ? 'check-circle' : 'add-shopping-cart'}
               size={20}
@@ -351,6 +357,9 @@ const styles = StyleSheet.create({
   },
   addBtnSuccess: {
     opacity: 0.92,
+  },
+  addBtnDisabled: {
+    opacity: 0.6,
   },
   addBtnText: { color: BrandColors.primaryText, fontWeight: '800', fontSize: 16 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },

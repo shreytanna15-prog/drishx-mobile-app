@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OrderTrackingTimeline } from '@/components/order-tracking-timeline';
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import { normalizeOrderStatus } from '@/lib/order-tracking';
+import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
 import { cancelOrder, fetchOrders, getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
 import { formatLensType } from '@/lib/types/lens';
 
@@ -79,7 +79,8 @@ function ListOrderRow({
   const lensLabel = formatLensType(order.lensType);
   const total = Number(order.totalAmount);
   const status = normalizeOrderStatus(order.status);
-  const statusLabel = status.replaceAll('_', ' ');
+  const statusLabel = formatOrderStatusLabel(status);
+  const isProcurement = status === 'AWAITING_PROCUREMENT';
 
   return (
     <Pressable style={styles.listRow} onPress={onPress}>
@@ -99,7 +100,9 @@ function ListOrderRow({
       </View>
       <View style={styles.listRowRight}>
         <Text style={styles.listAmount}>₹{total.toLocaleString('en-IN')}</Text>
-        <Text style={styles.listStatus}>{statusLabel}</Text>
+        <Text style={[styles.listStatus, isProcurement && styles.listStatusProcurement]}>
+          {statusLabel}
+        </Text>
       </View>
     </Pressable>
   );
@@ -118,7 +121,8 @@ function DetailOrderCard({
   const lensLabel = formatLensType(order.lensType);
   const total = Number(order.totalAmount);
   const status = normalizeOrderStatus(order.status);
-  const canCancel = status === 'PENDING';
+  const canCancel = status === 'PENDING' || status === 'AWAITING_PROCUREMENT';
+  const isProcurement = status === 'AWAITING_PROCUREMENT';
 
   return (
     <View style={styles.orderCard}>
@@ -148,6 +152,16 @@ function DetailOrderCard({
       ) : null}
 
       <Text style={styles.qtyText}>Quantity: {order.quantity}</Text>
+
+      {isProcurement ? (
+        <View style={styles.procurementBanner}>
+          <MaterialIcons name="local-shipping" size={18} color="#2563eb" />
+          <Text style={styles.procurementBannerText}>
+            Your order is in procurement. We are sourcing this product and will update you when it is
+            available.
+          </Text>
+        </View>
+      ) : null}
 
       {order.notes?.trim() ? (
         <View style={styles.notesBox}>
@@ -427,6 +441,26 @@ const styles = StyleSheet.create({
   listRowRight: { alignItems: 'flex-end', gap: 4 },
   listAmount: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
   listStatus: { color: GOLD, fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
+  listStatusProcurement: { color: '#60a5fa' },
+  procurementBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.35)',
+  },
+  procurementBannerText: {
+    flex: 1,
+    color: '#93c5fd',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
+  },
   detailContent: { paddingHorizontal: 16, paddingBottom: 24 },
   orderCard: {
     padding: 16,

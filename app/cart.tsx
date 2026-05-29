@@ -35,6 +35,15 @@ const LENS_TYPE_COLORS: Record<LensType, string> = {
   'Single Vision': '#7DD3A8',
 };
 
+function formatExpiresIn(expiresAt?: string): string | null {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return 'Reservation expired';
+  const minutes = Math.ceil(ms / 60000);
+  if (minutes < 60) return `Reserved · ${minutes}m left`;
+  return `Reserved · ${Math.ceil(minutes / 60)}h left`;
+}
+
 function CartLineItem({
   item,
   onIncrease,
@@ -48,6 +57,9 @@ function CartLineItem({
 }) {
   const lensType = item.lensType ?? 'Progressive';
   const badgeColor = LENS_TYPE_COLORS[lensType];
+  const reserveLabel = formatExpiresIn(item.expiresAt);
+  const backorder =
+    item.isBackorder || (item.reservedQuantity !== undefined && item.reservedQuantity < item.cartQuantity);
 
   return (
     <View style={styles.cartItem}>
@@ -70,6 +82,14 @@ function CartLineItem({
         </Text>
       )}
       {item.eye ? <Text style={styles.eyeText}>Eye: {item.eye}</Text> : null}
+      {reserveLabel ? <Text style={styles.reserveText}>{reserveLabel}</Text> : null}
+      {backorder ? (
+        <Text style={styles.backorderText}>
+          {item.reservedQuantity === 0
+            ? 'Out of stock — will be placed for procurement'
+            : `${item.reservedQuantity} reserved · ${item.cartQuantity - (item.reservedQuantity ?? 0)} to procure`}
+        </Text>
+      ) : null}
 
       <View style={styles.cartItemFooter}>
         <View style={styles.qtyControls}>
@@ -90,7 +110,8 @@ function CartLineItem({
 export default function CartScreen() {
   const router = useRouter();
   const { getAuthHeaders } = useAuth();
-  const { items, itemCount, totalPrice, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { items, itemCount, totalPrice, updateQuantity, removeFromCart, clearCart, syncing, refreshCart } =
+    useCart();
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
   const [orderPlacedModal, setOrderPlacedModal] = useState<{
@@ -114,11 +135,15 @@ export default function CartScreen() {
     setPlacingOrder(true);
     const failures: string[] = [];
     let successCount = 0;
+    let procurementCount = 0;
 
     for (const item of items) {
       const result = await createOrder(item, getAuthHeaders(), trimmedNotes || undefined);
       if (result.success) {
         successCount += 1;
+        if (result.status === 'AWAITING_PROCUREMENT') {
+          procurementCount += 1;
+        }
       } else {
         failures.push(`${item.lensType ?? 'Lens'} (SPH ${item.sph}): ${result.error}`);
       }
@@ -127,13 +152,18 @@ export default function CartScreen() {
     setPlacingOrder(false);
 
     if (successCount > 0) {
-      clearCart();
+      await clearCart();
+      await refreshCart();
       setOrderNotes('');
     }
 
     if (failures.length === 0) {
+      const procurementNote =
+        procurementCount > 0
+          ? ` ${procurementCount} order(s) are in procurement (out of stock). Check My Orders for updates.`
+          : '';
       setOrderPlacedModal({
-        message: `Successfully placed ${successCount} order(s).`,
+        message: `Successfully placed ${successCount} order(s).${procurementNote}`,
         notes: trimmedNotes || undefined,
       });
       return;
@@ -237,9 +267,9 @@ export default function CartScreen() {
                 <Text style={styles.summaryTotal}>₹{totalPrice}</Text>
               </View>
               <Pressable
-                style={[styles.primaryButton, placingOrder && styles.buttonDisabled]}
+                style={[styles.primaryButton, (placingOrder || syncing) && styles.buttonDisabled]}
                 onPress={handlePlaceOrder}
-                disabled={placingOrder}>
+                disabled={placingOrder || syncing}>
                 {placingOrder ? (
                   <ActivityIndicator color={BrandColors.primaryText} />
                 ) : (
@@ -309,6 +339,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: GOLD,
     fontWeight: '700',
+    marginBottom: 8,
+  },
+  reserveText: {
+    fontSize: 12,
+    color: '#86efac',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  backorderText: {
+    fontSize: 12,
+    color: '#93c5fd',
+    fontWeight: '600',
     marginBottom: 8,
   },
   cartItemFooter: {

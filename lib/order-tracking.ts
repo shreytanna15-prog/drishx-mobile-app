@@ -31,9 +31,9 @@ export const SPECIAL_STATUS_CONFIG: Record<
     bg: '#fef3c7',
   },
   AWAITING_PROCUREMENT: {
-    label: 'Awaiting Procurement',
+    label: 'In procurement',
     description:
-      'Items in your order are currently unavailable. We are sourcing them and will update you soon.',
+      'Your order is in procurement. We are sourcing the items and will update you when stock is available.',
     color: '#2563eb',
     bg: '#dbeafe',
   },
@@ -92,7 +92,7 @@ const STATUS_LABELS: Record<OrderTrackingStatus, string> = {
   PACKED: 'Packed',
   DISPATCHED: 'Dispatched',
   PARTIALLY_FULFILLED: 'Partially Fulfilled',
-  AWAITING_PROCUREMENT: 'Awaiting Procurement',
+  AWAITING_PROCUREMENT: 'In procurement',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 };

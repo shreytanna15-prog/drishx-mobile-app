@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "DrishX",
-    "slug": "DrishX-mobile-app",
+    "slug": "DrishX",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

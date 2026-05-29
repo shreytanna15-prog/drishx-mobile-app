@@ -23,7 +23,12 @@ export type LensItem = {
 
 export type CartItem = LensItem & {
   cartLineId: string;
+  cartLineKey: string;
   cartQuantity: number;
+  /** Units actually held from inventory (0 = full backorder). */
+  reservedQuantity?: number;
+  isBackorder?: boolean;
+  expiresAt?: string;
 };
 
 export function toApiLensType(lensType: LensType): ApiLensType {

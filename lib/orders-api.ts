@@ -44,6 +44,7 @@ type CreateOrderPayload = {
   lensType: ApiLensType;
   lensId: string;
   quantity: number;
+  cartLineKey?: string;
   sph: number;
   cyl?: number | null;
   axis?: number | null;
@@ -58,6 +59,7 @@ function buildOrderPayload(item: CartItem): CreateOrderPayload {
     lensType,
     lensId: item.id,
     quantity: item.cartQuantity,
+    cartLineKey: item.cartLineKey ?? item.cartLineId,
     sph: item.sph,
     cyl: item.cyl,
   };
@@ -78,7 +80,9 @@ export async function createOrder(
   item: CartItem,
   headers: Record<string, string>,
   notes?: string
-): Promise<{ success: true; orderId: string } | { success: false; error: string }> {
+): Promise<
+  { success: true; orderId: string; status?: string } | { success: false; error: string }
+> {
   const body = buildOrderPayload(item);
   const payload = notes?.trim() ? { ...body, notes: notes.trim() } : body;
 
@@ -94,7 +98,9 @@ export async function createOrder(
     return { success: false, error: result?.error || 'Failed to place order.' };
   }
 
-  return { success: true, orderId: result.order?.id ?? result.id };
+  const order = result.order ?? result;
+  const status = typeof order?.status === 'string' ? order.status : 'PENDING';
+  return { success: true, orderId: order?.id ?? result.id, status };
 }
 
 export async function fetchOrders(headers: Record<string, string>): Promise<OrderRecord[]> {
