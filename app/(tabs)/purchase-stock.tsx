@@ -1,7 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,15 +13,13 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
 import {
   formatMoneyInput,
@@ -40,6 +38,11 @@ import {
 } from '@/lib/procurement-api';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
+
+const GOLD = BrandColors.primary;
+const BG = BrandColors.background;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
 
 type ScreenMode = 'stock' | 'history' | 'manual';
 
@@ -74,49 +77,44 @@ function formatLensSummary(item: LensItem): string {
   return parts.join(' · ');
 }
 
-function PendingLineCard({
-  line,
-  onRemove,
-  isDark,
-}: {
-  line: StockIntakeLine;
-  onRemove: () => void;
-  isDark: boolean;
-}) {
+function PendingLineCard({ line, onRemove }: { line: StockIntakeLine; onRemove: () => void }) {
   return (
-    <View style={[styles.pendingCard, isDark && styles.pendingCardDark]}>
+    <View style={styles.pendingCard}>
+      <View style={styles.pendingIconWrap}>
+        <MaterialIcons name="inventory-2" size={18} color={GOLD} />
+      </View>
       <View style={styles.pendingCardBody}>
-        <ThemedText type="defaultSemiBold" numberOfLines={2}>
+        <Text style={styles.pendingTitle} numberOfLines={2}>
           {formatLensSummary(line.lens)}
-        </ThemedText>
-        <ThemedText style={styles.selectMeta}>
+        </Text>
+        <Text style={styles.pendingMeta}>
           +{line.quantityAdded} units · ₹{line.amount} paid · cost ₹{line.costPrice}/unit · sell ₹
           {line.sellingPrice}
-        </ThemedText>
+        </Text>
       </View>
-      <Pressable onPress={onRemove} hitSlop={8}>
-        <MaterialIcons name="delete-outline" size={22} color="#ef4444" />
+      <Pressable onPress={onRemove} hitSlop={8} style={styles.deleteBtn}>
+        <MaterialIcons name="delete-outline" size={20} color="#f87171" />
       </Pressable>
     </View>
   );
 }
 
 function HistoryCard({ item }: { item: ProcurementRecord }) {
-  const colorScheme = useColorScheme() ?? 'light';
-  const isDark = colorScheme === 'dark';
   const amount = Number(item.amount);
   const by = item.user?.name?.trim() || item.user?.email || 'Staff';
 
   return (
-    <View style={[styles.historyCard, isDark && styles.historyCardDark]}>
+    <View style={styles.historyCard}>
       <View style={styles.historyHeader}>
-        <ThemedText type="defaultSemiBold">₹{amount}</ThemedText>
-        <ThemedText style={styles.historyRef}>{item.reference}</ThemedText>
+        <Text style={styles.historyAmount}>₹{amount}</Text>
+        <View style={styles.historyRefPill}>
+          <Text style={styles.historyRef}>{item.reference}</Text>
+        </View>
       </View>
-      <ThemedText style={styles.historyDesc} numberOfLines={3}>
+      <Text style={styles.historyDesc} numberOfLines={3}>
         {item.description || 'Procurement'}
-      </ThemedText>
-      <ThemedText style={styles.historyMeta}>
+      </Text>
+      <Text style={styles.historyMeta}>
         {by} ·{' '}
         {new Date(item.createdAt).toLocaleDateString(undefined, {
           day: 'numeric',
@@ -124,15 +122,27 @@ function HistoryCard({ item }: { item: ProcurementRecord }) {
           hour: '2-digit',
           minute: '2-digit',
         })}
-      </ThemedText>
+      </Text>
+    </View>
+  );
+}
+
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <View style={styles.fieldWrap}>
+      <Text style={styles.formLabel}>{label}</Text>
+      {children}
     </View>
   );
 }
 
 export default function PurchaseStockScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const tint = Colors[colorScheme].tint;
-  const isDark = colorScheme === 'dark';
   const { getAuthHeaders, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
@@ -474,13 +484,18 @@ export default function PurchaseStockScreen() {
   ];
 
   return (
-    <ThemedView style={styles.container}>
+    <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <ThemedText type="title" style={styles.screenTitle}>
-            Purchase Stock
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>Procurement and stock intake</ThemedText>
+          <View style={styles.headerTop}>
+            <View style={styles.headerIconWrap}>
+              <MaterialIcons name="shopping-cart" size={22} color={GOLD} />
+            </View>
+            <View style={styles.headerText}>
+              <Text style={styles.screenTitle}>Purchase Stock</Text>
+              <Text style={styles.subtitle}>Procurement and stock intake</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.modeRow}>
@@ -489,11 +504,9 @@ export default function PurchaseStockScreen() {
             return (
               <Pressable
                 key={tab.key}
-                style={[styles.modeChip, active && { backgroundColor: tint }]}
+                style={[styles.modeChip, active && styles.modeChipActive]}
                 onPress={() => setMode(tab.key)}>
-                <ThemedText style={[styles.modeChipText, active && styles.modeChipTextActive]}>
-                  {tab.label}
-                </ThemedText>
+                <Text style={[styles.modeChipText, active && styles.modeChipTextActive]}>{tab.label}</Text>
               </Pressable>
             );
           })}
@@ -508,162 +521,164 @@ export default function PurchaseStockScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>
               {pendingLines.length > 0 && (
-                <View style={styles.pendingSection}>
+                <View style={styles.sectionCard}>
                   <View style={styles.pendingHeader}>
-                    <ThemedText type="defaultSemiBold">
-                      Purchase list ({pendingLines.length})
-                    </ThemedText>
+                    <Text style={styles.sectionTitle}>Purchase list ({pendingLines.length})</Text>
                     <Pressable onPress={handleClearBatch}>
-                      <ThemedText style={[styles.clearLink, { color: tint }]}>Clear all</ThemedText>
+                      <Text style={styles.clearLink}>Clear all</Text>
                     </Pressable>
                   </View>
-                  {pendingLines.map((line) => (
-                    <PendingLineCard
-                      key={line.lineId}
-                      line={line}
-                      isDark={isDark}
-                      onRemove={() => handleRemoveLine(line.lineId)}
-                    />
-                  ))}
-                  <View style={[styles.batchSummary, isDark && styles.batchSummaryDark]}>
-                    <ThemedText style={styles.batchSummaryLabel}>Batch total</ThemedText>
-                    <ThemedText type="defaultSemiBold" style={styles.batchSummaryValue}>
+                  <View style={styles.pendingList}>
+                    {pendingLines.map((line) => (
+                      <PendingLineCard key={line.lineId} line={line} onRemove={() => handleRemoveLine(line.lineId)} />
+                    ))}
+                  </View>
+                  <View style={styles.batchSummary}>
+                    <Text style={styles.batchSummaryLabel}>Batch total</Text>
+                    <Text style={styles.batchSummaryValue}>
                       ₹{batchTotal} · {batchUnits} units
-                    </ThemedText>
+                    </Text>
                   </View>
                 </View>
               )}
 
-              <ThemedText style={styles.sectionDivider}>
-                {pendingLines.length > 0 ? 'Add another product' : 'Add product'}
-              </ThemedText>
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>
+                  {pendingLines.length > 0 ? 'Add another product' : 'Add product'}
+                </Text>
 
-              <ThemedText style={styles.formLabel}>Lens product</ThemedText>
-              <Pressable
-                style={[styles.selectButton, isDark && styles.selectButtonDark]}
-                onPress={() => setPickerOpen(true)}>
-                <View style={styles.selectButtonContent}>
-                  {selectedLens ? (
-                    <>
-                      <ThemedText type="defaultSemiBold" numberOfLines={2}>
-                        {formatLensSummary(selectedLens)}
-                      </ThemedText>
-                      <ThemedText style={styles.selectMeta}>
-                        Current stock: {selectedLens.quantity}
-                        {selectedLens.costPrice !== null
-                          ? ` · Cost ₹${selectedLens.costPrice}/unit`
-                          : ''}
-                        {selectedLens.price > 0 ? ` · Sell ₹${selectedLens.price}` : ''}
-                      </ThemedText>
-                    </>
-                  ) : (
-                    <ThemedText style={styles.selectPlaceholder}>Tap to select a lens product</ThemedText>
-                  )}
-                </View>
-                <MaterialIcons name="unfold-more" size={22} color={tint} />
-              </Pressable>
+                <FormField label="Lens product">
+                  <Pressable style={styles.selectButton} onPress={() => setPickerOpen(true)}>
+                    <View style={styles.selectButtonContent}>
+                      {selectedLens ? (
+                        <>
+                          <Text style={styles.selectTitle} numberOfLines={2}>
+                            {formatLensSummary(selectedLens)}
+                          </Text>
+                          <Text style={styles.selectMeta}>
+                            Current stock: {selectedLens.quantity}
+                            {selectedLens.costPrice !== null
+                              ? ` · Cost ₹${selectedLens.costPrice}/unit`
+                              : ''}
+                            {selectedLens.price > 0 ? ` · Sell ₹${selectedLens.price}` : ''}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles.selectPlaceholder}>Tap to select a lens product</Text>
+                      )}
+                    </View>
+                    <MaterialIcons name="unfold-more" size={22} color={GOLD} />
+                  </Pressable>
+                </FormField>
 
-              <ThemedText style={styles.formLabel}>Quantity to add</ThemedText>
-              <TextInput
-                value={quantity}
-                onChangeText={handleQuantityChange}
-                keyboardType="number-pad"
-                placeholder="e.g. 10"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-
-              <ThemedText style={styles.formLabel}>Cost price per unit (₹)</ThemedText>
-              <TextInput
-                value={costPrice}
-                onChangeText={handleCostPriceChange}
-                keyboardType="decimal-pad"
-                placeholder="Purchase cost per unit"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-
-              <ThemedText style={styles.formLabel}>Total cost price (₹)</ThemedText>
-              <TextInput
-                value={totalPrice}
-                onChangeText={handleTotalPriceChange}
-                keyboardType="decimal-pad"
-                placeholder="Total amount paid for this line"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-              {quantity && costPrice ? (
-                <ThemedText style={styles.priceHint}>
-                  {quantity} × ₹{costPrice} = ₹
-                  {formatMoneyInput((parseNumericInput(costPrice) ?? 0) * Number(quantity))}
-                </ThemedText>
-              ) : null}
-
-              <ThemedText style={styles.formLabel}>Selling price (₹)</ThemedText>
-              <TextInput
-                value={sellingPrice}
-                onChangeText={(t) => setSellingPrice(sanitizePositiveDecimalInput(t))}
-                keyboardType="decimal-pad"
-                placeholder={
-                  selectedLens && selectedLens.price > 0
-                    ? `Current sell price: ₹${selectedLens.price}`
-                    : 'Customer price in shop'
-                }
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-
-              {pendingLines.length === 0 && (
-                <>
-                  <ThemedText style={styles.formLabel}>Notes (optional)</ThemedText>
+                <FormField label="Quantity to add">
                   <TextInput
-                    value={notes}
-                    onChangeText={setNotes}
-                    placeholder="Supplier, invoice no., etc."
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.input, styles.inputMultiline, isDark && styles.inputDark]}
-                    multiline
+                    value={quantity}
+                    onChangeText={handleQuantityChange}
+                    keyboardType="number-pad"
+                    placeholder="e.g. 10"
+                    placeholderTextColor={BrandColors.placeholder}
+                    style={styles.input}
                   />
-                </> 
-              )}
+                </FormField>
 
-              <Pressable
-                style={[styles.secondaryButton, { borderColor: tint }, isDark && styles.secondaryButtonDark]}
-                onPress={handleAddLineToBatch}>
-                <MaterialIcons name="add" size={22} color={tint} />
-                <ThemedText style={[styles.secondaryButtonText, { color: tint }]}>
-                  Add to purchase list
-                </ThemedText>
-              </Pressable>
+                <View style={styles.priceRow}>
+                  <View style={styles.priceCol}>
+                    <FormField label="Cost / unit (₹)">
+                      <TextInput
+                        value={costPrice}
+                        onChangeText={handleCostPriceChange}
+                        keyboardType="decimal-pad"
+                        placeholder="Per unit"
+                        placeholderTextColor={BrandColors.placeholder}
+                        style={styles.input}
+                      />
+                    </FormField>
+                  </View>
+                  <View style={styles.priceCol}>
+                    <FormField label="Total cost (₹)">
+                      <TextInput
+                        value={totalPrice}
+                        onChangeText={handleTotalPriceChange}
+                        keyboardType="decimal-pad"
+                        placeholder="Line total"
+                        placeholderTextColor={BrandColors.placeholder}
+                        style={styles.input}
+                      />
+                    </FormField>
+                  </View>
+                </View>
+
+                {quantity && costPrice ? (
+                  <Text style={styles.priceHint}>
+                    {quantity} × ₹{costPrice} = ₹
+                    {formatMoneyInput((parseNumericInput(costPrice) ?? 0) * Number(quantity))}
+                  </Text>
+                ) : null}
+
+                <FormField label="Selling price (₹)">
+                  <TextInput
+                    value={sellingPrice}
+                    onChangeText={(t) => setSellingPrice(sanitizePositiveDecimalInput(t))}
+                    keyboardType="decimal-pad"
+                    placeholder={
+                      selectedLens && selectedLens.price > 0
+                        ? `Current sell price: ₹${selectedLens.price}`
+                        : 'Customer price in shop'
+                    }
+                    placeholderTextColor={BrandColors.placeholder}
+                    style={styles.input}
+                  />
+                </FormField>
+
+                {pendingLines.length === 0 && (
+                  <FormField label="Notes (optional)">
+                    <TextInput
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder="Supplier, invoice no., etc."
+                      placeholderTextColor={BrandColors.placeholder}
+                      style={[styles.input, styles.inputMultiline]}
+                      multiline
+                    />
+                  </FormField>
+                )}
+
+                <Pressable style={styles.secondaryButton} onPress={handleAddLineToBatch}>
+                  <MaterialIcons name="add" size={20} color={GOLD} />
+                  <Text style={styles.secondaryButtonText}>Add to purchase list</Text>
+                </Pressable>
+              </View>
 
               {pendingLines.length > 0 && (
-                <>
-                  <ThemedText style={[styles.formLabel, styles.notesAfterList]}>Batch notes (optional)</ThemedText>
-                  <TextInput
-                    value={notes}
-                    onChangeText={setNotes}
-                    placeholder="Supplier, invoice no., etc."
-                    placeholderTextColor="#94a3b8"
-                    style={[styles.input, styles.inputMultiline, isDark && styles.inputDark]}
-                    multiline
-                  />
+                <View style={styles.sectionCard}>
+                  <FormField label="Batch notes (optional)">
+                    <TextInput
+                      value={notes}
+                      onChangeText={setNotes}
+                      placeholder="Supplier, invoice no., etc."
+                      placeholderTextColor={BrandColors.placeholder}
+                      style={[styles.input, styles.inputMultiline]}
+                      multiline
+                    />
+                  </FormField>
 
                   <Pressable
-                    style={[styles.submitButton, { backgroundColor: tint }, submitting && styles.disabled]}
+                    style={[styles.submitButton, submitting && styles.disabled]}
                     onPress={handleSubmitBatch}
                     disabled={submitting}>
                     {submitting ? (
-                      <ActivityIndicator color="#fff" />
+                      <ActivityIndicator color={BrandColors.primaryText} />
                     ) : (
                       <>
-                        <MaterialIcons name="inventory-2" size={22} color="#fff" />
-                        <ThemedText style={styles.submitText}>
+                        <MaterialIcons name="inventory-2" size={20} color={BrandColors.primaryText} />
+                        <Text style={styles.submitText}>
                           Submit {pendingLines.length} product{pendingLines.length === 1 ? '' : 's'} · ₹{batchTotal}
-                        </ThemedText>
+                        </Text>
                       </>
                     )}
                   </Pressable>
-                </>
+                </View>
               )}
             </ScrollView>
           </KeyboardAvoidingView>
@@ -682,32 +697,28 @@ export default function PurchaseStockScreen() {
                   await loadHistory();
                   setRefreshing(false);
                 }}
-                tintColor={tint}
+                tintColor={GOLD}
               />
             }
             ListHeaderComponent={
               isAdmin && manualHistory.length > 0 ? (
                 <View style={styles.manualHistoryBlock}>
-                  <ThemedText type="defaultSemiBold" style={styles.sectionHeading}>
-                    Recent manual expenses
-                  </ThemedText>
+                  <Text style={styles.sectionTitle}>Recent manual expenses</Text>
                   {manualHistory.slice(0, 3).map((item) => (
                     <HistoryCard key={item.id} item={item} />
                   ))}
-                  <ThemedText type="defaultSemiBold" style={[styles.sectionHeading, styles.sectionGap]}>
-                    Procurement / stock
-                  </ThemedText>
+                  <Text style={[styles.sectionTitle, styles.sectionGap]}>Procurement / stock</Text>
                 </View>
               ) : null
             }
             ListEmptyComponent={
               loadingHistory ? (
-                <ActivityIndicator style={styles.loader} color={tint} />
+                <ActivityIndicator style={styles.loader} color={GOLD} />
               ) : (
                 <View style={styles.emptyBlock}>
-                  <MaterialIcons name="receipt-long" size={48} color="#94a3b8" />
-                  <ThemedText style={styles.emptyTitle}>No purchases yet</ThemedText>
-                  <ThemedText style={styles.emptyText}>Stock intake records will appear here.</ThemedText>
+                  <MaterialIcons name="receipt-long" size={48} color={BrandColors.textMuted} />
+                  <Text style={styles.emptyTitle}>No purchases yet</Text>
+                  <Text style={styles.emptyText}>Stock intake records will appear here.</Text>
                 </View>
               )
             }
@@ -721,297 +732,392 @@ export default function PurchaseStockScreen() {
             style={styles.flex}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
-              <ThemedText style={styles.manualIntro}>
-                Record non-inventory business expenses (rent, utilities, etc.). These do not add lens stock.
-              </ThemedText>
-              <ThemedText style={styles.formLabel}>Amount (₹)</ThemedText>
-              <TextInput
-                value={manualAmount}
-                onChangeText={setManualAmount}
-                keyboardType="decimal-pad"
-                placeholder="Expense amount"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, isDark && styles.inputDark]}
-              />
-              <ThemedText style={styles.formLabel}>Description</ThemedText>
-              <TextInput
-                value={manualDescription}
-                onChangeText={setManualDescription}
-                placeholder="What was this expense for?"
-                placeholderTextColor="#94a3b8"
-                style={[styles.input, styles.inputMultiline, isDark && styles.inputDark]}
-                multiline
-              />
-              <Pressable
-                style={[styles.submitButton, { backgroundColor: tint }, submittingManual && styles.disabled]}
-                onPress={handleSubmitManual}
-                disabled={submittingManual}>
-                {submittingManual ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <>
-                    <MaterialIcons name="receipt" size={22} color="#fff" />
-                    <ThemedText style={styles.submitText}>Record manual expense</ThemedText>
-                  </>
-                )}
-              </Pressable>
+              <View style={styles.sectionCard}>
+                <Text style={styles.manualIntro}>
+                  Record non-inventory business expenses (rent, utilities, etc.). These do not add lens stock.
+                </Text>
+                <FormField label="Amount (₹)">
+                  <TextInput
+                    value={manualAmount}
+                    onChangeText={setManualAmount}
+                    keyboardType="decimal-pad"
+                    placeholder="Expense amount"
+                    placeholderTextColor={BrandColors.placeholder}
+                    style={styles.input}
+                  />
+                </FormField>
+                <FormField label="Description">
+                  <TextInput
+                    value={manualDescription}
+                    onChangeText={setManualDescription}
+                    placeholder="What was this expense for?"
+                    placeholderTextColor={BrandColors.placeholder}
+                    style={[styles.input, styles.inputMultiline]}
+                    multiline
+                  />
+                </FormField>
+                <Pressable
+                  style={[styles.submitButton, submittingManual && styles.disabled]}
+                  onPress={handleSubmitManual}
+                  disabled={submittingManual}>
+                  {submittingManual ? (
+                    <ActivityIndicator color={BrandColors.primaryText} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="receipt" size={20} color={BrandColors.primaryText} />
+                      <Text style={styles.submitText}>Record manual expense</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             </ScrollView>
           </KeyboardAvoidingView>
         )}
 
         <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
-          <SafeAreaView style={[styles.modalSafe, isDark && styles.modalSafeDark]} edges={['top', 'bottom']}>
+          <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
             <View style={styles.modalHeader}>
-              <ThemedText type="subtitle">Select lens</ThemedText>
-              <Pressable onPress={() => setPickerOpen(false)} hitSlop={8}>
-                <MaterialIcons name="close" size={26} color={isDark ? '#e2e8f0' : '#334155'} />
+              <Text style={styles.modalTitle}>Select lens</Text>
+              <Pressable onPress={() => setPickerOpen(false)} hitSlop={8} style={styles.modalCloseBtn}>
+                <MaterialIcons name="close" size={22} color={GOLD} />
               </Pressable>
             </View>
 
-            <TextInput
-              value={lensSearch}
-              onChangeText={setLensSearch}
-              placeholder="Search brand, SPH, coating…"
-              placeholderTextColor="#94a3b8"
-              style={[styles.input, styles.modalSearch, isDark && styles.inputDark]}
-            />
+            <View style={styles.modalSearchWrap}>
+              <MaterialIcons name="search" size={20} color={BrandColors.textMuted} />
+              <TextInput
+                value={lensSearch}
+                onChangeText={setLensSearch}
+                placeholder="Search brand, SPH, coating…"
+                placeholderTextColor={BrandColors.placeholder}
+                style={styles.modalSearchInput}
+              />
+            </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-              {FILTER_OPTIONS.map((filter) => (
-                <Pressable
-                  key={filter}
-                  style={[styles.filterChip, lensFilter === filter && { backgroundColor: tint }]}
-                  onPress={() => setLensFilter(filter)}>
-                  <ThemedText
-                    style={[styles.filterChipText, lensFilter === filter && styles.filterChipTextActive]}>
-                    {filter}
-                  </ThemedText>
-                </Pressable>
-              ))}
+              {FILTER_OPTIONS.map((filter) => {
+                const active = lensFilter === filter;
+                return (
+                  <Pressable
+                    key={filter}
+                    style={[styles.filterChip, active && styles.filterChipActive]}
+                    onPress={() => setLensFilter(filter)}>
+                    <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter}</Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
 
             {loadingLenses ? (
-              <ActivityIndicator style={styles.loader} color={tint} />
+              <ActivityIndicator style={styles.loader} color={GOLD} />
             ) : (
               <FlatList
                 data={lenses}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.pickerList}
                 renderItem={({ item }) => (
-                  <Pressable
-                    style={[styles.pickerItem, isDark && styles.pickerItemDark]}
-                    onPress={() => handleSelectLens(item)}>
+                  <Pressable style={styles.pickerItem} onPress={() => handleSelectLens(item)}>
                     <View style={styles.flex}>
-                      <ThemedText type="defaultSemiBold" numberOfLines={2}>
+                      <Text style={styles.pickerTitle} numberOfLines={2}>
                         {formatLensSummary(item)}
-                      </ThemedText>
-                      <ThemedText style={styles.selectMeta}>
+                      </Text>
+                      <Text style={styles.selectMeta}>
                         Stock: {item.quantity}
                         {item.costPrice !== null ? ` · Cost ₹${item.costPrice}` : ''}
                         {item.price > 0 ? ` · Sell ₹${item.price}` : ''}
-                      </ThemedText>
+                      </Text>
                     </View>
-                    <MaterialIcons name="add-circle-outline" size={24} color={tint} />
+                    <MaterialIcons name="add-circle-outline" size={24} color={GOLD} />
                   </Pressable>
                 )}
-                ListEmptyComponent={
-                  <ThemedText style={styles.emptyText}>No lenses match your search.</ThemedText>
-                }
+                ListEmptyComponent={<Text style={styles.emptyText}>No lenses match your search.</Text>}
               />
             )}
           </SafeAreaView>
         </Modal>
       </SafeAreaView>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container: { flex: 1, backgroundColor: BG },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   header: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
-  screenTitle: { fontSize: 28, lineHeight: 34 },
-  subtitle: { marginTop: 4, fontSize: 14, color: '#64748b' },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(240, 161, 50, 0.12)',
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1 },
+  screenTitle: {
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: '800',
+    color: BrandColors.text,
+  },
+  subtitle: { marginTop: 4, fontSize: 14, color: BrandColors.textMuted },
   modeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 12,
+    marginTop: 8,
   },
   modeChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
   },
-  modeChipText: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  modeChipTextActive: { color: '#fff' },
-  formContent: { padding: 16, paddingBottom: 32, gap: 8 },
+  modeChipActive: {
+    backgroundColor: GOLD,
+    borderColor: GOLD,
+  },
+  modeChipText: { fontSize: 13, fontWeight: '700', color: BrandColors.textMuted },
+  modeChipTextActive: { color: BrandColors.primaryText },
+  formContent: { padding: 16, paddingBottom: 32, gap: 14 },
+  sectionCard: {
+    backgroundColor: CARD,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 16,
+    gap: 4,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: BrandColors.text,
+    marginBottom: 8,
+  },
+  fieldWrap: { marginTop: 4 },
   formLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#64748b',
+    color: BrandColors.label,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 12,
+    letterSpacing: 0.6,
     marginBottom: 6,
   },
   selectButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16,
-    borderRadius: 14,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-  },
-  selectButtonDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
+    borderColor: BrandColors.inputBorder,
+    backgroundColor: BrandColors.inputBg,
   },
   selectButtonContent: { flex: 1, paddingRight: 8 },
-  selectPlaceholder: { color: '#94a3b8', fontSize: 15 },
-  selectMeta: { fontSize: 13, color: '#64748b', marginTop: 4 },
+  selectTitle: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
+  selectPlaceholder: { color: BrandColors.placeholder, fontSize: 15 },
+  selectMeta: { fontSize: 12, color: BrandColors.textMuted, marginTop: 4, lineHeight: 17 },
   input: {
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BrandColors.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#0f172a',
-    backgroundColor: '#fff',
+    color: BrandColors.text,
+    backgroundColor: BrandColors.inputBg,
   },
-  inputDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
-    color: '#f1f5f9',
+  inputMultiline: { minHeight: 88, textAlignVertical: 'top' },
+  priceRow: { flexDirection: 'row', gap: 10 },
+  priceCol: { flex: 1 },
+  priceHint: {
+    fontSize: 12,
+    color: GOLD,
+    marginTop: 2,
+    marginBottom: 4,
+    fontWeight: '600',
   },
-  inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
-  hintLink: { fontSize: 13, marginTop: 6, marginBottom: 4 },
-  priceHint: { fontSize: 12, color: '#64748b', marginTop: 4, marginBottom: 4 },
-  pendingSection: { marginBottom: 8, gap: 10 },
   pendingHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 4,
   },
-  clearLink: { fontSize: 13, fontWeight: '600' },
+  clearLink: { fontSize: 13, fontWeight: '700', color: GOLD },
+  pendingList: { gap: 8 },
   pendingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 14,
+    gap: 10,
+    padding: 12,
     borderRadius: 12,
-    backgroundColor: '#f0f9ff',
+    backgroundColor: BG,
     borderWidth: 1,
-    borderColor: '#bae6fd',
+    borderColor: BORDER,
   },
-  pendingCardDark: {
-    backgroundColor: '#0c4a6e33',
-    borderColor: '#0a7ea455',
+  pendingIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(240, 161, 50, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pendingCardBody: { flex: 1, gap: 4 },
+  pendingTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '700' },
+  pendingMeta: { fontSize: 12, color: BrandColors.textMuted, lineHeight: 17 },
+  deleteBtn: { padding: 4 },
   batchSummary: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
+    padding: 12,
     borderRadius: 12,
-    backgroundColor: '#e0f2fe',
-  },
-  batchSummaryDark: { backgroundColor: '#0c4a6e44' },
-  batchSummaryLabel: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  batchSummaryValue: { fontSize: 16, color: '#0a7ea4' },
-  sectionDivider: {
-    fontSize: 15,
-    fontWeight: '700',
     marginTop: 8,
-    marginBottom: 4,
+    backgroundColor: 'rgba(240, 161, 50, 0.1)',
+    borderWidth: 1,
+    borderColor: BORDER,
   },
-  notesAfterList: { marginTop: 16 },
+  batchSummaryLabel: { fontSize: 13, color: BrandColors.textMuted, fontWeight: '600' },
+  batchSummaryValue: { fontSize: 16, color: GOLD, fontWeight: '800' },
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 16,
+    marginTop: 12,
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    backgroundColor: '#fff',
+    borderColor: GOLD,
+    backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
-  secondaryButtonDark: {
-    backgroundColor: '#1e293b',
-  },
-  secondaryButtonText: { fontSize: 15, fontWeight: '700' },
+  secondaryButtonText: { fontSize: 15, fontWeight: '700', color: GOLD },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    marginTop: 16,
+    marginTop: 12,
     paddingVertical: 16,
     borderRadius: 14,
+    backgroundColor: GOLD,
   },
-  submitText: { color: '#fff', fontSize: 15, fontWeight: '700', textAlign: 'center', flexShrink: 1 },
+  submitText: {
+    color: BrandColors.primaryText,
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+    flexShrink: 1,
+  },
   disabled: { opacity: 0.65 },
   listContent: { padding: 16, paddingBottom: 24, flexGrow: 1 },
   historyCard: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: '#fff',
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  historyCardDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
+    borderColor: BORDER,
   },
   historyHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
-  historyRef: { fontSize: 11, color: '#94a3b8' },
-  historyDesc: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  historyMeta: { fontSize: 12, color: '#64748b' },
+  historyAmount: { fontSize: 18, fontWeight: '800', color: GOLD },
+  historyRefPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  historyRef: { fontSize: 10, color: BrandColors.textMuted, fontWeight: '600' },
+  historyDesc: { fontSize: 14, lineHeight: 20, marginBottom: 6, color: BrandColors.text },
+  historyMeta: { fontSize: 12, color: BrandColors.textMuted },
   separator: { height: 10 },
   loader: { marginTop: 40 },
   emptyBlock: { alignItems: 'center', paddingVertical: 48, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' },
-  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center' },
-  manualIntro: { fontSize: 14, color: '#64748b', lineHeight: 21, marginBottom: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: BrandColors.text },
+  emptyText: { fontSize: 14, color: BrandColors.textMuted, textAlign: 'center' },
+  manualIntro: {
+    fontSize: 14,
+    color: BrandColors.textMuted,
+    lineHeight: 21,
+    marginBottom: 8,
+  },
   manualHistoryBlock: { marginBottom: 8, gap: 10 },
-  sectionHeading: { fontSize: 15, marginBottom: 4 },
   sectionGap: { marginTop: 16 },
-  modalSafe: { flex: 1, backgroundColor: '#f8fafc' },
-  modalSafeDark: { backgroundColor: '#0f172a' },
+  modalSafe: { flex: 1, backgroundColor: BG },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
   },
-  modalSearch: { marginHorizontal: 16, marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: BrandColors.text },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: CARD,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  modalSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: BrandColors.text,
+    padding: 0,
+  },
   filterScroll: { maxHeight: 44, marginBottom: 8, paddingHorizontal: 12 },
   filterChip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#e2e8f0',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD,
     marginHorizontal: 4,
   },
-  filterChipText: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  filterChipTextActive: { color: '#fff' },
+  filterChipActive: {
+    backgroundColor: GOLD,
+    borderColor: GOLD,
+  },
+  filterChipText: { fontSize: 13, fontWeight: '700', color: BrandColors.textMuted },
+  filterChipTextActive: { color: BrandColors.primaryText },
   pickerList: { paddingHorizontal: 16, paddingBottom: 24 },
   pickerItem: {
     flexDirection: 'row',
@@ -1020,12 +1126,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: CARD,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: BORDER,
   },
-  pickerItemDark: {
-    backgroundColor: '#1e293b',
-    borderColor: '#334155',
-  },
+  pickerTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '700' },
 });

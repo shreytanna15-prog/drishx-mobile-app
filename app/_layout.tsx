@@ -33,6 +33,7 @@ export default function RootLayout() {
             <Stack.Screen name="invoices" options={{ headerShown: false }} />
             <Stack.Screen name="invoice-details" options={{ headerShown: false }} />
             <Stack.Screen name="order-details" options={{ headerShown: false }} />
+            <Stack.Screen name="inventory" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="auto" />

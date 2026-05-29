@@ -3,20 +3,10 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { BrandColors } from '@/constants/brand-colors';
 import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
@@ -110,11 +100,7 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        style={styles.root}
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
           <View style={styles.card}>
             <Text style={styles.heading}>Login</Text>
             <Text style={styles.subheading}>Welcome back to DrishX</Text>
@@ -162,8 +148,7 @@ export default function LoginScreen() {
               <Text style={styles.linkText}>Create account</Text>
             </Link>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScroll>
     </SafeAreaView>
   );
 }
@@ -178,9 +163,8 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.background,
   },
   container: {
-    flexGrow: 1,
     padding: 24,
-    justifyContent: 'center',
+    minHeight: '100%',
   },
   card: {
     borderRadius: 20,

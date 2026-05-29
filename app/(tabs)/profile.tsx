@@ -20,6 +20,23 @@ function getInitials(name: string | null | undefined, email: string): string {
   return source.slice(0, 2).toUpperCase();
 }
 
+function formatRoleLabel(role: string): string {
+  if (role === 'ADMIN') return 'Administrator';
+  if (role === 'EMPLOYEE') return 'Operations Manager';
+  return role.replace(/_/g, ' ');
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function MenuRow({
   icon,
   label,
@@ -51,23 +68,57 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
+  function handleStaffLogout() {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => {
+          signOut();
+          router.replace('/login');
+        },
+      },
+    ]);
+  }
+
   if (isStaff) {
+    const displayName = user.name?.trim() || 'Employee';
+    const initials = getInitials(user.name, user.email);
+    const roleLabel = formatRoleLabel(user.role);
+    const accountStatus = user.isActive === false ? 'Inactive' : 'Active';
+
     return (
       <View style={styles.container}>
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={styles.staffWrap}>
-            <Text style={styles.staffTitle}>Profile</Text>
-            <Text style={styles.staffText}>Staff profile is available here.</Text>
-            <Pressable
-              style={styles.logoutButton}
-              onPress={() => {
-                signOut();
-                router.replace('/login');
-              }}>
-              <MaterialIcons name="logout" size={18} color={BrandColors.primaryText} />
-              <Text style={styles.logoutText}>Logout</Text>
-            </Pressable>
-          </View>
+          <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
+            <View style={styles.mainContent}>
+              <Text style={styles.screenTitle}>Profile</Text>
+
+              <View style={styles.staffProfileCard}>
+                <View style={styles.staffAvatarCircle}>
+                  <Text style={styles.staffAvatarText}>{initials}</Text>
+                </View>
+                <Text style={styles.staffName}>{displayName}</Text>
+                <Text style={styles.staffRole}>{roleLabel}</Text>
+                <Text style={styles.staffEmpId} selectable>
+                  EMP ID: {user.id}
+                </Text>
+              </View>
+
+              <View style={styles.detailsCard}>
+                <DetailRow label="Email" value={user.email} />
+                <View style={styles.detailDivider} />
+                <DetailRow label="Role" value={roleLabel} />
+                <View style={styles.detailDivider} />
+                <DetailRow label="Account status" value={accountStatus} />
+              </View>
+
+              <View style={styles.menuCard}>
+                <MenuRow icon="logout" label="Logout" variant="base" danger onPress={handleStaffLogout} />
+              </View>
+            </View>
+          </ScrollView>
         </SafeAreaView>
       </View>
     );
@@ -202,7 +253,84 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoutText: { color: BrandColors.primaryText, fontWeight: '800', fontSize: 16 },
-  staffWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  staffTitle: { color: BrandColors.text, fontSize: 24, fontWeight: '800' },
-  staffText: { color: BrandColors.textMuted, fontSize: 14, textAlign: 'center' },
+  screenTitle: {
+    color: BrandColors.text,
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  staffProfileCard: {
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: '#101A2A',
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  staffAvatarCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    borderColor: GOLD,
+    backgroundColor: BG,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  staffAvatarText: { color: GOLD, fontSize: 28, fontWeight: '800' },
+  staffName: {
+    color: BrandColors.text,
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  staffRole: {
+    color: BrandColors.textMuted,
+    fontSize: 14,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  staffEmpId: {
+    color: GOLD,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    lineHeight: 17,
+  },
+  detailsCard: {
+    borderRadius: 14,
+    backgroundColor: '#101A2A',
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 14,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  detailLabel: {
+    color: BrandColors.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 0.9,
+  },
+  detailValue: {
+    color: BrandColors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1.4,
+    textAlign: 'right',
+  },
+  detailDivider: {
+    height: 1,
+    backgroundColor: BORDER,
+  },
 });

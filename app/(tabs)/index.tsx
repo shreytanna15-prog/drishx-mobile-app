@@ -1,7 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -18,6 +18,7 @@ import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
 import { fetchHomeCategoryCards, type HomeCategoryCard } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
+import { fetchNotifications } from '@/lib/notifications-api';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
@@ -101,6 +102,7 @@ export default function HomeScreen() {
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
   const [staffPendingTasks, setStaffPendingTasks] = useState<TaskRecord[]>([]);
+  const [staffUnreadNotifications, setStaffUnreadNotifications] = useState(0);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [categories, setCategories] = useState<HomeCategoryCard[]>(DEFAULT_CATEGORIES);
@@ -118,6 +120,22 @@ export default function HomeScreen() {
     }
   }, [getAuthHeaders, isStaff, user]);
 
+  const refreshStaffUnreadCount = useCallback(async () => {
+    if (!isStaff || !user) return;
+    try {
+      const notifications = await fetchNotifications(getAuthHeaders());
+      setStaffUnreadNotifications(notifications.filter((item) => !item.isRead).length);
+    } catch {
+      setStaffUnreadNotifications(0);
+    }
+  }, [getAuthHeaders, isStaff, user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshStaffUnreadCount();
+    }, [refreshStaffUnreadCount])
+  );
+
   useEffect(() => {
     void loadOrders();
   }, [loadOrders]);
@@ -128,7 +146,11 @@ export default function HomeScreen() {
     const loadStaffOverview = async () => {
       setStaffLoading(true);
       try {
-        const [orders, tasks] = await Promise.all([fetchOrders(getAuthHeaders()), fetchMyTasks(getAuthHeaders())]);
+        const [orders, tasks, notifications] = await Promise.all([
+          fetchOrders(getAuthHeaders()),
+          fetchMyTasks(getAuthHeaders()),
+          fetchNotifications(getAuthHeaders()),
+        ]);
         const now = new Date();
         const todayOrders = orders.filter((order) => {
           const d = new Date(order.createdAt);
@@ -160,12 +182,14 @@ export default function HomeScreen() {
           });
           setStaffPendingOrders(pendingOrders);
           setStaffPendingTasks(pendingTasks);
+          setStaffUnreadNotifications(notifications.filter((item) => !item.isRead).length);
         }
       } catch {
         if (!cancelled) {
           setStaffOverview({ tasksAssigned: '0', tasksCompleted: '0', ordersReceived: 0, ordersPending: 0 });
           setStaffPendingOrders([]);
           setStaffPendingTasks([]);
+          setStaffUnreadNotifications(0);
         }
       } finally {
         if (!cancelled) {
@@ -219,8 +243,20 @@ export default function HomeScreen() {
                 <Text style={styles.staffNameLarge}>{staffDisplayName}</Text>
                 <Text style={styles.staffRole}>Operations Manager</Text>
               </View>
-              <View style={styles.staffAvatarCircle}>
-                <Text style={styles.staffAvatarText}>{staffInitials}</Text>
+              <View style={styles.staffHeaderIcons}>
+                <Pressable style={styles.staffAvatarCircle} onPress={() => router.push('/profile')}>
+                  <Text style={styles.staffAvatarText}>{staffInitials}</Text>
+                </Pressable>
+                <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
+                  <MaterialIcons name="notifications-none" size={24} color={GOLD} />
+                  {staffUnreadNotifications > 0 ? (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {staffUnreadNotifications > 99 ? '99+' : staffUnreadNotifications}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
               </View>
             </View>
 
@@ -252,7 +288,7 @@ export default function HomeScreen() {
                 <MaterialIcons name="receipt-long" size={24} color={GOLD} />
                 <Text style={styles.staffQuickLabel}>Orders</Text>
               </Pressable>
-              <Pressable style={styles.staffQuickCard} onPress={comingSoon}>
+              <Pressable style={styles.staffQuickCard} onPress={() => router.push('/inventory' as never)}>
                 <MaterialIcons name="inventory-2" size={24} color={GOLD} />
                 <Text style={styles.staffQuickLabel}>Inventory</Text>
               </Pressable>
@@ -613,6 +649,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   staffHeaderText: { flex: 1, paddingRight: 10 },
+  staffHeaderIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   staffWelcome: { color: BrandColors.textMuted, fontSize: 14 },
   staffName: { color: BrandColors.text, fontSize: 24, fontWeight: '800', marginTop: 4 },
   staffNameLarge: { color: BrandColors.text, fontSize: 32, fontWeight: '800', marginTop: 2 },
@@ -627,6 +664,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   staffAvatarText: { color: GOLD, fontSize: 18, fontWeight: '800' },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: GOLD,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: BrandColors.primaryText,
+    fontSize: 10,
+    fontWeight: '800',
+  },
   staffRole: { color: GOLD, fontSize: 14, marginTop: 6 },
   staffQuickGrid: {
     flexDirection: 'row',

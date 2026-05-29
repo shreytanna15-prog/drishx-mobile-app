@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import { fetchNotifications, type NotificationRecord } from '@/lib/notifications-api';
+import { fetchNotifications, markAllNotificationsRead, type NotificationRecord } from '@/lib/notifications-api';
 
 const GOLD = BrandColors.primary;
 const BG = BrandColors.background;
@@ -25,11 +25,17 @@ function formatRelativeTime(value: string): string {
   return new Date(value).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
+function notificationIcon(type: NotificationRecord['type']): keyof typeof MaterialIcons.glyphMap {
+  if (type === 'ORDER_PLACED') return 'receipt-long';
+  if (type === 'TASK_ASSIGNED') return 'task-alt';
+  return 'notifications';
+}
+
 function NotificationRow({ item }: { item: NotificationRecord }) {
   return (
-    <View style={styles.rowCard}>
+    <View style={[styles.rowCard, !item.isRead && styles.rowCardUnread]}>
       <View style={styles.rowIconWrap}>
-        <MaterialIcons name="notifications" size={14} color={GOLD} />
+        <MaterialIcons name={notificationIcon(item.type)} size={14} color={GOLD} />
       </View>
       <View style={styles.rowContent}>
         <Text style={styles.rowTitle}>{item.title}</Text>
@@ -52,7 +58,13 @@ export default function NotificationsScreen() {
     try {
       setError(null);
       const data = await fetchNotifications(getAuthHeaders());
-      setNotifications(data);
+      const hasUnread = data.some((item) => !item.isRead);
+      if (hasUnread) {
+        await markAllNotificationsRead(getAuthHeaders());
+        setNotifications(data.map((item) => ({ ...item, isRead: true })));
+      } else {
+        setNotifications(data);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notifications.');
     } finally {
@@ -155,6 +167,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: CARD,
     padding: 12,
+  },
+  rowCardUnread: {
+    borderColor: GOLD,
+    backgroundColor: 'rgba(240, 161, 50, 0.06)',
   },
   rowIconWrap: {
     width: 22,

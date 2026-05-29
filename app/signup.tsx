@@ -3,20 +3,10 @@
 import { Link, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { BrandColors } from '@/constants/brand-colors';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
@@ -94,11 +84,7 @@ export default function SignupScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        style={styles.root}
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
           <View style={styles.card}>
             <Text style={styles.heading}>Create account</Text>
             <Text style={styles.subheading}>Join DrishX to shop and track orders</Text>
@@ -173,8 +159,7 @@ export default function SignupScreen() {
               <Text style={styles.linkText}>Already have an account? Log in</Text>
             </Link>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScroll>
     </SafeAreaView>
   );
 }
@@ -189,9 +174,8 @@ const styles = StyleSheet.create({
     backgroundColor: BrandColors.background,
   },
   container: {
-    flexGrow: 1,
     padding: 24,
-    justifyContent: 'center',
+    minHeight: '100%',
   },
   card: {
     borderRadius: 20,

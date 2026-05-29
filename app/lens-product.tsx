@@ -3,9 +3,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { BrandColors } from '@/constants/brand-colors';
 import { useCart } from '@/lib/cart';
 import {
@@ -177,7 +178,7 @@ export default function LensProductScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{[item.item, item.coating].filter(Boolean).join(' · ') || 'Standard'}</Text>
@@ -256,7 +257,7 @@ export default function LensProductScreen() {
             <Text style={styles.addBtnText}>{addedToCart ? 'Added to cart' : 'Add to cart'}</Text>
             {!addedToCart ? <MaterialIcons name="arrow-right-alt" size={20} color={BrandColors.primaryText} /> : null}
           </Pressable>
-        </ScrollView>
+        </KeyboardAwareScroll>
       </SafeAreaView>
     </View>
   );
@@ -277,7 +278,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { color: BrandColors.text, fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, paddingBottom: 28 },
+  content: { padding: 16, paddingBottom: 32 },
   summaryCard: {
     backgroundColor: CARD,
     borderRadius: 16,

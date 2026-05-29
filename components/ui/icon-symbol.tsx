@@ -18,6 +18,8 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'bag.fill': 'shopping-bag',
   'list.clipboard.fill': 'assignment',
+  'checklist': 'checklist',
+  'doc.text.fill': 'receipt-long',
   'person.fill': 'person',
   'cart.fill': 'shopping-cart',
   'chevron.left.forwardslash.chevron.right': 'code',

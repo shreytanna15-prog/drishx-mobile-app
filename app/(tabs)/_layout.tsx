@@ -80,7 +80,7 @@ export default function TabLayout() {
         options={{
           title: 'My Tasks',
           href: isStaff ? undefined : null,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.clipboard.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="checklist" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -104,7 +104,7 @@ export default function TabLayout() {
         options={{
           title: 'Orders',
           href: isStaff ? undefined : null,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.clipboard.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.text.fill" color={color} />,
         }}
       />
       <Tabs.Screen

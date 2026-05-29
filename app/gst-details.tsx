@@ -3,20 +3,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { BrandColors } from '@/constants/brand-colors';
 import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
@@ -75,11 +65,7 @@ export default function GstDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        style={styles.root}
-        behavior={Platform.select({ ios: 'padding', android: undefined })}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 24 })}>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container}>
           <View style={styles.card}>
             <Text style={styles.heading}>GST details</Text>
             <Text style={styles.subheading}>
@@ -152,8 +138,7 @@ export default function GstDetailsScreen() {
               )}
             </Pressable>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScroll>
     </SafeAreaView>
   );
 }
@@ -161,7 +146,7 @@ export default function GstDetailsScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: BrandColors.background },
   root: { flex: 1, backgroundColor: BrandColors.background },
-  container: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  container: { padding: 24, paddingTop: 16, minHeight: '100%' },
   card: {
     borderRadius: 20,
     padding: 24,
