@@ -104,6 +104,11 @@ export default function LoginScreen() {
           <View style={styles.card}>
             <Text style={styles.heading}>Login</Text>
             <Text style={styles.subheading}>Welcome back to DrishX</Text>
+            {__DEV__ ? (
+              <Text style={styles.devApiHint} selectable>
+                API: {BACKEND_BASE_URL}
+              </Text>
+            ) : null}
 
             <View style={styles.field}>
               <Text style={styles.label}>Email</Text>
@@ -182,7 +187,13 @@ const styles = StyleSheet.create({
   subheading: {
     color: BrandColors.textMuted,
     fontSize: 14,
+    marginBottom: 8,
+  },
+  devApiHint: {
+    color: BrandColors.textMuted,
+    fontSize: 11,
     marginBottom: 24,
+    fontFamily: 'monospace',
   },
   field: {
     marginBottom: 16,
