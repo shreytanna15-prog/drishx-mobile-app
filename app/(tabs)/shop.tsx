@@ -1,7 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -27,10 +27,18 @@ const BG = BrandColors.background;
 const CARD = BrandColors.card;
 const BORDER = BrandColors.cardBorder;
 
+const FILTER_PARAM_ALIASES: Record<string, FilterOption> = {
+  singlevision: 'Single Vision',
+  progressive: 'Progressive',
+  kryptok: 'Kryptok',
+};
+
 function parseFilterParam(raw: string | undefined): FilterOption | null {
   if (!raw || typeof raw !== 'string') return null;
   const normalized = decodeURIComponent(raw).replace(/\+/g, ' ').trim().toLowerCase();
   if (normalized === 'all') return 'All';
+  const alias = FILTER_PARAM_ALIASES[normalized.replace(/\s+/g, '')];
+  if (alias) return alias;
   for (const opt of FILTER_OPTIONS) {
     if (opt === 'All') continue;
     if (opt.toLowerCase() === normalized) return opt;
@@ -107,12 +115,24 @@ export default function ShopScreen() {
   activeFilterRef.current = activeFilter;
   debouncedSearchRef.current = debouncedSearch;
 
-  useEffect(() => {
-    const parsed = parseFilterParam(params.filter);
+  const applyFilterFromParams = useCallback(() => {
+    const raw = Array.isArray(params.filter) ? params.filter[0] : params.filter;
+    if (raw === undefined || raw === '') return;
+    const parsed = parseFilterParam(raw);
     if (parsed) {
       setActiveFilter(parsed);
     }
   }, [params.filter]);
+
+  useEffect(() => {
+    applyFilterFromParams();
+  }, [applyFilterFromParams]);
+
+  useFocusEffect(
+    useCallback(() => {
+      applyFilterFromParams();
+    }, [applyFilterFromParams])
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), SEARCH_DEBOUNCE_MS);

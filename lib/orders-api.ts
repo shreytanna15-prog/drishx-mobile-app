@@ -24,14 +24,31 @@ export type OrderRecord = {
   createdAt: string;
   updatedAt?: string;
   user?: OrderUser;
-  singleVisionLens?: { sph: number | string; cyl: number | string | null } | null;
+  singleVisionLens?: {
+    id: string;
+    brand?: string | null;
+    category?: string | null;
+    item?: string | null;
+    coating?: string | null;
+    sph: number | string;
+    cyl: number | string | null;
+  } | null;
   kryptokLens?: {
+    id: string;
+    brand?: string | null;
+    category?: string | null;
+    coating?: string | null;
     sph: number | string;
     cyl: number | string | null;
     axis: number | null;
     add: number | string;
   } | null;
   progressiveLens?: {
+    id: string;
+    brand?: string | null;
+    category?: string | null;
+    item?: string | null;
+    coating?: string | null;
     sph: number | string;
     cyl: number | string | null;
     axis: number | null;

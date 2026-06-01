@@ -16,8 +16,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import { fetchHomeCategoryCards, type HomeCategoryCard } from '@/lib/home-categories-api';
+import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
+import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
@@ -28,41 +29,6 @@ const BG = BrandColors.background;
 const CARD = BrandColors.card;
 const BORDER = BrandColors.cardBorder;
 const STAFF_PENDING_STATUSES = ['PENDING', 'PICKING', 'PACKED', 'DISPATCHED', 'PARTIALLY_FULFILLED', 'AWAITING_PROCUREMENT'];
-
-const DEFAULT_CATEGORIES: HomeCategoryCard[] = [
-  { id: 'all-1', label: 'All lenses', filter: 'All' },
-  { id: 'sv-1', label: 'Single Vision', filter: 'Single Vision' },
-  { id: 'kr-1', label: 'Kryptok', filter: 'Kryptok' },
-  { id: 'pr-1', label: 'Progressive', filter: 'Progressive' },
-  { id: 'sv-2', label: 'Blue Cut', filter: 'Single Vision' },
-  { id: 'sv-3', label: 'Photo Grey', filter: 'Single Vision' },
-  { id: 'kr-2', label: 'Kryptok HMC', filter: 'Kryptok' },
-  { id: 'pr-2', label: 'Premium Progressive', filter: 'Progressive' },
-  { id: 'pr-3', label: 'Digital Progressive', filter: 'Progressive' },
-  { id: 'sv-4', label: 'Regular SV', filter: 'Single Vision' },
-];
-
-function mergeUniqueCategories(...lists: HomeCategoryCard[][]): HomeCategoryCard[] {
-  const merged: HomeCategoryCard[] = [];
-  const seen = new Set<string>();
-  for (const list of lists) {
-    for (const card of list) {
-      const key = card.label.trim().toLowerCase();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      merged.push(card);
-    }
-  }
-
-  const allIndex = merged.findIndex((card) => card.label.trim().toLowerCase() === 'all lenses');
-  if (allIndex > 0) {
-    const allCard = merged.splice(allIndex, 1)[0];
-    merged.unshift(allCard);
-  } else if (allIndex < 0) {
-    merged.unshift({ id: 'all-lenses-fallback', label: 'All lenses', filter: 'All' });
-  }
-  return merged;
-}
 
 function getDisplayNameFull(name: string | null | undefined, email: string): string {
   const trimmed = name?.trim();
@@ -80,12 +46,11 @@ function getInitials(name: string | null | undefined, email: string): string {
   return full.slice(0, 2).toUpperCase();
 }
 
-function goToShop(router: ReturnType<typeof useRouter>, filter?: FilterOption) {
-  if (filter && filter !== 'All') {
-    router.push({ pathname: '/shop', params: { filter } });
-  } else {
-    router.push({ pathname: '/shop', params: { filter: 'All' } });
-  }
+function goToShop(router: ReturnType<typeof useRouter>, filter: FilterOption = 'All') {
+  router.navigate({
+    pathname: '/shop',
+    params: { filter },
+  });
 }
 
 export default function HomeScreen() {
@@ -105,7 +70,7 @@ export default function HomeScreen() {
   const [staffUnreadNotifications, setStaffUnreadNotifications] = useState(0);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
-  const [categories, setCategories] = useState<HomeCategoryCard[]>(DEFAULT_CATEGORIES);
+  const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
@@ -113,8 +78,10 @@ export default function HomeScreen() {
     try {
       const orders = await fetchOrders(getAuthHeaders());
       setOrderCounts(computeCustomerOrderOverview(orders));
+      setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
+      setMostOrderedProducts([]);
     } finally {
       setOrdersLoading(false);
     }
@@ -133,12 +100,11 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshStaffUnreadCount();
-    }, [refreshStaffUnreadCount])
+      if (!isStaff && user) {
+        void loadOrders();
+      }
+    }, [refreshStaffUnreadCount, loadOrders, isStaff, user])
   );
-
-  useEffect(() => {
-    void loadOrders();
-  }, [loadOrders]);
 
   useEffect(() => {
     if (!isStaff || !user) return;
@@ -202,28 +168,6 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [getAuthHeaders, isStaff, user]);
-
-  useEffect(() => {
-    if (isStaff || !user) return;
-    let cancelled = false;
-    const loadCategories = async () => {
-      try {
-        const cards = await fetchHomeCategoryCards();
-        if (!cancelled) {
-          const merged = mergeUniqueCategories(cards, DEFAULT_CATEGORIES);
-          setCategories(merged.slice(0, 12));
-        }
-      } catch {
-        if (!cancelled) {
-          setCategories(mergeUniqueCategories(DEFAULT_CATEGORIES).slice(0, 12));
-        }
-      }
-    };
-    void loadCategories();
-    return () => {
-      cancelled = true;
-    };
-  }, [isStaff, user]);
 
   const clientId = useMemo(() => (user ? user.id : ''), [user]);
   const comingSoon = () => {
@@ -429,7 +373,7 @@ export default function HomeScreen() {
 
           <Text style={styles.sectionTitleOutside}>Product categories</Text>
           <View style={styles.categoryGrid}>
-            {categories.map((cat) => (
+            {CLIENT_HOME_CATEGORIES.map((cat) => (
               <Pressable
                 key={cat.id}
                 style={styles.categoryCard}
@@ -441,6 +385,47 @@ export default function HomeScreen() {
               </Pressable>
             ))}
           </View>
+
+          <Text style={[styles.sectionTitleOutside, styles.mostOrderedSectionTitle]}>
+            Most ordered products
+          </Text>
+          {ordersLoading ? (
+            <View style={styles.mostOrderedLoading}>
+              <ActivityIndicator color={GOLD} />
+            </View>
+          ) : mostOrderedProducts.length === 0 ? (
+            <View style={styles.mostOrderedEmpty}>
+              <Text style={styles.mostOrderedEmptyText}>
+                Your top products will appear here after you place orders.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.mostOrderedList}>
+              {mostOrderedProducts.map((product, index) => (
+                <Pressable
+                  key={product.lensId}
+                  style={styles.mostOrderedRow}
+                  onPress={() => goToShop(router, product.shopFilter)}>
+                  <View style={styles.mostOrderedRank}>
+                    <Text style={styles.mostOrderedRankText}>{index + 1}</Text>
+                  </View>
+                  <View style={styles.mostOrderedMeta}>
+                    <Text style={styles.mostOrderedTitle} numberOfLines={1}>
+                      {product.title}
+                    </Text>
+                    <Text style={styles.mostOrderedSubtitle} numberOfLines={2}>
+                      {product.subtitle}
+                    </Text>
+                    <Text style={styles.mostOrderedStats}>
+                      {product.totalQuantity} unit{product.totalQuantity === 1 ? '' : 's'} ·{' '}
+                      {product.orderCount} order{product.orderCount === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={22} color={GOLD} />
+                </Pressable>
+              ))}
+            </View>
+          )}
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -636,10 +621,81 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     justifyContent: 'space-between',
   },
-   categoryCardText: {
+  categoryCardText: {
     color: BrandColors.text,
     fontSize: 15,
     fontWeight: '600',
+  },
+  mostOrderedSectionTitle: {
+    marginTop: 8,
+  },
+  mostOrderedLoading: {
+    paddingVertical: 28,
+    alignItems: 'center',
+  },
+  mostOrderedEmpty: {
+    backgroundColor: CARD,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+  },
+  mostOrderedEmptyText: {
+    color: BrandColors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  mostOrderedList: {
+    gap: 10,
+  },
+  mostOrderedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: CARD,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  mostOrderedRank: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(240, 161, 50, 0.14)',
+    borderWidth: 1,
+    borderColor: BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mostOrderedRankText: {
+    color: GOLD,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  mostOrderedMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  mostOrderedTitle: {
+    color: BrandColors.text,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  mostOrderedSubtitle: {
+    color: BrandColors.textMuted,
+    fontSize: 12,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  mostOrderedStats: {
+    color: GOLD,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 6,
   },
   staffHeaderRow: {
     marginTop: 8,
