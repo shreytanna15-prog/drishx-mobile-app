@@ -13,28 +13,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const TEXT_ASPECT = 840 / 1250;
-const LOGO_ASPECT = 740 / 1250;
-
-const ASSET_ZOOM = 1.7;
+const TEXT_ASPECT = 408 / 612;
+const LOGO_ASPECT = 742 / 1264;
 
 const TAGLINE = ['INTELLIGENCE.', 'PRECISION.', 'CONTROL.'] as const;
 
-const TEXT_WIDTH = SCREEN_WIDTH * 0.50 * ASSET_ZOOM;
+const TEXT_WIDTH = SCREEN_WIDTH * 0.54;
 const TEXT_HEIGHT = TEXT_WIDTH * TEXT_ASPECT;
 
-const LOGO_WIDTH = SCREEN_WIDTH * ASSET_ZOOM;
+const LOGO_WIDTH = SCREEN_WIDTH * 0.66;
 const LOGO_HEIGHT = LOGO_WIDTH * LOGO_ASPECT;
 
-const LOGO_TOP_CROP = 0.12;
-const LOGO_VISIBLE_RATIO = 0.52;
+const GAP_TEXT_TO_LOGO = 10;
+const GAP_LOGO_TO_TAGLINE = 28;
 
-// Crop the PNG matte padding safely so visible artwork spacing is even.
-const TEXT_TOP_CROP = 0.06;
-const TEXT_VISIBLE_RATIO = 0.78;
-
-const GAP_TEXT_TO_LOGO = 2;
-const GAP_LOGO_TO_TAGLINE = 16;
+/** Nudge the cluster slightly upward so tagline sits in the lower third. */
+const STACK_OFFSET_Y = -SCREEN_HEIGHT * 0.035;
 
 const FADE_IN_MS = 750;
 const STAGGER_MS = 320;
@@ -122,30 +116,23 @@ export function BrandSplash({ onFinish }: BrandSplashProps) {
     transform: [{ translateY: taglineTranslateY.value }],
   }));
 
-  const logoFrameHeight = LOGO_HEIGHT * LOGO_VISIBLE_RATIO;
-  const textFrameHeight = TEXT_HEIGHT * TEXT_VISIBLE_RATIO;
-
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <Animated.View style={[styles.stack, screenStyle]}>
-        <Animated.View style={[styles.textFrame, { height: textFrameHeight }, textStyle]}>
+      <Animated.View
+        style={[styles.stack, screenStyle, { transform: [{ translateY: STACK_OFFSET_Y }] }]}>
+        <Animated.View style={[styles.brandTextWrap, textStyle]}>
           <Image
-            source={require('@/assets/images/splash/drishx-text.png')}
-            style={[styles.brandText, { marginTop: -TEXT_HEIGHT * TEXT_TOP_CROP }]}
+            source={require('@/assets/images/splash/drishx-text-removebg.png')}
+            style={styles.brandText}
             contentFit="contain"
             accessibilityLabel="DrishX"
           />
         </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.logoFrame,
-            { height: logoFrameHeight, marginTop: GAP_TEXT_TO_LOGO },
-            logoStyle,
-          ]}>
+        <Animated.View style={[styles.logoWrap, { marginTop: GAP_TEXT_TO_LOGO }, logoStyle]}>
           <Image
             source={require('@/assets/images/splash/drishx-logo.png')}
-            style={[styles.logo, { marginTop: -LOGO_HEIGHT * LOGO_TOP_CROP }]}
+            style={styles.logo}
             contentFit="contain"
             accessibilityLabel="DrishX logo"
           />
@@ -173,10 +160,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  textFrame: {
-    width: SCREEN_WIDTH,
-    overflow: 'hidden',
+  brandTextWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -184,10 +170,9 @@ const styles = StyleSheet.create({
     width: TEXT_WIDTH,
     height: TEXT_HEIGHT,
   },
-  logoFrame: {
-    width: SCREEN_WIDTH,
-    overflow: 'hidden',
+  logoWrap: {
     alignItems: 'center',
+    justifyContent: 'center',
   },
   logo: {
     width: LOGO_WIDTH,
@@ -198,10 +183,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   taglineLine: {
-    color: '#E8E4DC',
-    fontSize: SCREEN_WIDTH < 380 ? 13 : 14.5,
-    lineHeight: SCREEN_WIDTH < 380 ? 24 : 26,
-    letterSpacing: SCREEN_WIDTH < 380 ? 6 : 7,
+    color: '#F2EFE8',
+    fontSize: SCREEN_WIDTH < 380 ? 13 : 15,
+    lineHeight: SCREEN_WIDTH < 380 ? 25 : 28,
+    letterSpacing: SCREEN_WIDTH < 380 ? 6.5 : 7.5,
     textAlign: 'center',
     fontWeight: '300',
     fontFamily: Platform.select({
