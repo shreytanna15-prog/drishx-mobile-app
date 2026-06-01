@@ -7,19 +7,22 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { PRESCRIPTION_PICKER_HEIGHT, PrescriptionWheelPicker } from '@/components/prescription-wheel-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useCart } from '@/lib/cart';
 import {
   canAcceptPrescriptionInput,
+  formatPowerLabel,
   parseNumericInput,
   sanitizePositiveIntegerInput,
   sanitizeSignedNumericInput,
+  validatePrescriptionInRange,
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
+import { resolveSelectableRange } from '@/lib/prescription-range';
 import type { LensItem } from '@/lib/types/lens';
-
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
   if (!rawPayload) return null;
@@ -39,11 +42,15 @@ export default function LensProductScreen() {
   const { addToCart } = useCart();
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
+  const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
 
-  const [sph, setSph] = useState(item ? String(item.sph) : '');
-  const [cyl, setCyl] = useState(item ? String(item.cyl ?? '') : '');
+  const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
+  const initialCyl = selectableRange?.cyl?.options[0] ?? item?.cyl ?? 0;
+
+  const [sph, setSph] = useState<number>(initialSph);
+  const [cyl, setCyl] = useState<number>(initialCyl);
   const [add, setAdd] = useState(item ? String(item.add ?? '') : '');
   const [quantity, setQuantity] = useState('1');
   const [error, setError] = useState<string | null>(null);
@@ -68,31 +75,15 @@ export default function LensProductScreen() {
     );
   }
 
-  const maxSph = item.sph ?? 0;
-  const maxCyl = item.cyl ?? 0;
   const maxAdd = item.add ?? 0;
 
-  const prescriptionHint = `Enter ${maxSph} or lower for SPH, ${maxCyl} or lower for CYL (numbers only).`;
-
-  function handleSphChange(text: string) {
-    const sanitized = sanitizeSignedNumericInput(text);
-    if (!canAcceptPrescriptionInput(sanitized, maxSph)) {
-      setError(`SPH cannot be greater than ${maxSph}.`);
-      return;
-    }
-    setSph(sanitized);
-    setError(null);
-  }
-
-  function handleCylChange(text: string) {
-    const sanitized = sanitizeSignedNumericInput(text);
-    if (!canAcceptPrescriptionInput(sanitized, maxCyl)) {
-      setError(`CYL cannot be greater than ${maxCyl}.`);
-      return;
-    }
-    setCyl(sanitized);
-    setError(null);
-  }
+  const prescriptionHint = selectableRange
+    ? `Scroll to select SPH (${formatPowerLabel(selectableRange.sph.max)} to ${formatPowerLabel(selectableRange.sph.min)})${
+        selectableRange.cyl
+          ? ` and CYL (${formatPowerLabel(selectableRange.cyl.max)} to ${formatPowerLabel(selectableRange.cyl.min)})`
+          : ''
+      }.`
+    : `Select prescription values for this lens.`;
 
   function handleAddChange(text: string) {
     const sanitized = sanitizeSignedNumericInput(text);
@@ -116,19 +107,38 @@ export default function LensProductScreen() {
       return;
     }
 
-    const sphError = validatePrescriptionValue('SPH', sph, maxSph);
+    if (!selectableRange) {
+      setError('Unable to resolve prescription range.');
+      return;
+    }
+
+    const sphError = validatePrescriptionInRange(
+      'SPH',
+      String(sph),
+      selectableRange.sph.min,
+      selectableRange.sph.max
+    );
     if (sphError) {
       setError(sphError);
       return;
     }
-    const cylError = validatePrescriptionValue('CYL', cyl, maxCyl);
-    if (cylError) {
-      setError(cylError);
-      return;
-    }
 
-    const parsedSph = parseNumericInput(sph)!;
-    const parsedCyl = parseNumericInput(cyl)!;
+    let parsedCyl: number;
+    if (selectableRange.cyl) {
+      const cylError = validatePrescriptionInRange(
+        'CYL',
+        String(cyl),
+        selectableRange.cyl.min,
+        selectableRange.cyl.max
+      );
+      if (cylError) {
+        setError(cylError);
+        return;
+      }
+      parsedCyl = cyl;
+    } else {
+      parsedCyl = currentItem.cyl ?? 0;
+    }
 
     let parsedAdd: number | null = null;
     if (showAdd) {
@@ -150,7 +160,7 @@ export default function LensProductScreen() {
       id: currentItem.id,
       costPrice: currentItem.costPrice,
       price: currentItem.price,
-      sph: parsedSph,
+      sph,
       cyl: parsedCyl,
       axis: currentItem.axis,
       add: showAdd ? parsedAdd : null,
@@ -161,6 +171,8 @@ export default function LensProductScreen() {
       brand: currentItem.brand,
       item: currentItem.item,
       coating: currentItem.coating,
+      index: currentItem.index,
+      selectableRange: currentItem.selectableRange,
     };
 
     setAddedToCart(true);
@@ -193,62 +205,62 @@ export default function LensProductScreen() {
           <Text style={styles.sectionTitle}>Prescription</Text>
           <Text style={styles.sectionHint}>{prescriptionHint}</Text>
 
-          <View style={styles.fieldRow}>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>SPH</Text>
-              <Text style={styles.maxHint}>max {maxSph}</Text>
-              <TextInput
-                value={sph}
-                onChangeText={handleSphChange}
-                keyboardType="numbers-and-punctuation"
-                style={styles.input}
-                placeholder={String(maxSph)}
-                placeholderTextColor={colors.placeholder}
-              />
+          <View style={styles.prescriptionCard}>
+            <View style={styles.prescriptionHeader}>
+              <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
+              <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
+              <Text style={styles.prescriptionHeaderLabel}>QTY</Text>
             </View>
-            <View style={styles.field}>
-              <Text style={styles.fieldLabel}>CYL</Text>
-              <Text style={styles.maxHint}>max {maxCyl}</Text>
-              <TextInput
-                value={cyl}
-                onChangeText={handleCylChange}
-                keyboardType="numbers-and-punctuation"
-                style={styles.input}
-                placeholder={String(maxCyl)}
-                placeholderTextColor={colors.placeholder}
-              />
-            </View>
-            {showAdd ? (
-              <View style={styles.field}>
-                <Text style={styles.fieldLabel}>ADD</Text>
-                <Text style={styles.maxHint}>max {maxAdd}</Text>
+            <View style={styles.prescriptionRow}>
+              <View style={styles.pickerColumn}>
+                {selectableRange ? (
+                  <PrescriptionWheelPicker
+                    options={selectableRange.sph.options}
+                    value={sph}
+                    onChange={setSph}
+                  />
+                ) : null}
+              </View>
+              <View style={styles.pickerColumn}>
+                {selectableRange?.cyl ? (
+                  <PrescriptionWheelPicker
+                    options={selectableRange.cyl.options}
+                    value={cyl}
+                    onChange={setCyl}
+                  />
+                ) : (
+                  <View style={styles.pickerColumnPlaceholder}>
+                    <Text style={styles.pickerPlaceholderText}>—</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.qtyColumn}>
                 <TextInput
-                  value={add}
-                  onChangeText={handleAddChange}
-                  keyboardType="numbers-and-punctuation"
-                  style={styles.input}
-                  placeholder={String(maxAdd)}
+                  value={quantity}
+                  onChangeText={handleQuantityChange}
+                  keyboardType="number-pad"
+                  style={styles.qtyFieldInput}
+                  placeholder="Qty"
                   placeholderTextColor={colors.placeholder}
                 />
               </View>
-            ) : null}
+            </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Quantity</Text>
-          <View style={styles.qtyRow}>
-            <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Math.max(1, Number(current || 1) - 1)))}>
-              <MaterialIcons name="remove" size={22} color={colors.primary} />
-            </Pressable>
-            <TextInput
-              value={quantity}
-              onChangeText={handleQuantityChange}
-              keyboardType="number-pad"
-              style={styles.qtyInput}
-            />
-            <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Number(current || 0) + 1))}>
-              <MaterialIcons name="add" size={22} color={colors.primary} />
-            </Pressable>
-          </View>
+          {showAdd ? (
+            <View style={styles.addFieldWrap}>
+              <Text style={styles.fieldLabel}>ADD</Text>
+              <Text style={styles.maxHint}>max {maxAdd}</Text>
+              <TextInput
+                value={add}
+                onChangeText={handleAddChange}
+                keyboardType="numbers-and-punctuation"
+                style={styles.input}
+                placeholder={String(maxAdd)}
+                placeholderTextColor={colors.placeholder}
+              />
+            </View>
+          ) : null}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -271,97 +283,132 @@ export default function LensProductScreen() {
 
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: c.background },
-  safeArea: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: c.cardBorder,
-  },
-  backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
-  content: { padding: 16, paddingBottom: 32 },
-  summaryCard: {
-    backgroundColor: c.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    padding: 14,
-    marginBottom: 18,
-  },
-  summaryBrand: { color: c.text, fontSize: 22, fontWeight: '700' },
-  summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
-  summaryType: { color: c.text, fontSize: 16, marginTop: 6, fontWeight: '600' },
-  summaryPrice: { color: c.primary, fontSize: 18, marginTop: 8, fontWeight: '800' },
-  sectionTitle: {
-    color: c.label,
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  sectionHint: { color: c.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 12 },
-  fieldRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
-  field: { flex: 1 },
-  fieldLabel: { color: c.label, fontWeight: '600', fontSize: 12, marginBottom: 3 },
-  maxHint: { color: c.primary, fontWeight: '600', fontSize: 11, marginBottom: 6 },
-  input: {
-    borderWidth: 1,
-    borderColor: c.inputBorder,
-    backgroundColor: c.inputBg,
-    color: c.text,
-    fontSize: 16,
-    fontWeight: '600',
-    borderRadius: 12,
-    textAlign: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-  },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 16 },
-  qtyButton: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: c.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qtyInput: {
-    width: 64,
-    borderWidth: 1,
-    borderColor: c.inputBorder,
-    backgroundColor: c.inputBg,
-    color: c.text,
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-    borderRadius: 12,
-    paddingVertical: 8,
-  },
-  errorText: { color: c.danger, textAlign: 'center', marginBottom: 12, fontSize: 14 },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: c.primary,
-    borderRadius: 14,
-    paddingVertical: 16,
-    marginTop: 4,
-  },
-  addBtnSuccess: {
-    opacity: 0.92,
-  },
-  addBtnDisabled: {
-    opacity: 0.6,
-  },
-  addBtnText: { color: c.primaryText, fontWeight: '800', fontSize: 16 },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-});
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 6,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.cardBorder,
+    },
+    backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+    content: { padding: 16, paddingBottom: 32 },
+    summaryCard: {
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      padding: 14,
+      marginBottom: 18,
+    },
+    summaryBrand: { color: c.text, fontSize: 22, fontWeight: '700' },
+    summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
+    summaryType: { color: c.text, fontSize: 16, marginTop: 6, fontWeight: '600' },
+    summaryPrice: { color: c.primary, fontSize: 18, marginTop: 8, fontWeight: '800' },
+    sectionTitle: {
+      color: c.label,
+      fontSize: 13,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+    },
+    sectionHint: { color: c.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 12 },
+    prescriptionCard: {
+      borderRadius: 12,
+      overflow: 'hidden',
+      marginBottom: 18,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    prescriptionHeader: {
+      flexDirection: 'row',
+      backgroundColor: c.menuRowAlt,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.cardBorder,
+    },
+    prescriptionHeaderLabel: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.label,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    prescriptionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: c.card,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    pickerColumn: { flex: 1 },
+    pickerColumnPlaceholder: {
+      height: PRESCRIPTION_PICKER_HEIGHT,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pickerPlaceholderText: { color: c.textMuted, fontSize: 18 },
+    qtyColumn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 8,
+    },
+    qtyFieldInput: {
+      width: '100%',
+      maxWidth: 88,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 10,
+      backgroundColor: c.inputBg,
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '600',
+      textAlign: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+    },
+    addFieldWrap: { marginBottom: 18 },
+    fieldLabel: { color: c.label, fontWeight: '600', fontSize: 12, marginBottom: 3 },
+    maxHint: { color: c.primary, fontWeight: '600', fontSize: 11, marginBottom: 6 },
+    input: {
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      backgroundColor: c.inputBg,
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '600',
+      borderRadius: 12,
+      textAlign: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 10,
+    },
+    errorText: { color: c.danger, textAlign: 'center', marginBottom: 12, fontSize: 14 },
+    addBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 16,
+      marginTop: 4,
+    },
+    addBtnSuccess: {
+      opacity: 0.92,
+    },
+    addBtnDisabled: {
+      opacity: 0.6,
+    },
+    addBtnText: { color: c.primaryText, fontWeight: '800', fontSize: 16 },
+    emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
+  });

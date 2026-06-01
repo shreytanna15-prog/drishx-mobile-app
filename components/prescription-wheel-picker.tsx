@@ -12,12 +12,15 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { formatPowerLabel } from '@/lib/cart-utils';
 
 const ITEM_HEIGHT = 44;
 const VISIBLE_COUNT = 3;
-const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_COUNT;
+export const PRESCRIPTION_PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_COUNT;
+
 type PrescriptionWheelPickerProps = {
   options: number[];
   value: number | null;
@@ -35,9 +38,10 @@ type PickerRowProps = {
   label: string;
   scrollY: SharedValue<number>;
   onPress: () => void;
+  textColor: string;
 };
 
-function PickerRow({ index, label, scrollY, onPress }: PickerRowProps) {
+function PickerRow({ index, label, scrollY, onPress, textColor }: PickerRowProps) {
   const animatedStyle = useAnimatedStyle(() => {
     const distance = Math.abs(scrollY.value - index * ITEM_HEIGHT);
     const opacity = interpolate(distance, [0, ITEM_HEIGHT * 1.1], [1, 0.18], Extrapolation.CLAMP);
@@ -49,21 +53,23 @@ function PickerRow({ index, label, scrollY, onPress }: PickerRowProps) {
   });
 
   return (
-    <Pressable onPress={onPress} style={styles.optionRow}>
-      <Animated.View style={[styles.optionInner, animatedStyle]}>
-        <Text style={styles.optionText}>{label}</Text>
+    <Pressable onPress={onPress} style={rowStyles.optionRow}>
+      <Animated.View style={[rowStyles.optionInner, animatedStyle]}>
+        <Text style={[rowStyles.optionText, { color: textColor }]}>{label}</Text>
       </Animated.View>
     </Pressable>
   );
 }
 
 export function PrescriptionWheelPicker({ options, value, onChange }: PrescriptionWheelPickerProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
   const scrollY = useSharedValue(0);
   const lastIndexRef = useRef(findOptionIndex(options, value));
 
   const snapOffsets = useMemo(() => options.map((_, index) => index * ITEM_HEIGHT), [options]);
-  const centerPadding = (PICKER_HEIGHT - ITEM_HEIGHT) / 2;
+  const centerPadding = (PRESCRIPTION_PICKER_HEIGHT - ITEM_HEIGHT) / 2;
 
   const emitSelection = useCallback(
     (index: number, haptic: boolean) => {
@@ -132,7 +138,7 @@ export function PrescriptionWheelPicker({ options, value, onChange }: Prescripti
     const only = options[0]!;
     return (
       <View style={styles.pickerShell}>
-        <View style={styles.optionRow}>
+        <View style={rowStyles.optionRow}>
           <Text style={styles.singleValue}>{formatPowerLabel(only)}</Text>
         </View>
         <View style={styles.focusRail} pointerEvents="none" />
@@ -162,6 +168,7 @@ export function PrescriptionWheelPicker({ options, value, onChange }: Prescripti
             index={index}
             label={formatPowerLabel(option)}
             scrollY={scrollY}
+            textColor={colors.text}
             onPress={() => {
               scrollToIndex(index, true);
               emitSelection(index, true);
@@ -173,13 +180,7 @@ export function PrescriptionWheelPicker({ options, value, onChange }: Prescripti
   );
 }
 
-const styles = StyleSheet.create({
-  pickerShell: {
-    height: PICKER_HEIGHT,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  scroll: { flex: 1 },
+const rowStyles = StyleSheet.create({
   optionRow: {
     height: ITEM_HEIGHT,
     alignItems: 'center',
@@ -190,32 +191,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   optionText: {
-    color: BrandColors.text,
     fontSize: 17,
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.2,
   },
-  singleValue: {
-    color: BrandColors.text,
-    fontSize: 17,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-  },
-  emptyText: {
-    color: BrandColors.textMuted,
-    fontSize: 15,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  focusRail: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    top: (PICKER_HEIGHT - ITEM_HEIGHT) / 2,
-    height: ITEM_HEIGHT,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(240, 161, 50, 0.35)',
-    zIndex: 2,
-  },
 });
+
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    pickerShell: {
+      height: PRESCRIPTION_PICKER_HEIGHT,
+      overflow: 'hidden',
+      justifyContent: 'center',
+    },
+    scroll: { flex: 1 },
+    singleValue: {
+      color: c.text,
+      fontSize: 17,
+      fontWeight: '600',
+      fontVariant: ['tabular-nums'],
+    },
+    emptyText: {
+      color: c.textMuted,
+      fontSize: 15,
+      fontWeight: '500',
+      textAlign: 'center',
+    },
+    focusRail: {
+      position: 'absolute',
+      left: 12,
+      right: 12,
+      top: (PRESCRIPTION_PICKER_HEIGHT - ITEM_HEIGHT) / 2,
+      height: ITEM_HEIGHT,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderColor: c.inputBorder,
+      zIndex: 2,
+    },
+  });
