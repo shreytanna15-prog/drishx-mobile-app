@@ -1,54 +1,41 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OrderTrackingTimeline } from '@/components/order-tracking-timeline';
+import { EmployeeOrderGroupDetail } from '@/components/employee-order-group-detail';
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import {
-  formatOrderStatusLabel,
-  getStaffStatusOptions,
-  normalizeOrderStatus,
-  type OrderTrackingStatus,
-} from '@/lib/order-tracking';
-import { fetchOrderById, getOrderLensDetails, updateOrderStatus, type OrderRecord } from '@/lib/orders-api';
-import { formatLensType } from '@/lib/types/lens';
+import { groupOrdersForList } from '@/lib/order-list-display';
+import type { OrderTrackingStatus } from '@/lib/order-tracking';
+import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
 
-function StatusChip({
-  label,
-  onPress,
-  disabled,
-  danger,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <Pressable
-      style={[styles.statusChip, danger ? styles.statusChipDanger : styles.statusChipPrimary, disabled && styles.disabled]}
-      onPress={onPress}
-      disabled={disabled}>
-      <Text style={[styles.statusChipText, danger ? styles.statusChipTextDanger : styles.statusChipTextPrimary]}>{label}</Text>
-    </Pressable>
-  );
-}
+const GOLD = BrandColors.primary;
 
 export default function OrderDetailsScreen() {
-  const params = useLocalSearchParams<{ id?: string | string[] }>();
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string | string[]; groupKey?: string | string[] }>();
   const orderIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
+  const groupKeyParam = Array.isArray(params.groupKey) ? params.groupKey[0] : params.groupKey;
   const { getAuthHeaders } = useAuth();
-  const [order, setOrder] = useState<OrderRecord | null>(null);
+  const [orders, setOrders] = useState<Awaited<ReturnType<typeof fetchOrders>>>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
-  const loadOrder = useCallback(async () => {
+  const loadOrders = useCallback(async () => {
     if (!orderIdParam) {
       setError('Invalid order id.');
       setLoading(false);
@@ -57,146 +44,106 @@ export default function OrderDetailsScreen() {
 
     try {
       setError(null);
-      const data = await fetchOrderById(orderIdParam, getAuthHeaders());
-      setOrder(data);
+      const data = await fetchOrders(getAuthHeaders());
+      setOrders(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load order.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [getAuthHeaders, orderIdParam]);
 
   useEffect(() => {
-    loadOrder();
-  }, [loadOrder]);
+    loadOrders();
+  }, [loadOrders]);
 
-  function confirmStatusUpdate(nextStatus: OrderTrackingStatus) {
-    if (!order) {
-      return;
+  const orderGroup = useMemo(() => {
+    if (!orderIdParam && !groupKeyParam) {
+      return null;
     }
-    const message =
-      nextStatus === 'CANCELLED'
-        ? 'Cancel this order? Stock will be restored.'
-        : `Mark this order as "${formatOrderStatusLabel(nextStatus)}"?`;
 
-    Alert.alert('Update order status', message, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, update',
-        onPress: async () => {
-          setUpdating(true);
-          try {
-            const updated = await updateOrderStatus(order.id, nextStatus, getAuthHeaders());
-            setOrder(updated);
-          } catch (err) {
-            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to update order.');
-          } finally {
-            setUpdating(false);
-          }
-        },
-      },
-    ]);
-  }
+    const targetKey =
+      groupKeyParam ||
+      orders.find((order) => order.id === orderIdParam)?.checkoutBatchId?.trim() ||
+      orderIdParam;
 
-  if (loading) {
-    return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={BrandColors.primary} />
-        <Text style={styles.loadingText}>Loading order...</Text>
-      </View>
+    if (!targetKey) {
+      return null;
+    }
+
+    const batch = orders.filter(
+      (order) => (order.checkoutBatchId?.trim() || order.id) === targetKey
     );
-  }
 
-  if (error || !order) {
-    return (
-      <View style={styles.loadingWrap}>
-        <MaterialIcons name="error-outline" size={44} color="#f87171" />
-        <Text style={styles.errorText}>{error || 'Order not found.'}</Text>
-      </View>
-    );
-  }
+    if (batch.length === 0 && orderIdParam) {
+      const single = orders.find((order) => order.id === orderIdParam);
+      if (!single) {
+        return null;
+      }
+      return groupOrdersForList([single])[0] ?? null;
+    }
 
-  const details = getOrderLensDetails(order);
-  const lensLabel = formatLensType(order.lensType);
-  const total = Number(order.totalAmount || 0);
-  const status = normalizeOrderStatus(order.status);
-  const statusOptions = getStaffStatusOptions(status);
-  const customerName = order.user?.name?.trim() || order.user?.email || 'Customer';
+    return groupOrdersForList(batch)[0] ?? null;
+  }, [groupKeyParam, orderIdParam, orders]);
+
+  const handleUpdateStatus = useCallback(
+    async (orderId: string, status: OrderTrackingStatus) => {
+      setUpdatingOrderId(orderId);
+      try {
+        await updateOrderStatus(orderId, status, getAuthHeaders());
+        await loadOrders();
+      } finally {
+        setUpdatingOrderId(null);
+      }
+    },
+    [getAuthHeaders, loadOrders]
+  );
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.card}>
-            <View style={styles.headerRow}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.name}>{customerName}</Text>
-                <Text style={styles.sub}>{lensLabel}</Text>
-                <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
-                <Text style={styles.date}>
-                  {new Date(order.createdAt).toLocaleDateString(undefined, {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </Text>
-              </View>
-              <View style={styles.headerRight}>
-                <View style={styles.statusPill}>
-                  <Text style={styles.statusPillText}>{formatOrderStatusLabel(status)}</Text>
-                </View>
-                <Text style={styles.amount}>Rs {total}</Text>
-              </View>
-            </View>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={10}>
+            <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+          </Pressable>
+          <Text style={styles.headerTitle}>{orderGroup?.displayOrderId ?? 'Order details'}</Text>
+          <View style={styles.backButton} />
+        </View>
 
-            {order.user?.email ? <Text style={styles.lineText}>{order.user.email}</Text> : null}
-
-            {details ? (
-              <Text style={styles.lineText}>
-                SPH {details.sph} · CYL {details.cyl ?? '-'}
-                {'add' in details && details.add !== undefined ? ` · ADD ${details.add}` : ''}
-                {'eye' in details && details.eye ? ` · ${details.eye}` : ''}
-              </Text>
-            ) : null}
-
-            <Text style={styles.lineText}>Quantity: {order.quantity}</Text>
-
-            {order.notes?.trim() ? (
-              <View style={styles.notesBox}>
-                <Text style={styles.notesTitle}>Order notes</Text>
-                <Text style={styles.notesText}>{order.notes.trim()}</Text>
-              </View>
-            ) : null}
-
-            <Text style={styles.sectionTitle}>Order tracking</Text>
-            <OrderTrackingTimeline status={order.status} />
-
-            {statusOptions.length > 0 ? (
-              <View style={styles.updateWrap}>
-                <Text style={styles.sectionTitle}>Update status</Text>
-                <View style={styles.chipsRow}>
-                  {statusOptions.map((nextStatus) => (
-                    <StatusChip
-                      key={nextStatus}
-                      label={formatOrderStatusLabel(nextStatus)}
-                      danger={nextStatus === 'CANCELLED'}
-                      disabled={updating}
-                      onPress={() => confirmStatusUpdate(nextStatus)}
-                    />
-                  ))}
-                </View>
-                {updating ? (
-                  <View style={styles.updatingRow}>
-                    <ActivityIndicator size="small" color={BrandColors.primary} />
-                    <Text style={styles.updatingText}>Updating...</Text>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
+        {loading ? (
+          <View style={styles.centeredState}>
+            <ActivityIndicator size="large" color={GOLD} />
+            <Text style={styles.stateText}>Loading order...</Text>
           </View>
-        </ScrollView>
+        ) : error || !orderGroup ? (
+          <View style={styles.centeredState}>
+            <MaterialIcons name="error-outline" size={44} color="#f87171" />
+            <Text style={styles.errorText}>{error || 'Order not found.'}</Text>
+            <Pressable style={styles.retryButton} onPress={loadOrders}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  setRefreshing(true);
+                  loadOrders();
+                }}
+                tintColor={GOLD}
+              />
+            }>
+            <EmployeeOrderGroupDetail
+              group={orderGroup}
+              onUpdateStatus={handleUpdateStatus}
+              updatingOrderId={updatingOrderId}
+            />
+          </ScrollView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -205,81 +152,40 @@ export default function OrderDetailsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: BrandColors.background },
   safeArea: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 24 },
-  card: {
-    backgroundColor: BrandColors.card,
-    borderColor: BrandColors.cardBorder,
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 14,
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  headerRight: { alignItems: 'flex-end', gap: 8 },
-  name: { color: BrandColors.text, fontSize: 18, fontWeight: '700' },
-  sub: { color: BrandColors.textMuted, fontSize: 14, marginTop: 2 },
-  orderId: { color: BrandColors.textMuted, fontSize: 12, marginTop: 4 },
-  date: { color: BrandColors.textMuted, fontSize: 12, marginTop: 4 },
-  statusPill: {
-    backgroundColor: 'rgba(242, 170, 76, 0.14)',
-    borderColor: BrandColors.primary,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  backButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  statusPillText: { color: BrandColors.primary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  amount: { color: BrandColors.primary, fontSize: 24, fontWeight: '800' },
-  lineText: { color: BrandColors.textMuted, fontSize: 14, marginBottom: 4 },
-  notesBox: {
-    marginTop: 8,
-    marginBottom: 12,
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-    backgroundColor: BrandColors.background,
-  },
-  notesTitle: { color: BrandColors.primary, textTransform: 'uppercase', fontWeight: '700', fontSize: 12, marginBottom: 4 },
-  notesText: { color: BrandColors.text, fontSize: 14, lineHeight: 20 },
-  sectionTitle: {
-    color: BrandColors.textMuted,
-    textTransform: 'uppercase',
+  headerTitle: {
+    color: BrandColors.text,
+    fontSize: 17,
     fontWeight: '700',
-    letterSpacing: 0.6,
-    fontSize: 12,
-    marginTop: 8,
-    marginBottom: 8,
   },
-  updateWrap: { marginTop: 10 },
-  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  statusChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  statusChipPrimary: {
-    borderColor: BrandColors.primary,
-    backgroundColor: 'rgba(242, 170, 76, 0.12)',
-  },
-  statusChipDanger: {
-    borderColor: '#fca5a5',
-    backgroundColor: '#450a0a',
-  },
-  statusChipText: { fontSize: 13, fontWeight: '700' },
-  statusChipTextPrimary: { color: BrandColors.primary },
-  statusChipTextDanger: { color: '#fda4af' },
-  updatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
-  updatingText: { color: BrandColors.textMuted, fontSize: 13 },
-  disabled: { opacity: 0.7 },
-  loadingWrap: {
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
+  centeredState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
     gap: 8,
-    backgroundColor: BrandColors.background,
   },
-  loadingText: { color: BrandColors.textMuted },
+  stateText: { color: BrandColors.textMuted },
   errorText: { color: '#f87171', textAlign: 'center' },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 8,
+    backgroundColor: GOLD,
+  },
+  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
 });

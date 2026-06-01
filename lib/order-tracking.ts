@@ -101,6 +101,16 @@ export function formatOrderStatusLabel(status: OrderTrackingStatus): string {
   return STATUS_LABELS[status];
 }
 
+/** Whether staff can tap the packed circle on the power table to set status to PACKED. */
+export function canStaffMarkLinePacked(status: OrderTrackingStatus): boolean {
+  return (
+    status !== 'PACKED' &&
+    status !== 'DISPATCHED' &&
+    status !== 'COMPLETED' &&
+    status !== 'CANCELLED'
+  );
+}
+
 /** Suggested status transitions for staff when updating an order. */
 export function getStaffStatusOptions(current: OrderTrackingStatus): OrderTrackingStatus[] {
   switch (current) {

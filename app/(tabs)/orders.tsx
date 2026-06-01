@@ -16,9 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
-import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
+import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
+import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
-import { formatLensType } from '@/lib/types/lens';
+
+const GOLD = BrandColors.primary;
+const CARD = BrandColors.card;
+const BORDER = BrandColors.cardBorder;
 
 type StaffOrderFilter = 'ALL' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -33,39 +37,65 @@ function isInProgressStatus(status: string): boolean {
   return normalized !== 'COMPLETED' && normalized !== 'CANCELLED';
 }
 
-function CompactOrderRow({ order, onPress }: { order: OrderRecord; onPress: () => void }) {
-  const status = normalizeOrderStatus(order.status);
-  const customerName = order.user?.name?.trim() || order.user?.email || 'Customer';
-  const lensLabel = formatLensType(order.lensType);
-  const total = Number(order.totalAmount || 0);
-  const shortId = order.id.slice(-7).toUpperCase();
-  const dateLabel = new Date(order.createdAt).toLocaleDateString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+function groupMatchesStaffFilter(group: OrderListGroup, filter: StaffOrderFilter): boolean {
+  if (filter === 'ALL') {
+    return true;
+  }
+  if (filter === 'COMPLETED') {
+    return group.orders.some((order) => normalizeOrderStatus(order.status) === 'COMPLETED');
+  }
+  return group.orders.some((order) => isInProgressStatus(order.status));
+}
+
+function OrderListRow({ group, onPress }: { group: OrderListGroup; onPress: () => void }) {
+  const pillStyle = getStatusPillStyle(group.status.variant);
+  const productLabel = `${group.productCount} Product${group.productCount === 1 ? '' : 's'}`;
+  const pairLabel = `${group.pairCount} Pair${group.pairCount === 1 ? '' : 's'}`;
 
   return (
-    <Pressable style={styles.rowCard} onPress={onPress}>
-      <View style={styles.rowTop}>
-        <View style={styles.rowTopLeft}>
-          <Text style={styles.rowName}>{customerName}</Text>
-          <Text style={styles.rowSub}>{lensLabel}</Text>
+    <Pressable style={styles.listRow} onPress={onPress}>
+      <View style={styles.listTopRow}>
+        <Text style={styles.listOrderId}>{group.displayOrderId}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: pillStyle.backgroundColor,
+              borderColor: pillStyle.borderColor,
+            },
+          ]}>
+          <Text style={[styles.statusPillText, { color: pillStyle.color }]}>{group.status.label}</Text>
         </View>
-        <Text style={styles.rowAmount}>Rs {total}</Text>
       </View>
 
-      <View style={styles.rowBottom}>
-        <Text style={styles.rowOrderId}>#DRX{shortId}</Text>
-        <View style={styles.statusPill}>
-          <Text style={styles.statusPillText}>{formatOrderStatusLabel(status)}</Text>
-        </View>
+      <Text style={styles.listCompany}>{group.companyName}</Text>
+      <Text style={styles.listDate}>{formatOrderDateTime(group.createdAt)}</Text>
+
+      <View style={styles.listMetricsRow}>
+        <Text style={styles.listMetricsText}>
+          {productLabel} · {pairLabel}
+        </Text>
+        <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
       </View>
 
-      <View style={styles.rowMeta}>
-        <Text style={styles.rowDate}>{dateLabel}</Text>
-        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
-      </View>
+      {(group.readyProductCount > 0 || group.procurementProductCount > 0) && (
+        <View style={styles.fulfillmentRow}>
+          {group.readyProductCount > 0 ? (
+            <View style={styles.readyPill}>
+              <Text style={styles.readyPillText}>
+                {group.readyProductCount} Ready
+              </Text>
+            </View>
+          ) : null}
+          {group.procurementProductCount > 0 ? (
+            <View style={styles.procurementPill}>
+              <Text style={styles.procurementPillText}>
+                {group.procurementProductCount} Need Procurement
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -96,15 +126,12 @@ export default function EmployeeOrdersScreen() {
     loadOrders();
   }, [loadOrders]);
 
-  const filteredOrders = useMemo(() => {
-    if (activeFilter === 'ALL') {
-      return orders;
-    }
-    if (activeFilter === 'COMPLETED') {
-      return orders.filter((order) => normalizeOrderStatus(order.status) === 'COMPLETED');
-    }
-    return orders.filter((order) => isInProgressStatus(order.status));
-  }, [activeFilter, orders]);
+  const orderGroups = useMemo(() => groupOrdersForList(orders), [orders]);
+
+  const filteredGroups = useMemo(
+    () => orderGroups.filter((group) => groupMatchesStaffFilter(group, activeFilter)),
+    [orderGroups, activeFilter]
+  );
 
   return (
     <View style={styles.container}>
@@ -130,7 +157,7 @@ export default function EmployeeOrdersScreen() {
 
         {loading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={BrandColors.primary} />
+            <ActivityIndicator size="large" color={GOLD} />
             <Text style={styles.stateText}>Loading orders...</Text>
           </View>
         ) : error ? (
@@ -143,8 +170,8 @@ export default function EmployeeOrdersScreen() {
           </View>
         ) : (
           <FlatList
-            data={filteredOrders}
-            keyExtractor={(item) => item.id}
+            data={filteredGroups}
+            keyExtractor={(item) => item.key}
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
@@ -153,7 +180,7 @@ export default function EmployeeOrdersScreen() {
                   setRefreshing(true);
                   loadOrders();
                 }}
-                tintColor={BrandColors.primary}
+                tintColor={GOLD}
               />
             }
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -165,9 +192,14 @@ export default function EmployeeOrdersScreen() {
               </View>
             }
             renderItem={({ item }) => (
-              <CompactOrderRow
-                order={item}
-                onPress={() => router.push({ pathname: '/order-details', params: { id: item.id } } as never)}
+              <OrderListRow
+                group={item}
+                onPress={() =>
+                  router.push({
+                    pathname: '/order-details',
+                    params: { id: item.orders[0].id, groupKey: item.key },
+                  } as never)
+                }
               />
             )}
           />
@@ -185,45 +217,68 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: 4, fontSize: 14, color: BrandColors.textMuted },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 6, marginBottom: 8, gap: 10 },
   filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-    backgroundColor: BrandColors.card,
+    borderColor: BORDER,
+    backgroundColor: CARD,
   },
   filterChipActive: {
-    borderColor: BrandColors.primary,
-    backgroundColor: 'rgba(242, 170, 76, 0.12)',
+    borderColor: GOLD,
+    backgroundColor: 'rgba(240, 161, 50, 0.15)',
   },
-  filterChipText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '700' },
-  filterChipTextActive: { color: BrandColors.primary },
+  filterChipText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '600' },
+  filterChipTextActive: { color: GOLD, fontWeight: '700' },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
-  rowCard: {
-    backgroundColor: BrandColors.card,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
+  listRow: {
+    padding: 16,
     borderRadius: 14,
-    padding: 12,
-  },
-  rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowTopLeft: { flex: 1, paddingRight: 10 },
-  rowName: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  rowSub: { color: BrandColors.textMuted, fontSize: 13, marginTop: 2 },
-  rowAmount: { color: BrandColors.primary, fontWeight: '800', fontSize: 20 },
-  rowBottom: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowOrderId: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '600' },
-  statusPill: {
-    backgroundColor: 'rgba(242, 170, 76, 0.14)',
-    borderColor: BrandColors.primary,
     borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    borderColor: BORDER,
+    backgroundColor: CARD,
+    gap: 6,
   },
-  statusPillText: { color: BrandColors.primary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  rowMeta: { marginTop: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  rowDate: { color: BrandColors.textMuted, fontSize: 12 },
+  listTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  listOrderId: { color: BrandColors.text, fontSize: 17, fontWeight: '800', flex: 1 },
+  statusPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
+  statusPillText: { fontSize: 11, fontWeight: '700' },
+  listCompany: { color: BrandColors.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
+  listDate: { color: BrandColors.textMuted, fontSize: 12, marginTop: 2 },
+  listMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 12,
+  },
+  listMetricsText: { color: BrandColors.text, fontSize: 13, fontWeight: '600', flex: 1 },
+  listAmount: { color: BrandColors.text, fontSize: 16, fontWeight: '800' },
+  fulfillmentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  readyPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  readyPillText: { color: '#4ade80', fontSize: 11, fontWeight: '700' },
+  procurementPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(248, 113, 113, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.3)',
+  },
+  procurementPillText: { color: '#f87171', fontSize: 11, fontWeight: '700' },
   separator: { height: 12 },
   centeredState: {
     flex: 1,
@@ -241,7 +296,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
-    backgroundColor: BrandColors.primary,
+    backgroundColor: GOLD,
   },
-  retryText: { color: '#111', fontWeight: '700' },
+  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
 });

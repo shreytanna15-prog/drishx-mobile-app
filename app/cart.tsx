@@ -136,9 +136,15 @@ export default function CartScreen() {
     const failures: string[] = [];
     let successCount = 0;
     let procurementCount = 0;
+    const checkoutBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
     for (const item of items) {
-      const result = await createOrder(item, getAuthHeaders(), trimmedNotes || undefined);
+      const result = await createOrder(
+        item,
+        getAuthHeaders(),
+        trimmedNotes || undefined,
+        checkoutBatchId
+      );
       if (result.success) {
         successCount += 1;
         if (result.status === 'AWAITING_PROCUREMENT') {

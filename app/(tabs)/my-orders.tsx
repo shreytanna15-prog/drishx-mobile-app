@@ -15,12 +15,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { OrderTrackingTimeline } from '@/components/order-tracking-timeline';
+import { CustomerOrderGroupDetail } from '@/components/customer-order-group-detail';
 import { BrandColors } from '@/constants/brand-colors';
 import { useAuth } from '@/lib/auth';
+import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
 import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
-import { cancelOrder, fetchOrders, getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
-import { formatLensType } from '@/lib/types/lens';
+import { cancelOrder, fetchOrders, type OrderRecord } from '@/lib/orders-api';
 
 const GOLD = BrandColors.primary;
 const BG = BrandColors.background;
@@ -40,14 +40,6 @@ const FILTER_OPTIONS: FilterOption[] = [
   { key: 'COMPLETED', label: 'Completed' },
   { key: 'CANCELLED', label: 'Cancelled' },
 ];
-
-function formatOrderDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
 
 function isInProgressStatus(status: string): boolean {
   const normalized = normalizeOrderStatus(status);
@@ -69,135 +61,83 @@ function orderMatchesFilter(order: OrderRecord, filter: FilterKey): boolean {
   return isInProgressStatus(normalized);
 }
 
+function groupMatchesFilter(group: OrderListGroup, filter: FilterKey): boolean {
+  return group.orders.some((order) => orderMatchesFilter(order, filter));
+}
+
 function ListOrderRow({
-  order,
+  group,
   onPress,
 }: {
-  order: OrderRecord;
+  group: OrderListGroup;
   onPress: () => void;
 }) {
-  const lensLabel = formatLensType(order.lensType);
-  const total = Number(order.totalAmount);
-  const status = normalizeOrderStatus(order.status);
-  const statusLabel = formatOrderStatusLabel(status);
-  const isProcurement = status === 'AWAITING_PROCUREMENT';
+  const pillStyle = getStatusPillStyle(group.status.variant);
+  const productLabel = `${group.productCount} Product${group.productCount === 1 ? '' : 's'}`;
+  const pairLabel = `${group.pairCount} Pair${group.pairCount === 1 ? '' : 's'}`;
 
   return (
     <Pressable style={styles.listRow} onPress={onPress}>
-      <View style={styles.listRowLeft}>
-        <View style={styles.listIconWrap}>
-          <MaterialIcons
-            name={status === 'CANCELLED' ? 'cancel' : 'inventory'}
-            size={15}
-            color={status === 'CANCELLED' ? '#f87171' : GOLD}
-          />
-        </View>
-        <View style={styles.listMeta}>
-          <Text style={styles.listOrderId}>#{order.id.slice(-8).toUpperCase()}</Text>
-          <Text style={styles.listLensType}>{lensLabel}</Text>
-          <Text style={styles.listDate}>{formatOrderDate(order.createdAt)}</Text>
+      <View style={styles.listTopRow}>
+        <Text style={styles.listOrderId}>{group.displayOrderId}</Text>
+        <View
+          style={[
+            styles.statusPill,
+            {
+              backgroundColor: pillStyle.backgroundColor,
+              borderColor: pillStyle.borderColor,
+            },
+          ]}>
+          <Text style={[styles.statusPillText, { color: pillStyle.color }]}>{group.status.label}</Text>
         </View>
       </View>
-      <View style={styles.listRowRight}>
-        <Text style={styles.listAmount}>₹{total.toLocaleString('en-IN')}</Text>
-        <Text style={[styles.listStatus, isProcurement && styles.listStatusProcurement]}>
-          {statusLabel}
+
+      <Text style={styles.listCompany}>{group.companyName}</Text>
+      <Text style={styles.listDate}>{formatOrderDateTime(group.createdAt)}</Text>
+
+      <View style={styles.listMetricsRow}>
+        <Text style={styles.listMetricsText}>
+          {productLabel} · {pairLabel}
         </Text>
+        <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
       </View>
+
+      {(group.readyProductCount > 0 || group.procurementProductCount > 0) && (
+        <View style={styles.fulfillmentRow}>
+          {group.readyProductCount > 0 ? (
+            <View style={styles.readyPill}>
+              <Text style={styles.readyPillText}>
+                {group.readyProductCount} Ready
+              </Text>
+            </View>
+          ) : null}
+          {group.procurementProductCount > 0 ? (
+            <View style={styles.procurementPill}>
+              <Text style={styles.procurementPillText}>
+                {group.procurementProductCount} Need Procurement
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 }
 
-function DetailOrderCard({
-  order,
-  onCancel,
-  cancelling,
-}: {
-  order: OrderRecord;
-  onCancel: () => void;
-  cancelling: boolean;
-}) {
-  const details = getOrderLensDetails(order);
-  const lensLabel = formatLensType(order.lensType);
-  const total = Number(order.totalAmount);
-  const status = normalizeOrderStatus(order.status);
-  const canCancel = status === 'PENDING' || status === 'AWAITING_PROCUREMENT';
-  const isProcurement = status === 'AWAITING_PROCUREMENT';
-
-  return (
-    <View style={styles.orderCard}>
-      <View style={styles.orderHeader}>
-        <View style={styles.orderHeaderLeft}>
-          <Text style={styles.orderTitle}>{lensLabel}</Text>
-          <Text style={styles.orderId}>Order #{order.id.slice(-8).toUpperCase()}</Text>
-          <Text style={styles.orderDate}>
-            {new Date(order.createdAt).toLocaleDateString(undefined, {
-              day: 'numeric',
-              month: 'short',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </View>
-        <Text style={styles.totalText}>₹{total}</Text>
-      </View>
-
-      {details ? (
-        <Text style={styles.specText}>
-          SPH {details.sph} · CYL {details.cyl ?? '—'}
-          {'add' in details && details.add !== undefined && ` · ADD ${details.add}`}
-          {'eye' in details && details.eye ? ` · ${details.eye}` : ''}
-        </Text>
-      ) : null}
-
-      <Text style={styles.qtyText}>Quantity: {order.quantity}</Text>
-
-      {isProcurement ? (
-        <View style={styles.procurementBanner}>
-          <MaterialIcons name="local-shipping" size={18} color="#2563eb" />
-          <Text style={styles.procurementBannerText}>
-            Your order is in procurement. We are sourcing this product and will update you when it is
-            available.
-          </Text>
-        </View>
-      ) : null}
-
-      {order.notes?.trim() ? (
-        <View style={styles.notesBox}>
-          <Text style={styles.notesLabel}>Order notes</Text>
-          <Text style={styles.notesText}>{order.notes.trim()}</Text>
-        </View>
-      ) : null}
-
-      <Text style={styles.trackingTitle}>Order tracking</Text>
-      <OrderTrackingTimeline status={order.status} />
-
-      {canCancel && (
-        <Pressable
-          style={[styles.cancelButton, cancelling && styles.buttonDisabled]}
-          onPress={onCancel}
-          disabled={cancelling}>
-          {cancelling ? (
-            <ActivityIndicator size="small" color={GOLD} />
-          ) : (
-            <Text style={styles.cancelText}>Cancel order</Text>
-          )}
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
 export default function MyOrdersScreen() {
-  const { getAuthHeaders } = useAuth();
+  const { getAuthHeaders, user } = useAuth();
   const [orders, setOrders] = useState<OrderRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+
+  const orderGroups = useMemo(
+    () => groupOrdersForList(orders, user?.businessName, 'Your company'),
+    [orders, user?.businessName]
+  );
 
   const loadOrders = useCallback(async () => {
     try {
@@ -216,20 +156,21 @@ export default function MyOrdersScreen() {
     loadOrders();
   }, [loadOrders]);
 
-  const selectedOrder = useMemo(
-    () => (selectedOrderId ? orders.find((entry) => entry.id === selectedOrderId) ?? null : null),
-    [orders, selectedOrderId]
+  const selectedGroup = useMemo(
+    () =>
+      selectedGroupKey ? orderGroups.find((entry) => entry.key === selectedGroupKey) ?? null : null,
+    [orderGroups, selectedGroupKey]
   );
 
   useEffect(() => {
-    if (selectedOrderId && !selectedOrder) {
-      setSelectedOrderId(null);
+    if (selectedGroupKey && !selectedGroup) {
+      setSelectedGroupKey(null);
     }
-  }, [selectedOrder, selectedOrderId]);
+  }, [selectedGroup, selectedGroupKey]);
 
-  const filteredOrders = useMemo(
-    () => orders.filter((order) => orderMatchesFilter(order, activeFilter)),
-    [orders, activeFilter]
+  const filteredGroups = useMemo(
+    () => orderGroups.filter((group) => groupMatchesFilter(group, activeFilter)),
+    [orderGroups, activeFilter]
   );
 
   function handleCancel(orderId: string) {
@@ -257,12 +198,12 @@ export default function MyOrdersScreen() {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          {selectedOrder ? (
+          {selectedGroup ? (
             <View style={styles.detailHeaderRow}>
-              <Pressable onPress={() => setSelectedOrderId(null)} style={styles.backButton} hitSlop={10}>
+              <Pressable onPress={() => setSelectedGroupKey(null)} style={styles.backButton} hitSlop={10}>
                 <MaterialIcons name="arrow-back" size={22} color={GOLD} />
               </Pressable>
-              <Text style={styles.detailHeaderTitle}>Order #{selectedOrder.id.slice(-8).toUpperCase()}</Text>
+              <Text style={styles.detailHeaderTitle}>{selectedGroup.displayOrderId}</Text>
               <View style={styles.backButton} />
             </View>
           ) : (
@@ -286,7 +227,7 @@ export default function MyOrdersScreen() {
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
-        ) : selectedOrder ? (
+        ) : selectedGroup ? (
           <ScrollView
             contentContainerStyle={styles.detailContent}
             refreshControl={
@@ -299,10 +240,10 @@ export default function MyOrdersScreen() {
                 tintColor={GOLD}
               />
             }>
-            <DetailOrderCard
-              order={selectedOrder}
-              onCancel={() => handleCancel(selectedOrder.id)}
-              cancelling={cancellingId === selectedOrder.id}
+            <CustomerOrderGroupDetail
+              group={selectedGroup}
+              onCancelOrder={handleCancel}
+              cancellingId={cancellingId}
             />
           </ScrollView>
         ) : (
@@ -322,8 +263,8 @@ export default function MyOrdersScreen() {
             </View>
 
             <FlatList
-              data={filteredOrders}
-              keyExtractor={(item) => item.id}
+              data={filteredGroups}
+              keyExtractor={(item) => item.key}
               contentContainerStyle={styles.listContent}
               refreshControl={
                 <RefreshControl
@@ -343,7 +284,9 @@ export default function MyOrdersScreen() {
                   <Text style={styles.stateText}>Try another filter or place a new order from Shop.</Text>
                 </View>
               }
-              renderItem={({ item }) => <ListOrderRow order={item} onPress={() => setSelectedOrderId(item.id)} />}
+              renderItem={({ item }) => (
+                <ListOrderRow group={item} onPress={() => setSelectedGroupKey(item.key)} />
+              )}
             />
           </>
         )}
@@ -408,120 +351,97 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
   listRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-  },
-  listRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    paddingRight: 12,
-    gap: 10,
-  },
-  listIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BG,
-  },
-  listMeta: { flex: 1 },
-  listOrderId: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  listLensType: { color: BrandColors.textMuted, fontSize: 12, marginTop: 2 },
-  listDate: { color: BrandColors.label, fontSize: 11, marginTop: 2 },
-  listRowRight: { alignItems: 'flex-end', gap: 4 },
-  listAmount: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  listStatus: { color: GOLD, fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
-  listStatusProcurement: { color: '#60a5fa' },
-  procurementBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 4,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(37, 99, 235, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(37, 99, 235, 0.35)',
-  },
-  procurementBannerText: {
-    flex: 1,
-    color: '#93c5fd',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  detailContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  orderCard: {
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER,
     backgroundColor: CARD,
-    borderWidth: 1,
-    borderColor: BORDER,
+    gap: 6,
   },
-  orderHeader: {
+  listTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    justifyContent: 'space-between',
+    gap: 10,
   },
-  orderHeaderLeft: { flex: 1, paddingRight: 12 },
-  orderTitle: { color: BrandColors.text, fontSize: 24, fontWeight: '700' },
-  orderId: { fontSize: 12, color: BrandColors.label, marginTop: 2 },
-  orderDate: { fontSize: 12, color: BrandColors.label, marginTop: 2 },
-  totalText: { fontSize: 30, fontWeight: '800', color: GOLD },
-  specText: { fontSize: 14, color: BrandColors.textMuted, marginBottom: 4 },
-  qtyText: { fontSize: 13, color: BrandColors.textMuted, marginBottom: 8 },
-  notesBox: {
-    marginBottom: 12,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: BrandColors.background,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  notesLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: GOLD,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
+  listOrderId: {
     color: BrandColors.text,
-    lineHeight: 20,
+    fontSize: 17,
+    fontWeight: '800',
+    flex: 1,
   },
-  trackingTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: BrandColors.label,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  cancelButton: {
-    marginTop: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: 'rgba(240, 161, 50, 0.08)',
-    alignItems: 'center',
   },
-  cancelText: { color: GOLD, fontWeight: '700', fontSize: 14 },
-  buttonDisabled: { opacity: 0.6 },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  listCompany: {
+    color: BrandColors.text,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  listDate: {
+    color: BrandColors.textMuted,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  listMetricsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 12,
+  },
+  listMetricsText: {
+    color: BrandColors.text,
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  listAmount: {
+    color: BrandColors.text,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  fulfillmentRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  readyPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+  },
+  readyPillText: {
+    color: '#4ade80',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  procurementPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'rgba(248, 113, 113, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.3)',
+  },
+  procurementPillText: {
+    color: '#f87171',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  detailContent: { paddingHorizontal: 16, paddingBottom: 32 },
   separator: { height: 12 },
   centeredState: {
     flex: 1,

@@ -1,7 +1,10 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { LogBox } from 'react-native';
 import 'react-native-reanimated';
+
+LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 import { AuthProvider } from '@/lib/auth';
 import { CartProvider } from '@/lib/cart';
