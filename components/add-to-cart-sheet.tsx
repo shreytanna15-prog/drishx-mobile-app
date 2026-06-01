@@ -15,7 +15,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import {
   canAcceptPrescriptionInput,
   parseNumericInput,
@@ -25,9 +27,6 @@ import {
 } from '@/lib/cart-utils';
 import type { LensItem, LensType } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 
 type AddToCartSheetProps = {
   visible: boolean;
@@ -50,6 +49,8 @@ function formatInitial(value: number | null | undefined): string {
 }
 
 export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartSheetProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
 
   const [sph, setSph] = useState('');
@@ -184,7 +185,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
               <Text style={styles.lensTypeLabel}>{LENS_TYPE_LABEL[lensType]}</Text>
             </View>
             <Pressable onPress={onClose} hitSlop={8}>
-              <MaterialIcons name="close" size={24} color={BrandColors.textMuted} />
+              <MaterialIcons name="close" size={24} color={colors.textMuted} />
             </Pressable>
           </View>
 
@@ -212,7 +213,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
                   onChangeText={handleSphChange}
                   keyboardType="numbers-and-punctuation"
                   placeholder={String(maxSph)}
-                  placeholderTextColor={BrandColors.placeholder}
+                  placeholderTextColor={colors.placeholder}
                   style={styles.input}
                 />
               </View>
@@ -224,7 +225,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
                   onChangeText={handleCylChange}
                   keyboardType="numbers-and-punctuation"
                   placeholder={String(maxCyl)}
-                  placeholderTextColor={BrandColors.placeholder}
+                  placeholderTextColor={colors.placeholder}
                   style={styles.input}
                 />
               </View>
@@ -237,7 +238,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
                     onChangeText={handleAddChange}
                     keyboardType="numbers-and-punctuation"
                     placeholder={String(maxAdd)}
-                    placeholderTextColor={BrandColors.placeholder}
+                    placeholderTextColor={colors.placeholder}
                     style={styles.input}
                   />
                 </View>
@@ -247,7 +248,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
             <Text style={styles.sectionTitle}>Quantity</Text>
             <View style={styles.qtyRow}>
               <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Math.max(1, Number(current || 1) - 1)))}>
-                <MaterialIcons name="remove" size={22} color={GOLD} />
+                <MaterialIcons name="remove" size={22} color={colors.primary} />
               </Pressable>
               <TextInput
                 value={quantity}
@@ -256,7 +257,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
                 style={styles.qtyInput}
               />
               <Pressable style={styles.qtyButton} onPress={() => setQuantity((current) => String(Number(current || 0) + 1))}>
-                <MaterialIcons name="add" size={22} color={GOLD} />
+                <MaterialIcons name="add" size={22} color={colors.primary} />
               </Pressable>
             </View>
 
@@ -264,7 +265,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
           </ScrollView>
 
           <Pressable style={styles.confirmButton} onPress={handleConfirm}>
-            <MaterialIcons name="add-shopping-cart" size={20} color={BrandColors.primaryText} />
+            <MaterialIcons name="add-shopping-cart" size={20} color={colors.primaryText} />
             <Text style={styles.confirmText}>Add to cart</Text>
           </Pressable>
         </View>
@@ -273,7 +274,8 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -283,11 +285,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
   },
   sheet: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderTopWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingHorizontal: 20,
     paddingTop: 8,
     maxHeight: '88%',
@@ -307,50 +309,50 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sheetTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 20,
     fontWeight: '800',
   },
   lensTypeLabel: {
     marginTop: 4,
     fontSize: 14,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
   },
   productSummary: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: BrandColors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     marginBottom: 20,
   },
   productName: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '700',
   },
   summaryMeta: {
     marginTop: 4,
     fontSize: 13,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
   },
   summaryPrice: {
     marginTop: 8,
     fontSize: 16,
     fontWeight: '700',
-    color: GOLD,
+    color: c.primary,
   },
   sectionTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: BrandColors.label,
+    color: c.label,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   validationHint: {
     fontSize: 12,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     lineHeight: 18,
     marginBottom: 12,
   },
@@ -365,25 +367,25 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: BrandColors.label,
+    color: c.label,
     marginBottom: 2,
   },
   maxHint: {
     fontSize: 11,
-    color: GOLD,
+    color: c.primary,
     fontWeight: '600',
     marginBottom: 6,
   },
   input: {
     borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
+    borderColor: c.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
     fontSize: 16,
     fontWeight: '600',
-    color: BrandColors.text,
-    backgroundColor: BrandColors.inputBg,
+    color: c.text,
+    backgroundColor: c.inputBg,
     textAlign: 'center',
   },
   qtyRow: {
@@ -398,25 +400,25 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: GOLD,
+    borderColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   qtyInput: {
     minWidth: 56,
     borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
+    borderColor: c.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 18,
     fontWeight: '700',
-    color: BrandColors.text,
+    color: c.text,
     textAlign: 'center',
-    backgroundColor: BrandColors.inputBg,
+    backgroundColor: c.inputBg,
   },
   errorText: {
-    color: '#f87171',
+    color: c.danger,
     fontSize: 14,
     marginBottom: 12,
     textAlign: 'center',
@@ -429,10 +431,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 14,
     marginTop: 8,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
   confirmText: {
-    color: BrandColors.primaryText,
+    color: c.primaryText,
     fontSize: 16,
     fontWeight: '800',
   },

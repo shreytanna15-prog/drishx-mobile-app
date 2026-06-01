@@ -6,18 +6,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { fetchInvoiceById, type InvoiceRecord } from '@/lib/invoices-api';
 import { formatLensType } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 const COMPANY_NAME = 'Drishx';
 
 function DetailRow({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
@@ -33,6 +32,8 @@ function formatMoney(value: number | string): string {
 }
 
 export default function InvoiceDetailsScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { getAuthHeaders } = useAuth();
@@ -86,7 +87,7 @@ export default function InvoiceDetailsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={8}>
-            <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+            <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>Invoice Details</Text>
           <View style={{ width: 22 }} />
@@ -94,7 +95,7 @@ export default function InvoiceDetailsScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={GOLD} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.helperText}>Loading invoice...</Text>
           </View>
         ) : error || !invoice ? (
@@ -142,8 +143,9 @@ export default function InvoiceDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -152,23 +154,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+    borderBottomColor: c.cardBorder,
   },
-  headerTitle: { color: BrandColors.text, fontSize: 18, fontWeight: '700' },
+  headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
   content: { padding: 16, gap: 12, paddingBottom: 24 },
   card: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
     padding: 12,
     gap: 8,
   },
-  cardTitle: { color: GOLD, fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  cardTitle: { color: c.primary, fontSize: 16, fontWeight: '800', marginBottom: 2 },
   detailRow: { gap: 2 },
-  detailLabel: { color: BrandColors.label, fontSize: 11, textTransform: 'uppercase', fontWeight: '700' },
-  detailValue: { color: BrandColors.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  detailLabel: { color: c.label, fontSize: 11, textTransform: 'uppercase', fontWeight: '700' },
+  detailValue: { color: c.text, fontSize: 14, lineHeight: 20, fontWeight: '600' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
-  helperText: { color: BrandColors.textMuted, fontSize: 14 },
-  errorText: { color: '#f87171', textAlign: 'center' },
+  helperText: { color: c.textMuted, fontSize: 14 },
+  errorText: { color: c.danger, textAlign: 'center' },
 });

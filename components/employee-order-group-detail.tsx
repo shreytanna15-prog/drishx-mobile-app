@@ -5,7 +5,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import {
   buildOrderProductSections,
   getBatchTrackingStatus,
@@ -32,10 +34,6 @@ import {
 import { getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
 import { formatLensType } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
-const BG = BrandColors.background;
 
 type EmployeeOrderGroupDetailProps = {
   group: OrderListGroup;
@@ -58,6 +56,8 @@ function PackedStatusCell({
   loading?: boolean;
   onPress?: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const fraction = `${picked}/${ordered}`;
 
   const circleContent = (() => {
@@ -66,7 +66,7 @@ function PackedStatusCell({
         <>
           <Text style={styles.packedFractionMuted}>—</Text>
           <View style={[styles.checkCircle, styles.checkCircleMuted]}>
-            <MaterialIcons name="remove" size={14} color={BrandColors.textMuted} />
+            <MaterialIcons name="remove" size={14} color={colors.textMuted} />
           </View>
         </>
       );
@@ -106,7 +106,7 @@ function PackedStatusCell({
       <>
         <Text style={styles.packedFractionPending}>{fraction}</Text>
         <View style={[styles.checkCircle, styles.checkCirclePending]}>
-          {loading ? <ActivityIndicator size="small" color="#f87171" /> : null}
+          {loading ? <ActivityIndicator size="small" color={colors.danger} /> : null}
         </View>
       </>
     );
@@ -144,6 +144,7 @@ function PowerTableRow({
   onMarkPacked: (orderId: string) => void;
   updatingOrderId: string | null;
 }) {
+  const styles = useThemedStyles(createStyles);
   const status = normalizeOrderStatus(order.status);
   const canMarkPacked = canStaffMarkLinePacked(status);
   const isUpdating = updatingOrderId === line.orderId;
@@ -168,7 +169,7 @@ function PowerTableRow({
         {line.sphCylLabel}
       </Text>
       <Text style={[styles.tableCell, styles.colOrdered]}>{line.ordered}</Text>
-      <View style={[styles.tableCell, styles.colPacked]}>
+      <View style={styles.colPacked}>
         <PackedStatusCell
           state={line.pickState}
           picked={line.picked}
@@ -193,6 +194,8 @@ function ProductSectionCard({
   onMarkPacked: (orderId: string) => void;
   updatingOrderId: string | null;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const [expanded, setExpanded] = useState(true);
   const progress =
     section.totalPairs > 0 ? Math.round((section.pickedPairs / section.totalPairs) * 100) : 0;
@@ -202,7 +205,7 @@ function ProductSectionCard({
       <Pressable style={styles.productHeader} onPress={() => setExpanded((value) => !value)}>
         <View style={styles.productHeaderLeft}>
           <View style={styles.productThumb}>
-            <MaterialIcons name="visibility" size={20} color={GOLD} />
+            <MaterialIcons name="visibility" size={20} color={colors.primary} />
           </View>
           <View style={styles.productHeaderText}>
             <Text style={styles.productTitle} numberOfLines={1}>
@@ -218,7 +221,7 @@ function ProductSectionCard({
           <MaterialIcons
             name={expanded ? 'expand-less' : 'expand-more'}
             size={22}
-            color={BrandColors.textMuted}
+            color={colors.textMuted}
           />
         </View>
       </Pressable>
@@ -278,6 +281,8 @@ function StaffLineStatusPanel({
   onUpdateStatus: (orderId: string, status: OrderTrackingStatus) => Promise<void>;
   updatingOrderId: string | null;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const status = normalizeOrderStatus(order.status);
   const options = getStaffStatusOptions(status);
   const details = getOrderLensDetails(order);
@@ -359,7 +364,7 @@ function StaffLineStatusPanel({
 
       {isUpdating ? (
         <View style={styles.updatingRow}>
-          <ActivityIndicator size="small" color={GOLD} />
+          <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.updatingText}>Updating status...</Text>
         </View>
       ) : null}
@@ -372,6 +377,8 @@ export function EmployeeOrderGroupDetail({
   onUpdateStatus,
   updatingOrderId,
 }: EmployeeOrderGroupDetailProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
   const productSections = useMemo(() => buildOrderProductSections(group.orders), [group.orders]);
   const trackingStatus = useMemo(() => getBatchTrackingStatus(group.orders), [group.orders]);
@@ -525,17 +532,18 @@ export function EmployeeOrderGroupDetail({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
   wrap: { gap: 14 },
   heroCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     gap: 8,
   },
-  orderId: { color: BrandColors.text, fontSize: 22, fontWeight: '800' },
+  orderId: { color: c.text, fontSize: 22, fontWeight: '800' },
   statusPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -544,28 +552,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusPillText: { fontSize: 12, fontWeight: '700' },
-  companyName: { color: BrandColors.text, fontSize: 17, fontWeight: '800', marginTop: 4 },
-  customerEmail: { color: BrandColors.textMuted, fontSize: 13 },
-  dateTime: { color: BrandColors.textMuted, fontSize: 13 },
+  companyName: { color: c.text, fontSize: 17, fontWeight: '800', marginTop: 4 },
+  customerEmail: { color: c.textMuted, fontSize: 13 },
+  dateTime: { color: c.textMuted, fontSize: 13 },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingVertical: 14,
     paddingHorizontal: 8,
   },
   statCell: { flex: 1, alignItems: 'center' },
-  statDivider: { width: 1, backgroundColor: BORDER, marginVertical: 4 },
-  statValue: { color: BrandColors.text, fontSize: 16, fontWeight: '800' },
-  statLabel: { color: BrandColors.textMuted, fontSize: 11, marginTop: 4, fontWeight: '600' },
-  sectionTitle: { color: BrandColors.text, fontSize: 16, fontWeight: '700', marginTop: 4 },
+  statDivider: { width: 1, backgroundColor: c.cardBorder, marginVertical: 4 },
+  statValue: { color: c.text, fontSize: 16, fontWeight: '800' },
+  statLabel: { color: c.textMuted, fontSize: 11, marginTop: 4, fontWeight: '600' },
+  sectionTitle: { color: c.text, fontSize: 16, fontWeight: '700', marginTop: 4 },
   productCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 14,
     gap: 12,
   },
@@ -582,25 +590,25 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   productHeaderText: { flex: 1, minWidth: 0 },
-  productTitle: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  productSubtitle: { color: BrandColors.textMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  productTitle: { color: c.text, fontSize: 15, fontWeight: '700' },
+  productSubtitle: { color: c.textMuted, fontSize: 12, marginTop: 2, lineHeight: 16 },
   productHeaderRight: { alignItems: 'flex-end', gap: 4 },
-  productPairs: { color: GOLD, fontSize: 12, fontWeight: '700' },
+  productPairs: { color: c.primary, fontSize: 12, fontWeight: '700' },
   progressBlock: { gap: 6 },
   progressLabels: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '600' },
-  progressPercent: { color: GOLD, fontSize: 12, fontWeight: '700' },
-  progressTrack: { height: 6, borderRadius: 3, backgroundColor: BG, overflow: 'hidden' },
+  progressText: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+  progressPercent: { color: c.primary, fontSize: 12, fontWeight: '700' },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: c.background, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#4ade80', borderRadius: 3 },
-  tableWrap: { borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 10, gap: 4 },
+  tableWrap: { borderTopWidth: 1, borderTopColor: c.cardBorder, paddingTop: 10, gap: 4 },
   tableHead: { flexDirection: 'row', paddingBottom: 6 },
   tableHeadText: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -612,9 +620,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+    borderBottomColor: c.cardBorder,
   },
-  tableCell: { color: BrandColors.text, fontSize: 13, fontWeight: '600' },
+  tableCell: { color: c.text, fontSize: 13, fontWeight: '600' },
   colPowerHead: { flex: 2 },
   colOrderedHead: { flex: 1, alignItems: 'center' },
   colPackedHead: { flex: 1.4, alignItems: 'flex-end' },
@@ -635,8 +643,8 @@ const styles = StyleSheet.create({
   packedCellPressed: { opacity: 0.75 },
   packedFractionDone: { fontSize: 12, fontWeight: '700', color: '#4ade80' },
   packedFractionPartial: { fontSize: 12, fontWeight: '700', color: '#fb923c' },
-  packedFractionPending: { fontSize: 12, fontWeight: '700', color: '#f87171' },
-  packedFractionMuted: { fontSize: 12, fontWeight: '700', color: BrandColors.textMuted },
+  packedFractionPending: { fontSize: 12, fontWeight: '700', color: c.danger },
+  packedFractionMuted: { fontSize: 12, fontWeight: '700', color: c.textMuted },
   checkCircle: {
     width: 24,
     height: 24,
@@ -647,29 +655,29 @@ const styles = StyleSheet.create({
   },
   checkCircleDone: { backgroundColor: '#22c55e', borderColor: '#22c55e' },
   checkCirclePartial: { backgroundColor: '#f97316', borderColor: '#f97316' },
-  checkCirclePending: { backgroundColor: 'transparent', borderColor: '#f87171' },
-  checkCircleMuted: { backgroundColor: 'transparent', borderColor: BORDER },
+  checkCirclePending: { backgroundColor: 'transparent', borderColor: c.danger },
+  checkCircleMuted: { backgroundColor: 'transparent', borderColor: c.cardBorder },
   notesBox: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   notesLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: GOLD,
+    color: c.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
-  notesText: { fontSize: 14, color: BrandColors.text, lineHeight: 20 },
+  notesText: { fontSize: 14, color: c.text, lineHeight: 20 },
   lineStatusCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 14,
     gap: 10,
   },
@@ -680,18 +688,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   lineStatusMeta: { flex: 1, minWidth: 0 },
-  lineStatusTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '800' },
-  lineStatusSub: { color: BrandColors.textMuted, fontSize: 12, marginTop: 4, lineHeight: 16 },
+  lineStatusTitle: { color: c.text, fontSize: 14, fontWeight: '800' },
+  lineStatusSub: { color: c.textMuted, fontSize: 12, marginTop: 4, lineHeight: 16 },
   lineStatusPill: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: GOLD,
+    borderColor: c.primary,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
   },
   lineStatusPillText: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -702,9 +710,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: BrandColors.background,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   procurementBannerText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600' },
   chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -715,7 +723,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statusChipPrimary: {
-    borderColor: GOLD,
+    borderColor: c.primary,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
   },
   statusChipDanger: {
@@ -723,24 +731,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#450a0a',
   },
   statusChipText: { fontSize: 13, fontWeight: '700' },
-  statusChipTextPrimary: { color: GOLD },
+  statusChipTextPrimary: { color: c.primary },
   statusChipTextDanger: { color: '#fda4af' },
-  noActionsText: { color: BrandColors.textMuted, fontSize: 13 },
+  noActionsText: { color: c.textMuted, fontSize: 13 },
   updatingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  updatingText: { color: BrandColors.textMuted, fontSize: 13 },
+  updatingText: { color: c.textMuted, fontSize: 13 },
   buttonDisabled: { opacity: 0.7 },
   trackingCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     paddingBottom: 12,
   },
   trackingHint: {
     marginTop: 10,
     fontSize: 12,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     textAlign: 'center',
   },
 });

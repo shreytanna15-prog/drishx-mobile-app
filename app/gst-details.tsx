@@ -7,9 +7,11 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
+import { useBrandColors } from '@/lib/theme-provider';
 
 export default function GstDetailsScreen() {
   const router = useRouter();
@@ -24,6 +26,8 @@ export default function GstDetailsScreen() {
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [loading, setLoading] = useState(false);
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   async function handleSubmit() {
     if (!userId) {
@@ -78,7 +82,7 @@ export default function GstDetailsScreen() {
                 value={gstNumber}
                 onChangeText={setGstNumber}
                 placeholder="22AAAAA0000A1Z5"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 autoCapitalize="characters"
                 style={styles.input}
               />
@@ -90,7 +94,7 @@ export default function GstDetailsScreen() {
                 value={businessName}
                 onChangeText={setBusinessName}
                 placeholder="Your business name"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 style={styles.input}
               />
             </View>
@@ -101,7 +105,7 @@ export default function GstDetailsScreen() {
                 value={businessAddress}
                 onChangeText={setBusinessAddress}
                 placeholder="Street, city, area"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 multiline
                 style={[styles.input, styles.textArea]}
               />
@@ -113,7 +117,7 @@ export default function GstDetailsScreen() {
                 value={state}
                 onChangeText={setState}
                 placeholder="State"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 style={styles.input}
               />
             </View>
@@ -124,7 +128,7 @@ export default function GstDetailsScreen() {
                 value={pincode}
                 onChangeText={setPincode}
                 placeholder="Pincode"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 keyboardType="number-pad"
                 style={styles.input}
               />
@@ -132,7 +136,7 @@ export default function GstDetailsScreen() {
 
             <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
               {loading ? (
-                <ActivityIndicator color={BrandColors.primaryText} />
+                <ActivityIndicator color={colors.primaryText} />
               ) : (
                 <Text style={styles.buttonText}>Submit for approval</Text>
               )}
@@ -143,39 +147,40 @@ export default function GstDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: BrandColors.background },
-  root: { flex: 1, backgroundColor: BrandColors.background },
-  container: { padding: 24, paddingTop: 16, minHeight: '100%' },
-  card: {
-    borderRadius: 20,
-    padding: 24,
-    backgroundColor: BrandColors.card,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-  },
-  heading: { color: BrandColors.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
-  subheading: { color: BrandColors.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 20 },
-  field: { marginBottom: 16 },
-  label: { marginBottom: 8, fontSize: 14, fontWeight: '600', color: BrandColors.label },
-  input: {
-    borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: BrandColors.text,
-    backgroundColor: BrandColors.inputBg,
-  },
-  textArea: { minHeight: 90, textAlignVertical: 'top' },
-  button: {
-    marginTop: 8,
-    borderRadius: 16,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BrandColors.primary,
-  },
-  buttonText: { color: BrandColors.primaryText, fontSize: 16, fontWeight: '800' },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: c.background },
+    root: { flex: 1, backgroundColor: c.background },
+    container: { padding: 24, paddingTop: 16, minHeight: '100%' },
+    card: {
+      borderRadius: 20,
+      padding: 24,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
+    subheading: { color: c.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 20 },
+    field: { marginBottom: 16 },
+    label: { marginBottom: 8, fontSize: 14, fontWeight: '600', color: c.label },
+    input: {
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: c.text,
+      backgroundColor: c.inputBg,
+    },
+    textArea: { minHeight: 90, textAlignVertical: 'top' },
+    button: {
+      marginTop: 8,
+      borderRadius: 16,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.primary,
+    },
+    buttonText: { color: c.primaryText, fontSize: 16, fontWeight: '800' },
+  });

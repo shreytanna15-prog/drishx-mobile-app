@@ -3,7 +3,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import {
   getMainStepIndex,
   isSpecialStatus,
@@ -13,9 +14,7 @@ import {
   TERMINAL_STATUS_CONFIG,
   type OrderTrackingStatus,
 } from '@/lib/order-tracking';
-
-const GOLD = BrandColors.primary;
-const BORDER = BrandColors.cardBorder;
+import { useBrandColors } from '@/lib/theme-provider';
 
 type OrderTrackingHorizontalProps = {
   status: string;
@@ -29,6 +28,8 @@ export function OrderTrackingHorizontal({
   onStepPress,
   disabled = false,
 }: OrderTrackingHorizontalProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const status = normalizeOrderStatus(rawStatus);
   const activeMainIndex = getMainStepIndex(status);
   const interactive = Boolean(onStepPress) && !disabled;
@@ -48,7 +49,7 @@ export function OrderTrackingHorizontal({
       <Text style={styles.title}>Order tracking</Text>
       {disabled ? (
         <View style={styles.updatingRow}>
-          <ActivityIndicator size="small" color={GOLD} />
+          <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.updatingText}>Updating...</Text>
         </View>
       ) : null}
@@ -71,7 +72,7 @@ export function OrderTrackingHorizontal({
                     interactive && isTarget && styles.dotInteractiveTarget,
                   ]}>
                   {isDone ? (
-                    <MaterialIcons name="check" size={12} color={BrandColors.primaryText} />
+                    <MaterialIcons name="check" size={12} color={colors.primaryText} />
                   ) : null}
                 </View>
                 {!isLast ? (
@@ -139,119 +140,120 @@ export function OrderTrackingHorizontal({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    marginTop: 8,
-    paddingTop: 4,
-  },
-  title: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: BrandColors.label,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 14,
-  },
-  trackRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  stepCol: {
-    flex: 1,
-    alignItems: 'center',
-    minWidth: 0,
-  },
-  stepTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'center',
-  },
-  dot: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: BrandColors.textMuted,
-    backgroundColor: BrandColors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  dotDone: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
-  },
-  dotCurrent: {
-    borderColor: GOLD,
-    borderWidth: 3,
-  },
-  connector: {
-    position: 'absolute',
-    left: '55%',
-    right: '-45%',
-    top: 10,
-    height: 2,
-    backgroundColor: BORDER,
-  },
-  connectorDone: {
-    backgroundColor: GOLD,
-  },
-  label: {
-    marginTop: 8,
-    fontSize: 10,
-    fontWeight: '600',
-    color: BrandColors.textMuted,
-    textAlign: 'center',
-  },
-  labelDone: {
-    color: BrandColors.text,
-  },
-  labelCurrent: {
-    color: GOLD,
-    fontWeight: '700',
-  },
-  specialBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BrandColors.background,
-  },
-  specialText: {
-    fontSize: 13,
-    fontWeight: '700',
-    flex: 1,
-  },
-  stepPressable: {
-    alignItems: 'center',
-    width: '100%',
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  stepPressed: { opacity: 0.75 },
-  dotInteractive: {
-    borderColor: BrandColors.textMuted,
-  },
-  dotInteractiveTarget: {
-    borderColor: GOLD,
-    borderWidth: 3,
-  },
-  labelInteractive: {
-    textDecorationLine: 'underline',
-    textDecorationColor: 'rgba(240, 161, 50, 0.45)',
-  },
-  trackRowDisabled: { opacity: 0.55 },
-  updatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  updatingText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '600' },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    wrap: {
+      marginTop: 8,
+      paddingTop: 4,
+    },
+    title: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: c.label,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 14,
+    },
+    trackRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+    },
+    stepCol: {
+      flex: 1,
+      alignItems: 'center',
+      minWidth: 0,
+    },
+    stepTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      width: '100%',
+      justifyContent: 'center',
+    },
+    dot: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: c.textMuted,
+      backgroundColor: c.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1,
+    },
+    dotDone: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    dotCurrent: {
+      borderColor: c.primary,
+      borderWidth: 3,
+    },
+    connector: {
+      position: 'absolute',
+      left: '55%',
+      right: '-45%',
+      top: 10,
+      height: 2,
+      backgroundColor: c.cardBorder,
+    },
+    connectorDone: {
+      backgroundColor: c.primary,
+    },
+    label: {
+      marginTop: 8,
+      fontSize: 10,
+      fontWeight: '600',
+      color: c.textMuted,
+      textAlign: 'center',
+    },
+    labelDone: {
+      color: c.text,
+    },
+    labelCurrent: {
+      color: c.primary,
+      fontWeight: '700',
+    },
+    specialBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 14,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.background,
+    },
+    specialText: {
+      fontSize: 13,
+      fontWeight: '700',
+      flex: 1,
+    },
+    stepPressable: {
+      alignItems: 'center',
+      width: '100%',
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    stepPressed: { opacity: 0.75 },
+    dotInteractive: {
+      borderColor: c.textMuted,
+    },
+    dotInteractiveTarget: {
+      borderColor: c.primary,
+      borderWidth: 3,
+    },
+    labelInteractive: {
+      textDecorationLine: 'underline',
+      textDecorationColor: 'rgba(240, 161, 50, 0.45)',
+    },
+    trackRowDisabled: { opacity: 0.55 },
+    updatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 8,
+    },
+    updatingText: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+  });

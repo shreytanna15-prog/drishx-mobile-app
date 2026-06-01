@@ -13,9 +13,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { fetchMyTasks, updateTaskStatus, type TaskRecord } from '@/lib/tasks-api';
+import { useBrandColors } from '@/lib/theme-provider';
 
 type FilterKey = 'ALL' | 'PENDING' | 'COMPLETED';
 
@@ -31,14 +33,20 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+type MyTasksStyles = ReturnType<typeof createStyles>;
+
 function TaskRow({
   task,
   onToggleComplete,
   disabled,
+  styles,
+  colors,
 }: {
   task: TaskRecord;
   onToggleComplete: () => void;
   disabled: boolean;
+  styles: MyTasksStyles;
+  colors: BrandColorScheme;
 }) {
   const isDone = task.status === 'COMPLETED';
   return (
@@ -49,7 +57,7 @@ function TaskRow({
           {task.details?.trim() ? <Text style={styles.taskDetails}>{task.details.trim()}</Text> : null}
         </View>
         <Pressable style={[styles.checkbox, isDone && styles.checkboxChecked]} onPress={onToggleComplete} disabled={disabled}>
-          {isDone ? <MaterialIcons name="check" size={16} color={BrandColors.primaryText} /> : null}
+          {isDone ? <MaterialIcons name="check" size={16} color={colors.primaryText} /> : null}
         </Pressable>
       </View>
       <View style={styles.taskMetaRow}>
@@ -68,6 +76,8 @@ export default function MyTasksScreen() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -100,14 +110,12 @@ export default function MyTasksScreen() {
       updatedAt: new Date().toISOString(),
     };
 
-    // Optimistic UI: reflect completion immediately before server confirms.
     setTasks((prev) => prev.map((current) => (current.id === task.id ? optimisticTask : current)));
     setUpdatingId(task.id);
     try {
       const updated = await updateTaskStatus(task.id, next, getAuthHeaders());
       setTasks((prev) => prev.map((current) => (current.id === updated.id ? { ...current, ...updated } : current)));
     } catch (err) {
-      // Roll back the optimistic change if server update fails.
       setTasks((prev) => prev.map((current) => (current.id === task.id ? task : current)));
       setError(err instanceof Error ? err.message : 'Failed to update task.');
     } finally {
@@ -139,13 +147,13 @@ export default function MyTasksScreen() {
 
         {loading ? (
           <View style={styles.center}>
-            <ActivityIndicator color={BrandColors.primary} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.helperText}>Loading tasks...</Text>
           </View>
         ) : error ? (
           <View style={styles.center}>
-            <MaterialIcons name="error-outline" size={44} color="#f87171" />
-            <Text style={[styles.helperText, { color: '#f87171' }]}>{error}</Text>
+            <MaterialIcons name="error-outline" size={44} color={colors.danger} />
+            <Text style={[styles.helperText, { color: colors.danger }]}>{error}</Text>
             <Pressable style={styles.retryButton} onPress={loadTasks}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
@@ -162,18 +170,24 @@ export default function MyTasksScreen() {
                   setRefreshing(true);
                   loadTasks();
                 }}
-                tintColor={BrandColors.primary}
+                tintColor={colors.primary}
               />
             }
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
             ListEmptyComponent={
               <View style={styles.center}>
-                <MaterialIcons name="task-alt" size={44} color={BrandColors.textMuted} />
+                <MaterialIcons name="task-alt" size={44} color={colors.textMuted} />
                 <Text style={styles.helperText}>No tasks available.</Text>
               </View>
             }
             renderItem={({ item }) => (
-              <TaskRow task={item} onToggleComplete={() => void toggleTask(item)} disabled={updatingId === item.id} />
+              <TaskRow
+                task={item}
+                onToggleComplete={() => void toggleTask(item)}
+                disabled={updatingId === item.id}
+                styles={styles}
+                colors={colors}
+              />
             )}
           />
         )}
@@ -182,65 +196,66 @@ export default function MyTasksScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BrandColors.background },
-  safeArea: { flex: 1 },
-  header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
-  title: { color: BrandColors.text, fontSize: 30, fontWeight: '800' },
-  subtitle: { color: BrandColors.textMuted, fontSize: 14, marginTop: 4 },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10, gap: 10 },
-  filterChip: {
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-    backgroundColor: BrandColors.card,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-  },
-  filterChipActive: { borderColor: BrandColors.primary, backgroundColor: 'rgba(240, 161, 50, 0.14)' },
-  filterText: { color: BrandColors.textMuted, fontSize: 12, fontWeight: '700' },
-  filterTextActive: { color: BrandColors.primary },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
-  taskCard: {
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-    borderRadius: 14,
-    padding: 12,
-    backgroundColor: BrandColors.card,
-  },
-  taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  taskTitle: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  taskDetails: { color: BrandColors.textMuted, fontSize: 13, marginTop: 4, lineHeight: 18 },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BrandColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: BrandColors.primary,
-  },
-  taskMetaRow: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  taskMetaText: { color: BrandColors.textMuted, fontSize: 12 },
-  statusText: { color: BrandColors.primary, fontSize: 12, fontWeight: '700' },
-  statusDone: { color: BrandColors.success },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  helperText: { color: BrandColors.textMuted, textAlign: 'center' },
-  retryButton: {
-    marginTop: 8,
-    backgroundColor: BrandColors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+    title: { color: c.text, fontSize: 30, fontWeight: '800' },
+    subtitle: { color: c.textMuted, fontSize: 14, marginTop: 4 },
+    filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginBottom: 10, gap: 10 },
+    filterChip: {
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      paddingHorizontal: 14,
+      paddingVertical: 7,
+      borderRadius: 999,
+    },
+    filterChipActive: { borderColor: c.primary, backgroundColor: 'rgba(240, 161, 50, 0.14)' },
+    filterText: { color: c.textMuted, fontSize: 12, fontWeight: '700' },
+    filterTextActive: { color: c.primary },
+    listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+    taskCard: {
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      borderRadius: 14,
+      padding: 12,
+      backgroundColor: c.card,
+    },
+    taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    taskTitle: { color: c.text, fontSize: 15, fontWeight: '700' },
+    taskDetails: { color: c.textMuted, fontSize: 13, marginTop: 4, lineHeight: 18 },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxChecked: {
+      backgroundColor: c.primary,
+    },
+    taskMetaRow: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    taskMetaText: { color: c.textMuted, fontSize: 12 },
+    statusText: { color: c.primary, fontSize: 12, fontWeight: '700' },
+    statusDone: { color: c.success },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      gap: 8,
+    },
+    helperText: { color: c.textMuted, textAlign: 'center' },
+    retryButton: {
+      marginTop: 8,
+      backgroundColor: c.primary,
+      borderRadius: 10,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+    },
+    retryText: { color: c.primaryText, fontWeight: '700' },
+  });

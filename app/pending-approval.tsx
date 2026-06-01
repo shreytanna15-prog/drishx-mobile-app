@@ -6,9 +6,11 @@ import { useCallback, useEffect, useRef } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { fetchCurrentUser, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
+import { useBrandColors } from '@/lib/theme-provider';
 
 const POLL_MS = 5000;
 
@@ -17,6 +19,8 @@ export default function PendingApprovalScreen() {
   const params = useLocalSearchParams<{ email?: string; userId?: string; rejected?: string; reason?: string }>();
   const { token, user, signIn, signOut, updateUser } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   const email = user?.email ?? (params.email ? String(params.email) : '');
   const isRejected =
@@ -92,7 +96,7 @@ export default function PendingApprovalScreen() {
 
           {!isRejected && (
             <View style={styles.footer}>
-              <ActivityIndicator color={BrandColors.primary} size="small" />
+              <ActivityIndicator color={colors.primary} size="small" />
               <Text style={styles.footerText}>
                 {token
                   ? 'Checking approval... You will be signed in automatically when your account is ready.'
@@ -106,28 +110,29 @@ export default function PendingApprovalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: BrandColors.background },
-  container: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  card: {
-    borderRadius: 20,
-    padding: 24,
-    backgroundColor: BrandColors.card,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-  },
-  heading: { color: BrandColors.text, fontSize: 28, fontWeight: '800', marginBottom: 10 },
-  subheading: { color: BrandColors.textMuted, fontSize: 14, lineHeight: 22, marginBottom: 18 },
-  email: { color: BrandColors.label, fontSize: 13, marginBottom: 20 },
-  footer: {
-    marginTop: 8,
-    alignItems: 'center',
-    gap: 12,
-  },
-  footerText: {
-    color: BrandColors.textMuted,
-    fontSize: 13,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: c.background },
+    container: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+    card: {
+      borderRadius: 20,
+      padding: 24,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 10 },
+    subheading: { color: c.textMuted, fontSize: 14, lineHeight: 22, marginBottom: 18 },
+    email: { color: c.label, fontSize: 13, marginBottom: 20 },
+    footer: {
+      marginTop: 8,
+      alignItems: 'center',
+      gap: 12,
+    },
+    footerText: {
+      color: c.textMuted,
+      fontSize: 13,
+      lineHeight: 20,
+      textAlign: 'center',
+    },
+  });

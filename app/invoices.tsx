@@ -6,14 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { fetchInvoices, type InvoiceRecord } from '@/lib/invoices-api';
-
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
+import { useBrandColors } from '@/lib/theme-provider';
 
 type InvoiceFilter = 'ALL' | 'PAID' | 'UNPAID';
 
@@ -29,12 +26,16 @@ function formatAmount(value: number | string): string {
   return num.toLocaleString('en-IN');
 }
 
+type InvoicesStyles = ReturnType<typeof createStyles>;
+
 function InvoiceRow({
   item,
   onPress,
+  styles,
 }: {
   item: InvoiceRecord;
   onPress: () => void;
+  styles: InvoicesStyles;
 }) {
   const statusPaid = item.status === 'PAID';
   return (
@@ -63,6 +64,8 @@ export default function InvoicesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<InvoiceFilter>('ALL');
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   const loadInvoices = useCallback(async () => {
     try {
@@ -91,7 +94,7 @@ export default function InvoicesScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} hitSlop={8}>
-            <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+            <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>Invoices</Text>
           <View style={{ width: 22 }} />
@@ -113,7 +116,7 @@ export default function InvoicesScreen() {
 
         {loading ? (
           <View style={styles.centered}>
-            <ActivityIndicator color={GOLD} />
+            <ActivityIndicator color={colors.primary} />
             <Text style={styles.helperText}>Loading invoices...</Text>
           </View>
         ) : error ? (
@@ -135,7 +138,7 @@ export default function InvoicesScreen() {
                   setRefreshing(true);
                   void loadInvoices();
                 }}
-                tintColor={GOLD}
+                tintColor={colors.primary}
               />
             }
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -147,6 +150,7 @@ export default function InvoicesScreen() {
             renderItem={({ item }) => (
               <InvoiceRow
                 item={item}
+                styles={styles}
                 onPress={() =>
                   router.push({
                     pathname: '/invoice-details' as never,
@@ -162,63 +166,64 @@ export default function InvoicesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  safeArea: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  headerTitle: { color: BrandColors.text, fontSize: 20, fontWeight: '800' },
-  filterRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
-  filterChip: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  filterChipActive: { borderColor: GOLD },
-  filterText: { color: BrandColors.textMuted, fontWeight: '600' },
-  filterTextActive: { color: GOLD, fontWeight: '700' },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
-  invoiceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
-    padding: 12,
-    gap: 10,
-  },
-  invoiceLeft: { flex: 1 },
-  invoiceNumber: { color: BrandColors.text, fontSize: 16, fontWeight: '700' },
-  invoiceDate: { color: BrandColors.textMuted, fontSize: 12, marginTop: 3 },
-  invoiceAmount: { color: BrandColors.text, fontSize: 17, fontWeight: '700' },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  paidBadge: { backgroundColor: '#134e32' },
-  unpaidBadge: { backgroundColor: '#4a2d11' },
-  statusText: { fontSize: 12, fontWeight: '700' },
-  paidText: { color: '#86efac' },
-  unpaidText: { color: '#fdba74' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
-  helperText: { color: BrandColors.textMuted, fontSize: 14, textAlign: 'center' },
-  errorText: { color: '#f87171', textAlign: 'center', fontSize: 14 },
-  retryButton: {
-    marginTop: 6,
-    borderRadius: 10,
-    backgroundColor: GOLD,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.cardBorder,
+    },
+    headerTitle: { color: c.text, fontSize: 20, fontWeight: '800' },
+    filterRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
+    filterChip: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      paddingVertical: 10,
+      alignItems: 'center',
+    },
+    filterChipActive: { borderColor: c.primary },
+    filterText: { color: c.textMuted, fontWeight: '600' },
+    filterTextActive: { color: c.primary, fontWeight: '700' },
+    listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+    invoiceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      padding: 12,
+      gap: 10,
+    },
+    invoiceLeft: { flex: 1 },
+    invoiceNumber: { color: c.text, fontSize: 16, fontWeight: '700' },
+    invoiceDate: { color: c.textMuted, fontSize: 12, marginTop: 3 },
+    invoiceAmount: { color: c.text, fontSize: 17, fontWeight: '700' },
+    statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+    paidBadge: { backgroundColor: '#134e32' },
+    unpaidBadge: { backgroundColor: '#4a2d11' },
+    statusText: { fontSize: 12, fontWeight: '700' },
+    paidText: { color: '#86efac' },
+    unpaidText: { color: '#fdba74' },
+    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
+    helperText: { color: c.textMuted, fontSize: 14, textAlign: 'center' },
+    errorText: { color: c.danger, textAlign: 'center', fontSize: 14 },
+    retryButton: {
+      marginTop: 6,
+      borderRadius: 10,
+      backgroundColor: c.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+    },
+    retryText: { color: c.primaryText, fontWeight: '700' },
+  });

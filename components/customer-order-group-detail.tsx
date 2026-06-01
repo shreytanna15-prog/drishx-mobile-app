@@ -5,7 +5,9 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import {
   buildOrderProductSections,
   getBatchTrackingStatus,
@@ -21,10 +23,6 @@ import {
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import type { OrderRecord } from '@/lib/orders-api';
 
-const GOLD = BrandColors.primary;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
-const BG = BrandColors.background;
 
 type CustomerOrderGroupDetailProps = {
   group: OrderListGroup;
@@ -41,6 +39,8 @@ function PackedStatusCell({
   picked: number;
   ordered: number;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const fraction = `${picked}/${ordered}`;
 
   if (state === 'cancelled') {
@@ -48,7 +48,7 @@ function PackedStatusCell({
       <View style={styles.packedCell}>
         <Text style={styles.packedFractionMuted}>—</Text>
         <View style={[styles.checkCircle, styles.checkCircleMuted]}>
-          <MaterialIcons name="remove" size={14} color={BrandColors.textMuted} />
+          <MaterialIcons name="remove" size={14} color={colors.textMuted} />
         </View>
       </View>
     );
@@ -85,13 +85,14 @@ function PackedStatusCell({
 }
 
 function PowerTableRow({ line }: { line: PowerLineRow }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.tableRow}>
       <Text style={[styles.tableCell, styles.colPower]} numberOfLines={1}>
         {line.sphCylLabel}
       </Text>
       <Text style={[styles.tableCell, styles.colOrdered]}>{line.ordered}</Text>
-      <View style={[styles.tableCell, styles.colPacked]}>
+      <View style={styles.colPacked}>
         <PackedStatusCell state={line.pickState} picked={line.picked} ordered={line.ordered} />
       </View>
     </View>
@@ -99,6 +100,8 @@ function PowerTableRow({ line }: { line: PowerLineRow }) {
 }
 
 function ProductSectionCard({ section }: { section: OrderProductSection }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const [expanded, setExpanded] = useState(true);
   const progress =
     section.totalPairs > 0 ? Math.round((section.pickedPairs / section.totalPairs) * 100) : 0;
@@ -108,7 +111,7 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
       <Pressable style={styles.productHeader} onPress={() => setExpanded((value) => !value)}>
         <View style={styles.productHeaderLeft}>
           <View style={styles.productThumb}>
-            <MaterialIcons name="visibility" size={20} color={GOLD} />
+            <MaterialIcons name="visibility" size={20} color={colors.primary} />
           </View>
           <View style={styles.productHeaderText}>
             <Text style={styles.productTitle} numberOfLines={1}>
@@ -124,7 +127,7 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
           <MaterialIcons
             name={expanded ? 'expand-less' : 'expand-more'}
             size={22}
-            color={BrandColors.textMuted}
+            color={colors.textMuted}
           />
         </View>
       </Pressable>
@@ -168,6 +171,8 @@ export function CustomerOrderGroupDetail({
   onCancelOrder,
   cancellingId,
 }: CustomerOrderGroupDetailProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
   const productSections = useMemo(() => buildOrderProductSections(group.orders), [group.orders]);
   const trackingStatus = useMemo(() => getBatchTrackingStatus(group.orders), [group.orders]);
@@ -246,7 +251,7 @@ export function CustomerOrderGroupDetail({
               }}
               disabled={cancellingId === order.id}>
               {cancellingId === order.id ? (
-                <ActivityIndicator size="small" color={GOLD} />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
                 <Text style={styles.cancelText}>Cancel line · {order.quantity} pairs</Text>
               )}
@@ -258,20 +263,21 @@ export function CustomerOrderGroupDetail({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
   wrap: {
     gap: 14,
   },
   heroCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     gap: 8,
   },
   orderId: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 22,
     fontWeight: '800',
   },
@@ -287,21 +293,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   companyName: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '800',
     marginTop: 4,
   },
   dateTime: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 13,
   },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingVertical: 14,
     paddingHorizontal: 8,
   },
@@ -311,31 +317,31 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: BORDER,
+    backgroundColor: c.cardBorder,
     marginVertical: 4,
   },
   statValue: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '800',
   },
   statLabel: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 11,
     marginTop: 4,
     fontWeight: '600',
   },
   sectionTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 16,
     fontWeight: '700',
     marginTop: 4,
   },
   productCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 14,
     gap: 12,
   },
@@ -357,7 +363,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -366,12 +372,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   productTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 15,
     fontWeight: '700',
   },
   productSubtitle: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 12,
     marginTop: 2,
     lineHeight: 16,
@@ -381,7 +387,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   productPairs: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -394,19 +400,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   progressText: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 12,
     fontWeight: '600',
   },
   progressPercent: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 12,
     fontWeight: '700',
   },
   progressTrack: {
     height: 6,
     borderRadius: 3,
-    backgroundColor: BG,
+    backgroundColor: c.background,
     overflow: 'hidden',
   },
   progressFill: {
@@ -416,7 +422,7 @@ const styles = StyleSheet.create({
   },
   tableWrap: {
     borderTopWidth: 1,
-    borderTopColor: BORDER,
+    borderTopColor: c.cardBorder,
     paddingTop: 10,
     gap: 4,
   },
@@ -425,7 +431,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   tableHeadText: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 11,
     fontWeight: '700',
     textTransform: 'uppercase',
@@ -435,10 +441,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+    borderBottomColor: c.cardBorder,
   },
   tableCell: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -491,12 +497,12 @@ const styles = StyleSheet.create({
   packedFractionPending: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#f87171',
+    color: c.danger,
   },
   packedFractionMuted: {
     fontSize: 12,
     fontWeight: '700',
-    color: BrandColors.textMuted,
+    color: c.textMuted,
   },
   checkCircle: {
     width: 24,
@@ -516,37 +522,37 @@ const styles = StyleSheet.create({
   },
   checkCirclePending: {
     backgroundColor: 'transparent',
-    borderColor: '#f87171',
+    borderColor: c.danger,
   },
   checkCircleMuted: {
     backgroundColor: 'transparent',
-    borderColor: BrandColors.cardBorder,
+    borderColor: c.cardBorder,
   },
   notesBox: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   notesLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: GOLD,
+    color: c.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 6,
   },
   notesText: {
     fontSize: 14,
-    color: BrandColors.text,
+    color: c.text,
     lineHeight: 20,
   },
   trackingCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     paddingBottom: 12,
   },
@@ -557,12 +563,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     backgroundColor: 'rgba(240, 161, 50, 0.08)',
     alignItems: 'center',
   },
   cancelText: {
-    color: GOLD,
+    color: c.primary,
     fontWeight: '700',
     fontSize: 14,
   },

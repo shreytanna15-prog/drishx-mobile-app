@@ -15,17 +15,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useCart } from '@/lib/cart';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
 const SEARCH_DEBOUNCE_MS = 500;
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 
 const FILTER_PARAM_ALIASES: Record<string, FilterOption> = {
   singlevision: 'Single Vision',
@@ -60,6 +58,8 @@ function LensProductCard({
   item: LensItem;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const lensType = item.lensType ?? 'Progressive';
   const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
   const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
@@ -88,6 +88,8 @@ function LensProductCard({
 }
 
 export default function ShopScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { itemCount } = useCart();
@@ -263,7 +265,7 @@ export default function ShopScreen() {
           <Text style={styles.screenTitle}>Shop</Text>
           <View style={styles.subtitleRow}>
             {isRefreshing && hasLoadedOnce ? (
-              <ActivityIndicator size="small" color={GOLD} style={styles.subtitleSpinner} />
+              <ActivityIndicator size="small" color={colors.primary} style={styles.subtitleSpinner} />
             ) : null}
             <Text style={styles.subtitle}>{subtitleText}</Text>
           </View>
@@ -273,10 +275,10 @@ export default function ShopScreen() {
           <Pressable
             style={[styles.iconButton, searchActive && styles.iconButtonActive]}
             onPress={() => setSearchActive((current) => !current)}>
-            <MaterialIcons name="search" size={22} color={searchActive ? BrandColors.primaryText : GOLD} />
+            <MaterialIcons name="search" size={22} color={searchActive ? colors.primaryText : colors.primary} />
           </Pressable>
           <Pressable style={styles.iconButton} onPress={() => router.push('/cart')}>
-            <MaterialIcons name="shopping-cart" size={22} color={GOLD} />
+            <MaterialIcons name="shopping-cart" size={22} color={colors.primary} />
             {itemCount > 0 && (
               <View style={styles.cartBadge}>
                 <Text style={styles.cartBadgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
@@ -288,12 +290,12 @@ export default function ShopScreen() {
 
       {searchActive && (
         <View style={styles.searchBar}>
-          <MaterialIcons name="search" size={20} color={BrandColors.textMuted} />
+          <MaterialIcons name="search" size={20} color={colors.textMuted} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search SPH, CYL, price, brand, eye..."
-            placeholderTextColor={BrandColors.placeholder}
+            placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoFocus
             returnKeyType="search"
@@ -302,11 +304,11 @@ export default function ShopScreen() {
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <MaterialIcons name="close" size={20} color={BrandColors.textMuted} />
+              <MaterialIcons name="close" size={20} color={colors.textMuted} />
             </Pressable>
           )}
           {isRefreshing && searchQuery.length > 0 ? (
-            <ActivityIndicator size="small" color={GOLD} />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : null}
         </View>
       )}
@@ -336,7 +338,7 @@ export default function ShopScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {initialLoading && !hasLoadedOnce ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={GOLD} />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading products…</Text>
           </View>
         ) : (
@@ -344,7 +346,7 @@ export default function ShopScreen() {
             {shopHeader}
             {error && lenses.length === 0 ? (
               <View style={styles.inlineError}>
-                <MaterialIcons name="cloud-off" size={32} color="#f87171" />
+                <MaterialIcons name="cloud-off" size={32} color={colors.danger} />
                 <Text style={styles.errorText}>{error}</Text>
                 <Pressable style={styles.retryButton} onPress={() => loadPage(1, true)}>
                   <Text style={styles.retryText}>Retry</Text>
@@ -371,7 +373,7 @@ export default function ShopScreen() {
                 ListFooterComponent={
                   loadingMore ? (
                     <View style={styles.footerLoader}>
-                      <ActivityIndicator color={GOLD} />
+                      <ActivityIndicator color={colors.primary} />
                       <Text style={styles.footerText}>Loading more lenses…</Text>
                     </View>
                   ) : null
@@ -379,12 +381,12 @@ export default function ShopScreen() {
                 ListEmptyComponent={
                   isRefreshing ? (
                     <View style={styles.emptyState}>
-                      <ActivityIndicator color={GOLD} />
+                      <ActivityIndicator color={colors.primary} />
                       <Text style={styles.stateText}>Searching…</Text>
                     </View>
                   ) : (
                     <View style={styles.emptyState}>
-                      <MaterialIcons name="search-off" size={40} color={BrandColors.textMuted} />
+                      <MaterialIcons name="search-off" size={40} color={colors.textMuted} />
                       <Text style={styles.stateText}>
                         {debouncedSearch ? 'No lenses match your search' : 'No lenses found for this filter'}
                       </Text>
@@ -400,8 +402,9 @@ export default function ShopScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   productList: { flex: 1 },
@@ -419,9 +422,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     fontWeight: '800',
-    color: BrandColors.text,
+    color: c.text,
   },
-  subtitle: { fontSize: 14, color: BrandColors.textMuted, flexShrink: 1 },
+  subtitle: { fontSize: 14, color: c.textMuted, flexShrink: 1 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconButton: {
     width: 44,
@@ -429,11 +432,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconButtonActive: { backgroundColor: GOLD, borderColor: GOLD },
+  iconButtonActive: { backgroundColor: c.primary, borderColor: c.primary },
   cartBadge: {
     position: 'absolute',
     top: -4,
@@ -444,9 +447,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
-  cartBadgeText: { color: BrandColors.primaryText, fontSize: 11, fontWeight: '800' },
+  cartBadgeText: { color: c.primaryText, fontSize: 11, fontWeight: '800' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,13 +458,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
   },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: BrandColors.text,
+    color: c.text,
     padding: 0,
   },
   filterList: { gap: 8, paddingRight: 4 },
@@ -470,21 +473,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
   },
   filterChipActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
-  filterChipText: { fontSize: 14, fontWeight: '600', color: BrandColors.textMuted },
-  filterChipTextActive: { fontWeight: '700', color: BrandColors.primaryText },
+  filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
+  filterChipTextActive: { fontWeight: '700', color: c.primaryText },
   productCard: {
     padding: 12,
     borderRadius: 16,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   compactTopRow: {
     flexDirection: 'row',
@@ -499,21 +502,21 @@ const styles = StyleSheet.create({
   },
   compactTitle: {
     fontSize: 16,
-    color: BrandColors.text,
+    color: c.text,
     fontWeight: '700',
   },
   priceBlock: { flexDirection: 'row', alignItems: 'flex-start' },
-  priceCurrency: { fontSize: 13, fontWeight: '700', color: GOLD, marginTop: 1, marginRight: 1 },
-  priceAmount: { fontSize: 17, fontWeight: '800', color: GOLD, lineHeight: 21 },
+  priceCurrency: { fontSize: 13, fontWeight: '700', color: c.primary, marginTop: 1, marginRight: 1 },
+  priceAmount: { fontSize: 17, fontWeight: '800', color: c.primary, lineHeight: 21 },
   categoryText: {
     fontSize: 12,
-    color: BrandColors.text,
+    color: c.text,
     fontWeight: '700',
     marginBottom: 2,
   },
   itemText: {
     fontSize: 11,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontWeight: '600',
   },
   separator: { height: 12 },
@@ -524,7 +527,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 20,
   },
-  footerText: { fontSize: 14, color: BrandColors.textMuted },
+  footerText: { fontSize: 14, color: c.textMuted },
   centeredState: {
     flex: 1,
     justifyContent: 'center',
@@ -540,14 +543,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   emptyState: { alignItems: 'center', paddingVertical: 48, gap: 12 },
-  stateText: { fontSize: 15, color: BrandColors.textMuted, textAlign: 'center' },
-  errorText: { fontSize: 15, color: '#f87171', textAlign: 'center' },
+  stateText: { fontSize: 15, color: c.textMuted, textAlign: 'center' },
+  errorText: { fontSize: 15, color: c.danger, textAlign: 'center' },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
-  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
+  retryText: { color: c.primaryText, fontWeight: '700' },
 });

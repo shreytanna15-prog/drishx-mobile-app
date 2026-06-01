@@ -15,15 +15,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmployeeOrderGroupDetail } from '@/components/employee-order-group-detail';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { groupOrdersForList } from '@/lib/order-list-display';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
 
-const GOLD = BrandColors.primary;
 
 export default function OrderDetailsScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string | string[]; groupKey?: string | string[] }>();
   const orderIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -105,7 +108,7 @@ export default function OrderDetailsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={10}>
-            <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+            <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>{orderGroup?.displayOrderId ?? 'Order details'}</Text>
           <View style={styles.backButton} />
@@ -113,12 +116,12 @@ export default function OrderDetailsScreen() {
 
         {loading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={GOLD} />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading order...</Text>
           </View>
         ) : error || !orderGroup ? (
           <View style={styles.centeredState}>
-            <MaterialIcons name="error-outline" size={44} color="#f87171" />
+            <MaterialIcons name="error-outline" size={44} color={colors.danger} />
             <Text style={styles.errorText}>{error || 'Order not found.'}</Text>
             <Pressable style={styles.retryButton} onPress={loadOrders}>
               <Text style={styles.retryText}>Retry</Text>
@@ -134,7 +137,7 @@ export default function OrderDetailsScreen() {
                   setRefreshing(true);
                   loadOrders();
                 }}
-                tintColor={GOLD}
+                tintColor={colors.primary}
               />
             }>
             <EmployeeOrderGroupDetail
@@ -149,8 +152,9 @@ export default function OrderDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BrandColors.background },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   header: {
     flexDirection: 'row',
@@ -166,7 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -178,14 +182,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     gap: 8,
   },
-  stateText: { color: BrandColors.textMuted },
-  errorText: { color: '#f87171', textAlign: 'center' },
+  stateText: { color: c.textMuted },
+  errorText: { color: c.danger, textAlign: 'center' },
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 10,
     marginTop: 8,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
-  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
+  retryText: { color: c.primaryText, fontWeight: '700' },
 });

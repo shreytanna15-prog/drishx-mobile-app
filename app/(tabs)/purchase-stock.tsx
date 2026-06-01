@@ -19,7 +19,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import {
   formatMoneyInput,
@@ -39,10 +41,6 @@ import {
 import type { FilterOption, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 
 type ScreenMode = 'stock' | 'history' | 'manual';
 
@@ -78,10 +76,12 @@ function formatLensSummary(item: LensItem): string {
 }
 
 function PendingLineCard({ line, onRemove }: { line: StockIntakeLine; onRemove: () => void }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   return (
     <View style={styles.pendingCard}>
       <View style={styles.pendingIconWrap}>
-        <MaterialIcons name="inventory-2" size={18} color={GOLD} />
+        <MaterialIcons name="inventory-2" size={18} color={colors.primary} />
       </View>
       <View style={styles.pendingCardBody}>
         <Text style={styles.pendingTitle} numberOfLines={2}>
@@ -93,13 +93,14 @@ function PendingLineCard({ line, onRemove }: { line: StockIntakeLine; onRemove: 
         </Text>
       </View>
       <Pressable onPress={onRemove} hitSlop={8} style={styles.deleteBtn}>
-        <MaterialIcons name="delete-outline" size={20} color="#f87171" />
+        <MaterialIcons name="delete-outline" size={20} color={colors.danger} />
       </Pressable>
     </View>
   );
 }
 
 function HistoryCard({ item }: { item: ProcurementRecord }) {
+  const styles = useThemedStyles(createStyles);
   const amount = Number(item.amount);
   const by = item.user?.name?.trim() || item.user?.email || 'Staff';
 
@@ -134,6 +135,7 @@ function FormField({
   label: string;
   children: ReactNode;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.formLabel}>{label}</Text>
@@ -143,6 +145,8 @@ function FormField({
 }
 
 export default function PurchaseStockScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const { getAuthHeaders, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
@@ -489,7 +493,7 @@ export default function PurchaseStockScreen() {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.headerIconWrap}>
-              <MaterialIcons name="shopping-cart" size={22} color={GOLD} />
+              <MaterialIcons name="shopping-cart" size={22} color={colors.primary} />
             </View>
             <View style={styles.headerText}>
               <Text style={styles.screenTitle}>Purchase Stock</Text>
@@ -567,7 +571,7 @@ export default function PurchaseStockScreen() {
                         <Text style={styles.selectPlaceholder}>Tap to select a lens product</Text>
                       )}
                     </View>
-                    <MaterialIcons name="unfold-more" size={22} color={GOLD} />
+                    <MaterialIcons name="unfold-more" size={22} color={colors.primary} />
                   </Pressable>
                 </FormField>
 
@@ -577,7 +581,7 @@ export default function PurchaseStockScreen() {
                     onChangeText={handleQuantityChange}
                     keyboardType="number-pad"
                     placeholder="e.g. 10"
-                    placeholderTextColor={BrandColors.placeholder}
+                    placeholderTextColor={colors.placeholder}
                     style={styles.input}
                   />
                 </FormField>
@@ -590,7 +594,7 @@ export default function PurchaseStockScreen() {
                         onChangeText={handleCostPriceChange}
                         keyboardType="decimal-pad"
                         placeholder="Per unit"
-                        placeholderTextColor={BrandColors.placeholder}
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </FormField>
@@ -602,7 +606,7 @@ export default function PurchaseStockScreen() {
                         onChangeText={handleTotalPriceChange}
                         keyboardType="decimal-pad"
                         placeholder="Line total"
-                        placeholderTextColor={BrandColors.placeholder}
+                        placeholderTextColor={colors.placeholder}
                         style={styles.input}
                       />
                     </FormField>
@@ -626,7 +630,7 @@ export default function PurchaseStockScreen() {
                         ? `Current sell price: ₹${selectedLens.price}`
                         : 'Customer price in shop'
                     }
-                    placeholderTextColor={BrandColors.placeholder}
+                    placeholderTextColor={colors.placeholder}
                     style={styles.input}
                   />
                 </FormField>
@@ -637,7 +641,7 @@ export default function PurchaseStockScreen() {
                       value={notes}
                       onChangeText={setNotes}
                       placeholder="Supplier, invoice no., etc."
-                      placeholderTextColor={BrandColors.placeholder}
+                      placeholderTextColor={colors.placeholder}
                       style={[styles.input, styles.inputMultiline]}
                       multiline
                     />
@@ -645,7 +649,7 @@ export default function PurchaseStockScreen() {
                 )}
 
                 <Pressable style={styles.secondaryButton} onPress={handleAddLineToBatch}>
-                  <MaterialIcons name="add" size={20} color={GOLD} />
+                  <MaterialIcons name="add" size={20} color={colors.primary} />
                   <Text style={styles.secondaryButtonText}>Add to purchase list</Text>
                 </Pressable>
               </View>
@@ -657,7 +661,7 @@ export default function PurchaseStockScreen() {
                       value={notes}
                       onChangeText={setNotes}
                       placeholder="Supplier, invoice no., etc."
-                      placeholderTextColor={BrandColors.placeholder}
+                      placeholderTextColor={colors.placeholder}
                       style={[styles.input, styles.inputMultiline]}
                       multiline
                     />
@@ -668,10 +672,10 @@ export default function PurchaseStockScreen() {
                     onPress={handleSubmitBatch}
                     disabled={submitting}>
                     {submitting ? (
-                      <ActivityIndicator color={BrandColors.primaryText} />
+                      <ActivityIndicator color={colors.primaryText} />
                     ) : (
                       <>
-                        <MaterialIcons name="inventory-2" size={20} color={BrandColors.primaryText} />
+                        <MaterialIcons name="inventory-2" size={20} color={colors.primaryText} />
                         <Text style={styles.submitText}>
                           Submit {pendingLines.length} product{pendingLines.length === 1 ? '' : 's'} · ₹{batchTotal}
                         </Text>
@@ -697,7 +701,7 @@ export default function PurchaseStockScreen() {
                   await loadHistory();
                   setRefreshing(false);
                 }}
-                tintColor={GOLD}
+                tintColor={colors.primary}
               />
             }
             ListHeaderComponent={
@@ -713,10 +717,10 @@ export default function PurchaseStockScreen() {
             }
             ListEmptyComponent={
               loadingHistory ? (
-                <ActivityIndicator style={styles.loader} color={GOLD} />
+                <ActivityIndicator style={styles.loader} color={colors.primary} />
               ) : (
                 <View style={styles.emptyBlock}>
-                  <MaterialIcons name="receipt-long" size={48} color={BrandColors.textMuted} />
+                  <MaterialIcons name="receipt-long" size={48} color={colors.textMuted} />
                   <Text style={styles.emptyTitle}>No purchases yet</Text>
                   <Text style={styles.emptyText}>Stock intake records will appear here.</Text>
                 </View>
@@ -742,7 +746,7 @@ export default function PurchaseStockScreen() {
                     onChangeText={setManualAmount}
                     keyboardType="decimal-pad"
                     placeholder="Expense amount"
-                    placeholderTextColor={BrandColors.placeholder}
+                    placeholderTextColor={colors.placeholder}
                     style={styles.input}
                   />
                 </FormField>
@@ -751,7 +755,7 @@ export default function PurchaseStockScreen() {
                     value={manualDescription}
                     onChangeText={setManualDescription}
                     placeholder="What was this expense for?"
-                    placeholderTextColor={BrandColors.placeholder}
+                    placeholderTextColor={colors.placeholder}
                     style={[styles.input, styles.inputMultiline]}
                     multiline
                   />
@@ -761,10 +765,10 @@ export default function PurchaseStockScreen() {
                   onPress={handleSubmitManual}
                   disabled={submittingManual}>
                   {submittingManual ? (
-                    <ActivityIndicator color={BrandColors.primaryText} />
+                    <ActivityIndicator color={colors.primaryText} />
                   ) : (
                     <>
-                      <MaterialIcons name="receipt" size={20} color={BrandColors.primaryText} />
+                      <MaterialIcons name="receipt" size={20} color={colors.primaryText} />
                       <Text style={styles.submitText}>Record manual expense</Text>
                     </>
                   )}
@@ -779,17 +783,17 @@ export default function PurchaseStockScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select lens</Text>
               <Pressable onPress={() => setPickerOpen(false)} hitSlop={8} style={styles.modalCloseBtn}>
-                <MaterialIcons name="close" size={22} color={GOLD} />
+                <MaterialIcons name="close" size={22} color={colors.primary} />
               </Pressable>
             </View>
 
             <View style={styles.modalSearchWrap}>
-              <MaterialIcons name="search" size={20} color={BrandColors.textMuted} />
+              <MaterialIcons name="search" size={20} color={colors.textMuted} />
               <TextInput
                 value={lensSearch}
                 onChangeText={setLensSearch}
                 placeholder="Search brand, SPH, coating…"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 style={styles.modalSearchInput}
               />
             </View>
@@ -809,7 +813,7 @@ export default function PurchaseStockScreen() {
             </ScrollView>
 
             {loadingLenses ? (
-              <ActivityIndicator style={styles.loader} color={GOLD} />
+              <ActivityIndicator style={styles.loader} color={colors.primary} />
             ) : (
               <FlatList
                 data={lenses}
@@ -827,7 +831,7 @@ export default function PurchaseStockScreen() {
                         {item.price > 0 ? ` · Sell ₹${item.price}` : ''}
                       </Text>
                     </View>
-                    <MaterialIcons name="add-circle-outline" size={24} color={GOLD} />
+                    <MaterialIcons name="add-circle-outline" size={24} color={colors.primary} />
                   </Pressable>
                 )}
                 ListEmptyComponent={<Text style={styles.emptyText}>No lenses match your search.</Text>}
@@ -840,8 +844,9 @@ export default function PurchaseStockScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   header: {
@@ -860,7 +865,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -869,9 +874,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 34,
     fontWeight: '800',
-    color: BrandColors.text,
+    color: c.text,
   },
-  subtitle: { marginTop: 4, fontSize: 14, color: BrandColors.textMuted },
+  subtitle: { marginTop: 4, fontSize: 14, color: c.textMuted },
   modeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -884,35 +889,35 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
   },
   modeChipActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
-  modeChipText: { fontSize: 13, fontWeight: '700', color: BrandColors.textMuted },
-  modeChipTextActive: { color: BrandColors.primaryText },
+  modeChipText: { fontSize: 13, fontWeight: '700', color: c.textMuted },
+  modeChipTextActive: { color: c.primaryText },
   formContent: { padding: 16, paddingBottom: 32, gap: 14 },
   sectionCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     gap: 4,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: BrandColors.text,
+    color: c.text,
     marginBottom: 8,
   },
   fieldWrap: { marginTop: 4 },
   formLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: BrandColors.label,
+    color: c.label,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginBottom: 6,
@@ -924,29 +929,29 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
-    backgroundColor: BrandColors.inputBg,
+    borderColor: c.inputBorder,
+    backgroundColor: c.inputBg,
   },
   selectButtonContent: { flex: 1, paddingRight: 8 },
-  selectTitle: { color: BrandColors.text, fontSize: 15, fontWeight: '700' },
-  selectPlaceholder: { color: BrandColors.placeholder, fontSize: 15 },
-  selectMeta: { fontSize: 12, color: BrandColors.textMuted, marginTop: 4, lineHeight: 17 },
+  selectTitle: { color: c.text, fontSize: 15, fontWeight: '700' },
+  selectPlaceholder: { color: c.placeholder, fontSize: 15 },
+  selectMeta: { fontSize: 12, color: c.textMuted, marginTop: 4, lineHeight: 17 },
   input: {
     borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
+    borderColor: c.inputBorder,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: BrandColors.text,
-    backgroundColor: BrandColors.inputBg,
+    color: c.text,
+    backgroundColor: c.inputBg,
   },
   inputMultiline: { minHeight: 88, textAlignVertical: 'top' },
   priceRow: { flexDirection: 'row', gap: 10 },
   priceCol: { flex: 1 },
   priceHint: {
     fontSize: 12,
-    color: GOLD,
+    color: c.primary,
     marginTop: 2,
     marginBottom: 4,
     fontWeight: '600',
@@ -957,7 +962,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  clearLink: { fontSize: 13, fontWeight: '700', color: GOLD },
+  clearLink: { fontSize: 13, fontWeight: '700', color: c.primary },
   pendingList: { gap: 8 },
   pendingCard: {
     flexDirection: 'row',
@@ -965,9 +970,9 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: BG,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   pendingIconWrap: {
     width: 34,
@@ -978,8 +983,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pendingCardBody: { flex: 1, gap: 4 },
-  pendingTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '700' },
-  pendingMeta: { fontSize: 12, color: BrandColors.textMuted, lineHeight: 17 },
+  pendingTitle: { color: c.text, fontSize: 14, fontWeight: '700' },
+  pendingMeta: { fontSize: 12, color: c.textMuted, lineHeight: 17 },
   deleteBtn: { padding: 4 },
   batchSummary: {
     flexDirection: 'row',
@@ -990,10 +995,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     backgroundColor: 'rgba(240, 161, 50, 0.1)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
-  batchSummaryLabel: { fontSize: 13, color: BrandColors.textMuted, fontWeight: '600' },
-  batchSummaryValue: { fontSize: 16, color: GOLD, fontWeight: '800' },
+  batchSummaryLabel: { fontSize: 13, color: c.textMuted, fontWeight: '600' },
+  batchSummaryValue: { fontSize: 16, color: c.primary, fontWeight: '800' },
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1003,10 +1008,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: GOLD,
+    borderColor: c.primary,
     backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
-  secondaryButtonText: { fontSize: 15, fontWeight: '700', color: GOLD },
+  secondaryButtonText: { fontSize: 15, fontWeight: '700', color: c.primary },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1015,10 +1020,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 16,
     borderRadius: 14,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
   submitText: {
-    color: BrandColors.primaryText,
+    color: c.primaryText,
     fontSize: 15,
     fontWeight: '800',
     textAlign: 'center',
@@ -1029,9 +1034,9 @@ const styles = StyleSheet.create({
   historyCard: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   historyHeader: {
     flexDirection: 'row',
@@ -1039,32 +1044,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
-  historyAmount: { fontSize: 18, fontWeight: '800', color: GOLD },
+  historyAmount: { fontSize: 18, fontWeight: '800', color: c.primary },
   historyRefPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
-    backgroundColor: BG,
+    backgroundColor: c.background,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
-  historyRef: { fontSize: 10, color: BrandColors.textMuted, fontWeight: '600' },
-  historyDesc: { fontSize: 14, lineHeight: 20, marginBottom: 6, color: BrandColors.text },
-  historyMeta: { fontSize: 12, color: BrandColors.textMuted },
+  historyRef: { fontSize: 10, color: c.textMuted, fontWeight: '600' },
+  historyDesc: { fontSize: 14, lineHeight: 20, marginBottom: 6, color: c.text },
+  historyMeta: { fontSize: 12, color: c.textMuted },
   separator: { height: 10 },
   loader: { marginTop: 40 },
   emptyBlock: { alignItems: 'center', paddingVertical: 48, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: BrandColors.text },
-  emptyText: { fontSize: 14, color: BrandColors.textMuted, textAlign: 'center' },
+  emptyTitle: { fontSize: 17, fontWeight: '700', color: c.text },
+  emptyText: { fontSize: 14, color: c.textMuted, textAlign: 'center' },
   manualIntro: {
     fontSize: 14,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     lineHeight: 21,
     marginBottom: 8,
   },
   manualHistoryBlock: { marginBottom: 8, gap: 10 },
   sectionGap: { marginTop: 16 },
-  modalSafe: { flex: 1, backgroundColor: BG },
+  modalSafe: { flex: 1, backgroundColor: c.background },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1072,16 +1077,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: BrandColors.text },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: c.text },
   modalCloseBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   modalSearchWrap: {
     flexDirection: 'row',
@@ -1093,13 +1098,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
   },
   modalSearchInput: {
     flex: 1,
     fontSize: 15,
-    color: BrandColors.text,
+    color: c.text,
     padding: 0,
   },
   filterScroll: { maxHeight: 44, marginBottom: 8, paddingHorizontal: 12 },
@@ -1108,16 +1113,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
     marginHorizontal: 4,
   },
   filterChipActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
+    backgroundColor: c.primary,
+    borderColor: c.primary,
   },
-  filterChipText: { fontSize: 13, fontWeight: '700', color: BrandColors.textMuted },
-  filterChipTextActive: { color: BrandColors.primaryText },
+  filterChipText: { fontSize: 13, fontWeight: '700', color: c.textMuted },
+  filterChipTextActive: { color: c.primaryText },
   pickerList: { paddingHorizontal: 16, paddingBottom: 24 },
   pickerItem: {
     flexDirection: 'row',
@@ -1126,9 +1131,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
     borderRadius: 12,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
-  pickerTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '700' },
+  pickerTitle: { color: c.text, fontSize: 14, fontWeight: '700' },
 });

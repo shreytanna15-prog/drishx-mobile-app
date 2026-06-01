@@ -5,13 +5,14 @@ import React, { useEffect, useState } from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { BrandColors } from '@/constants/brand-colors';
 import { getCustomerNextRoute } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
+import { useBrandColors } from '@/lib/theme-provider';
 
 export default function TabLayout() {
   const router = useRouter();
   const { isSignedIn, isStaff, user } = useAuth();
+  const colors = useBrandColors();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -55,12 +56,12 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
-        tabBarActiveTintColor: BrandColors.primary,
-        tabBarInactiveTintColor: BrandColors.textMuted,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: BrandColors.card,
+          backgroundColor: colors.card,
           borderTopWidth: 1,
-          borderTopColor: BrandColors.cardBorder,
+          borderTopColor: colors.cardBorder,
           elevation: 0,
         },
         tabBarLabelStyle: {

@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
@@ -24,10 +26,6 @@ import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 const STAFF_PENDING_STATUSES = ['PENDING', 'PICKING', 'PACKED', 'DISPATCHED', 'PARTIALLY_FULFILLED', 'AWAITING_PROCUREMENT'];
 
 function getDisplayNameFull(name: string | null | undefined, email: string): string {
@@ -54,6 +52,8 @@ function goToShop(router: ReturnType<typeof useRouter>, filter: FilterOption = '
 }
 
 export default function HomeScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { user, isStaff, getAuthHeaders } = useAuth();
   const [ordersLoading, setOrdersLoading] = useState(false);
@@ -192,7 +192,7 @@ export default function HomeScreen() {
                   <Text style={styles.staffAvatarText}>{staffInitials}</Text>
                 </Pressable>
                 <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
-                  <MaterialIcons name="notifications-none" size={24} color={GOLD} />
+                  <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
                   {staffUnreadNotifications > 0 ? (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
@@ -210,7 +210,7 @@ export default function HomeScreen() {
               </View>
               {staffLoading ? (
                 <View style={styles.overviewLoading}>
-                  <ActivityIndicator color={GOLD} />
+                  <ActivityIndicator color={colors.primary} />
                 </View>
               ) : (
                 <View style={styles.overviewRow}>
@@ -225,26 +225,26 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitleOutside}>Quick access</Text>
             <View style={styles.staffQuickGrid}>
               <Pressable style={styles.staffQuickCard} onPress={() => router.push('/my-tasks' as never)}>
-                <MaterialIcons name="task-alt" size={24} color={GOLD} />
+                <MaterialIcons name="task-alt" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Tasks</Text>
               </Pressable>
               <Pressable style={styles.staffQuickCard} onPress={() => router.push('/orders')}>
-                <MaterialIcons name="receipt-long" size={24} color={GOLD} />
+                <MaterialIcons name="receipt-long" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Orders</Text>
               </Pressable>
               <Pressable style={styles.staffQuickCard} onPress={() => router.push('/inventory' as never)}>
-                <MaterialIcons name="inventory-2" size={24} color={GOLD} />
+                <MaterialIcons name="inventory-2" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Inventory</Text>
               </Pressable>
               <Pressable style={styles.staffQuickCard} onPress={() => router.push('/purchase-stock')}>
-                <MaterialIcons name="shopping-cart" size={24} color={GOLD} />
+                <MaterialIcons name="shopping-cart" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Procurement</Text>
               </Pressable>
             </View>
 
             <Pressable style={styles.dropdownHeader} onPress={() => setShowPendingTasks((value) => !value)}>
               <Text style={styles.dropdownTitle}>Pending tasks</Text>
-              <MaterialIcons name={showPendingTasks ? 'expand-less' : 'expand-more'} size={22} color={GOLD} />
+              <MaterialIcons name={showPendingTasks ? 'expand-less' : 'expand-more'} size={22} color={colors.primary} />
             </Pressable>
             {showPendingTasks ? (
               <View style={styles.dropdownBody}>
@@ -253,10 +253,10 @@ export default function HomeScreen() {
                     {staffPendingTasks.slice(0, 10).map((task) => (
                       <View key={task.id} style={styles.pendingTaskRow}>
                         <View style={styles.pendingTaskLeft}>
-                          <MaterialIcons name="pending-actions" size={16} color={GOLD} />
+                          <MaterialIcons name="pending-actions" size={16} color={colors.primary} />
                           <Text style={styles.pendingTaskText}>{task.title}</Text>
                         </View>
-                        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
+                        <MaterialIcons name="chevron-right" size={18} color={colors.textMuted} />
                       </View>
                     ))}
                   </View>
@@ -268,7 +268,7 @@ export default function HomeScreen() {
 
             <Pressable style={styles.dropdownHeader} onPress={() => setShowPendingOrders((value) => !value)}>
               <Text style={styles.dropdownTitle}>Pending orders</Text>
-              <MaterialIcons name={showPendingOrders ? 'expand-less' : 'expand-more'} size={22} color={GOLD} />
+              <MaterialIcons name={showPendingOrders ? 'expand-less' : 'expand-more'} size={22} color={colors.primary} />
             </Pressable>
             {showPendingOrders ? (
               <View style={styles.dropdownBody}>
@@ -277,7 +277,7 @@ export default function HomeScreen() {
                     {staffPendingOrders.slice(0, 8).map((order) => (
                       <Pressable key={order.id} style={styles.pendingOrderRow} onPress={() => router.push('/orders')}>
                         <View style={styles.pendingOrderLeft}>
-                          <MaterialIcons name="receipt-long" size={16} color={GOLD} />
+                          <MaterialIcons name="receipt-long" size={16} color={colors.primary} />
                           <View>
                             <Text style={styles.pendingOrderId}>#{order.id.slice(-8).toUpperCase()}</Text>
                             <Text style={styles.pendingOrderMeta}>
@@ -285,7 +285,7 @@ export default function HomeScreen() {
                             </Text>
                           </View>
                         </View>
-                        <MaterialIcons name="chevron-right" size={18} color={BrandColors.textMuted} />
+                        <MaterialIcons name="chevron-right" size={18} color={colors.textMuted} />
                       </Pressable>
                     ))}
                   </View>
@@ -328,7 +328,7 @@ export default function HomeScreen() {
                 <Text style={styles.avatarText}>{initials}</Text>
               </Pressable>
               <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
-                <MaterialIcons name="notifications-none" size={24} color={GOLD} />
+                <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
               </Pressable>
             </View>
           </View>
@@ -342,7 +342,7 @@ export default function HomeScreen() {
             </View>
             {ordersLoading ? (
               <View style={styles.overviewLoading}>
-                <ActivityIndicator color={GOLD} />
+                <ActivityIndicator color={colors.primary} />
               </View>
             ) : (
               <View style={styles.overviewRow}>
@@ -367,7 +367,7 @@ export default function HomeScreen() {
           </View>
 
           <Pressable style={styles.wholesaleBtn} onPress={() => goToShop(router)}>
-            <MaterialIcons name="storefront" size={22} color={BrandColors.primaryText} />
+            <MaterialIcons name="storefront" size={22} color={colors.primaryText} />
             <Text style={styles.wholesaleBtnText}>Place wholesale order</Text>
           </Pressable>
 
@@ -381,7 +381,7 @@ export default function HomeScreen() {
                 <Text style={styles.categoryCardText} numberOfLines={3}>
                   {cat.label}
                 </Text>
-                <MaterialIcons name="chevron-right" size={18} color={GOLD} />
+                <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
               </Pressable>
             ))}
           </View>
@@ -391,7 +391,7 @@ export default function HomeScreen() {
           </Text>
           {ordersLoading ? (
             <View style={styles.mostOrderedLoading}>
-              <ActivityIndicator color={GOLD} />
+              <ActivityIndicator color={colors.primary} />
             </View>
           ) : mostOrderedProducts.length === 0 ? (
             <View style={styles.mostOrderedEmpty}>
@@ -421,7 +421,7 @@ export default function HomeScreen() {
                       {product.orderCount} order{product.orderCount === 1 ? '' : 's'}
                     </Text>
                   </View>
-                  <MaterialIcons name="chevron-right" size={22} color={GOLD} />
+                  <MaterialIcons name="chevron-right" size={22} color={colors.primary} />
                 </Pressable>
               ))}
             </View>
@@ -441,6 +441,7 @@ function OverviewCell({
   value: string;
   highlight?: boolean;
 }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.overviewCell}>
       <Text style={[styles.overviewValue, highlight && styles.overviewValueHighlight]}>{value}</Text>
@@ -458,18 +459,21 @@ function QuickIcon({
   label: string;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   return (
     <Pressable style={styles.quickItem} onPress={onPress}>
       <View style={styles.quickIconWrap}>
-        <MaterialIcons name={icon} size={26} color={GOLD} />
+        <MaterialIcons name={icon} size={26} color={colors.primary} />
       </View>
       <Text style={styles.quickLabel}>{label}</Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  root: { flex: 1, backgroundColor: c.background },
   safeTop: { flex: 1 },
   scrollPad: { paddingHorizontal: 18, paddingBottom: 32 },
   headerRow: {
@@ -481,18 +485,18 @@ const styles = StyleSheet.create({
   },
   headerTextCol: { flex: 1, paddingRight: 12 },
   helloSmall: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 14,
     fontWeight: '500',
   },
   customerName: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 26,
     fontWeight: '800',
     marginTop: 4,
   },
   clientId: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 14,
     fontWeight: '600',
     marginTop: 8,
@@ -502,19 +506,19 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: GOLD, fontWeight: '800', fontSize: 14 },
+  avatarText: { color: c.primary, fontWeight: '800', fontSize: 14 },
   bellBtn: { padding: 4 },
   sectionCard: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 22,
   },
@@ -525,17 +529,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   sectionTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '700',
   },
   sectionTitleOutside: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
   },
-  viewAll: { color: GOLD, fontSize: 14, fontWeight: '600' },
+  viewAll: { color: c.primary, fontSize: 14, fontWeight: '600' },
   overviewLoading: { paddingVertical: 24, alignItems: 'center' },
   overviewRow: {
     flexDirection: 'row',
@@ -548,15 +552,15 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   overviewValue: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 20,
     fontWeight: '800',
   },
   overviewValueHighlight: {
-    color: GOLD,
+    color: c.primary,
   },
   overviewLabel: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 10,
     marginTop: 4,
     textAlign: 'center',
@@ -577,13 +581,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   quickLabel: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
@@ -593,13 +597,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
     borderRadius: 14,
     paddingVertical: 16,
     marginBottom: 24,
   },
   wholesaleBtnText: {
-    color: BrandColors.primaryText,
+    color: c.primaryText,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -612,17 +616,17 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     width: '48%',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     minHeight: 120,
     paddingHorizontal: 16,
     paddingVertical: 14,
     justifyContent: 'space-between',
   },
   categoryCardText: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 15,
     fontWeight: '600',
   },
@@ -634,15 +638,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mostOrderedEmpty: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingHorizontal: 16,
     paddingVertical: 18,
   },
   mostOrderedEmptyText: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -653,10 +657,10 @@ const styles = StyleSheet.create({
   mostOrderedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 12,
@@ -667,12 +671,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: 'rgba(240, 161, 50, 0.14)',
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
   mostOrderedRankText: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 14,
     fontWeight: '800',
   },
@@ -681,18 +685,18 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   mostOrderedTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 15,
     fontWeight: '700',
   },
   mostOrderedSubtitle: {
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     fontSize: 12,
     marginTop: 3,
     lineHeight: 16,
   },
   mostOrderedStats: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 11,
     fontWeight: '600',
     marginTop: 6,
@@ -706,20 +710,20 @@ const styles = StyleSheet.create({
   },
   staffHeaderText: { flex: 1, paddingRight: 10 },
   staffHeaderIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  staffWelcome: { color: BrandColors.textMuted, fontSize: 14 },
-  staffName: { color: BrandColors.text, fontSize: 24, fontWeight: '800', marginTop: 4 },
-  staffNameLarge: { color: BrandColors.text, fontSize: 32, fontWeight: '800', marginTop: 2 },
+  staffWelcome: { color: c.textMuted, fontSize: 14 },
+  staffName: { color: c.text, fontSize: 24, fontWeight: '800', marginTop: 4 },
+  staffNameLarge: { color: c.text, fontSize: 32, fontWeight: '800', marginTop: 2 },
   staffAvatarCircle: {
     width: 54,
     height: 54,
     borderRadius: 27,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  staffAvatarText: { color: GOLD, fontSize: 18, fontWeight: '800' },
+  staffAvatarText: { color: c.primary, fontSize: 18, fontWeight: '800' },
   notificationBadge: {
     position: 'absolute',
     top: -2,
@@ -727,17 +731,17 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
   notificationBadgeText: {
-    color: BrandColors.primaryText,
+    color: c.primaryText,
     fontSize: 10,
     fontWeight: '800',
   },
-  staffRole: { color: GOLD, fontSize: 14, marginTop: 6 },
+  staffRole: { color: c.primary, fontSize: 14, marginTop: 6 },
   staffQuickGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -746,36 +750,36 @@ const styles = StyleSheet.create({
   },
   staffQuickCard: {
     width: '23%',
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingVertical: 14,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
-  staffQuickLabel: { color: BrandColors.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  staffQuickLabel: { color: c.text, fontSize: 12, fontWeight: '700', textAlign: 'center' },
   dropdownHeader: {
     marginTop: 14,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  dropdownTitle: { color: BrandColors.text, fontSize: 16, fontWeight: '700' },
+  dropdownTitle: { color: c.text, fontSize: 16, fontWeight: '700' },
   dropdownBody: {
     marginTop: 8,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     padding: 12,
   },
   pendingTaskList: { gap: 8 },
@@ -785,13 +789,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BG,
+    borderColor: c.cardBorder,
+    backgroundColor: c.background,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
   pendingTaskLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
-  pendingTaskText: { color: BrandColors.text, fontSize: 13, fontWeight: '600' },
+  pendingTaskText: { color: c.text, fontSize: 13, fontWeight: '600' },
   pendingOrderList: { gap: 8 },
   pendingOrderRow: {
     flexDirection: 'row',
@@ -799,13 +803,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BG,
+    borderColor: c.cardBorder,
+    backgroundColor: c.background,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
   pendingOrderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
-  pendingOrderId: { color: BrandColors.text, fontSize: 13, fontWeight: '700' },
-  pendingOrderMeta: { color: BrandColors.textMuted, fontSize: 11, marginTop: 2 },
-  emptyDropdownText: { color: BrandColors.textMuted, fontSize: 13 },
+  pendingOrderId: { color: c.text, fontSize: 13, fontWeight: '700' },
+  pendingOrderMeta: { color: c.textMuted, fontSize: 11, marginTop: 2 },
+  emptyDropdownText: { color: c.textMuted, fontSize: 13 },
 });

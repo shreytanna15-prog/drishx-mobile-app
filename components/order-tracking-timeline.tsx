@@ -3,7 +3,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import {
   getMainStepIndex,
   isSpecialStatus,
@@ -12,14 +13,15 @@ import {
   SPECIAL_STATUS_CONFIG,
   TERMINAL_STATUS_CONFIG,
 } from '@/lib/order-tracking';
+import { useBrandColors } from '@/lib/theme-provider';
 
 type OrderTrackingTimelineProps = {
   status: string;
 };
 
-const GOLD = BrandColors.primary;
-
 export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimelineProps) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const status = normalizeOrderStatus(rawStatus);
   const activeMainIndex = getMainStepIndex(status);
 
@@ -52,7 +54,7 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
                   isDone && styles.dotDone,
                   isCurrent && styles.dotCurrent,
                 ]}>
-                {isDone ? <MaterialIcons name="check" size={14} color={BrandColors.primaryText} /> : null}
+                {isDone ? <MaterialIcons name="check" size={14} color={colors.primaryText} /> : null}
               </View>
               {!isLast && <View style={[styles.line, isDone && styles.lineDone]} />}
             </View>
@@ -103,91 +105,92 @@ export function OrderTrackingTimeline({ status: rawStatus }: OrderTrackingTimeli
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 12,
-    paddingTop: 4,
-  },
-  stepRow: {
-    flexDirection: 'row',
-    minHeight: 56,
-  },
-  stepIndicatorCol: {
-    width: 28,
-    alignItems: 'center',
-  },
-  dot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: BrandColors.textMuted,
-    backgroundColor: BrandColors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotDone: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
-  },
-  dotCurrent: {
-    borderColor: GOLD,
-    borderWidth: 3,
-  },
-  line: {
-    flex: 1,
-    width: 2,
-    backgroundColor: BrandColors.cardBorder,
-    marginVertical: 4,
-  },
-  lineDone: {
-    backgroundColor: GOLD,
-  },
-  stepContent: {
-    flex: 1,
-    paddingLeft: 10,
-    paddingBottom: 16,
-  },
-  stepLabel: {
-    fontSize: 15,
-    color: BrandColors.textMuted,
-    fontWeight: '600',
-  },
-  stepLabelCurrent: {
-    color: GOLD,
-  },
-  stepLabelDone: {
-    color: BrandColors.text,
-  },
-  stepDescription: {
-    marginTop: 4,
-    fontSize: 13,
-    color: BrandColors.textMuted,
-    lineHeight: 18,
-  },
-  specialBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  specialBannerCard: {
-    backgroundColor: BrandColors.background,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-  },
-  specialTextBlock: {
-    flex: 1,
-  },
-  specialTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  specialDescription: {
-    fontSize: 13,
-    color: BrandColors.textMuted,
-    lineHeight: 18,
-  },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 12,
+      paddingTop: 4,
+    },
+    stepRow: {
+      flexDirection: 'row',
+      minHeight: 56,
+    },
+    stepIndicatorCol: {
+      width: 28,
+      alignItems: 'center',
+    },
+    dot: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 2,
+      borderColor: c.textMuted,
+      backgroundColor: c.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dotDone: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    dotCurrent: {
+      borderColor: c.primary,
+      borderWidth: 3,
+    },
+    line: {
+      flex: 1,
+      width: 2,
+      backgroundColor: c.cardBorder,
+      marginVertical: 4,
+    },
+    lineDone: {
+      backgroundColor: c.primary,
+    },
+    stepContent: {
+      flex: 1,
+      paddingLeft: 10,
+      paddingBottom: 16,
+    },
+    stepLabel: {
+      fontSize: 15,
+      color: c.textMuted,
+      fontWeight: '600',
+    },
+    stepLabelCurrent: {
+      color: c.primary,
+    },
+    stepLabelDone: {
+      color: c.text,
+    },
+    stepDescription: {
+      marginTop: 4,
+      fontSize: 13,
+      color: c.textMuted,
+      lineHeight: 18,
+    },
+    specialBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      padding: 14,
+      borderRadius: 12,
+      marginTop: 4,
+    },
+    specialBannerCard: {
+      backgroundColor: c.background,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    specialTextBlock: {
+      flex: 1,
+    },
+    specialTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    specialDescription: {
+      fontSize: 13,
+      color: c.textMuted,
+      lineHeight: 18,
+    },
+  });

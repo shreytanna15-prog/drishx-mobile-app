@@ -18,16 +18,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OrderPlacedModal } from '@/components/order-placed-modal';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { createOrder, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
 import type { CartItem, LensType } from '@/lib/types/lens';
 
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
 
 const LENS_TYPE_COLORS: Record<LensType, string> = {
   Kryptok: '#5BC0EB',
@@ -55,6 +53,8 @@ function CartLineItem({
   onDecrease: () => void;
   onRemove: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const lensType = item.lensType ?? 'Progressive';
   const badgeColor = LENS_TYPE_COLORS[lensType];
   const reserveLabel = formatExpiresIn(item.expiresAt);
@@ -68,7 +68,7 @@ function CartLineItem({
           <Text style={[styles.typeBadgeText, { color: badgeColor }]}>{lensType}</Text>
         </View>
         <Pressable onPress={onRemove} hitSlop={8}>
-          <MaterialIcons name="delete-outline" size={22} color="#f87171" />
+          <MaterialIcons name="delete-outline" size={22} color={colors.danger} />
         </Pressable>
       </View>
 
@@ -94,11 +94,11 @@ function CartLineItem({
       <View style={styles.cartItemFooter}>
         <View style={styles.qtyControls}>
           <Pressable style={styles.qtyButton} onPress={onDecrease}>
-            <MaterialIcons name="remove" size={18} color={GOLD} />
+            <MaterialIcons name="remove" size={18} color={colors.primary} />
           </Pressable>
           <Text style={styles.qtyValue}>{item.cartQuantity}</Text>
           <Pressable style={styles.qtyButton} onPress={onIncrease}>
-            <MaterialIcons name="add" size={18} color={GOLD} />
+            <MaterialIcons name="add" size={18} color={colors.primary} />
           </Pressable>
         </View>
         <Text style={styles.lineTotal}>₹{item.price * item.cartQuantity}</Text>
@@ -108,6 +108,8 @@ function CartLineItem({
 }
 
 export default function CartScreen() {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { getAuthHeaders } = useAuth();
   const { items, itemCount, totalPrice, updateQuantity, removeFromCart, clearCart, syncing, refreshCart } =
@@ -189,7 +191,7 @@ export default function CartScreen() {
   const listFooter = (
     <View style={styles.listFooter}>
       <Pressable style={styles.addMoreBtn} onPress={() => router.push('/(tabs)/shop')}>
-        <MaterialIcons name="add" size={20} color={GOLD} />
+        <MaterialIcons name="add" size={20} color={colors.primary} />
         <Text style={styles.addMoreBtnText}>Add more items</Text>
       </Pressable>
 
@@ -197,7 +199,7 @@ export default function CartScreen() {
       <TextInput
         style={styles.notesInput}
         placeholder="Enter any special instructions..."
-        placeholderTextColor={BrandColors.placeholder}
+        placeholderTextColor={colors.placeholder}
         value={orderNotes}
         onChangeText={setOrderNotes}
         multiline
@@ -226,17 +228,17 @@ export default function CartScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
           <Pressable onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
-            <MaterialIcons name="arrow-back" size={24} color={GOLD} />
+            <MaterialIcons name="arrow-back" size={24} color={colors.primary} />
           </Pressable>
           <Text style={styles.screenTitle}>Your cart</Text>
           <Pressable onPress={() => router.push('/(tabs)/my-orders')} style={styles.iconBtn} hitSlop={8}>
-            <MaterialIcons name="receipt-long" size={24} color={GOLD} />
+            <MaterialIcons name="receipt-long" size={24} color={colors.primary} />
           </Pressable>
         </View>
 
         {items.length === 0 ? (
           <View style={styles.emptyState}>
-            <MaterialIcons name="shopping-cart" size={56} color={BrandColors.textMuted} />
+            <MaterialIcons name="shopping-cart" size={56} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>Your cart is empty</Text>
             <Text style={styles.emptyText}>Add lenses from the Shop tab to get started.</Text>
             <Pressable style={styles.primaryButton} onPress={() => router.push('/(tabs)/shop')}>
@@ -277,10 +279,10 @@ export default function CartScreen() {
                 onPress={handlePlaceOrder}
                 disabled={placingOrder || syncing}>
                 {placingOrder ? (
-                  <ActivityIndicator color={BrandColors.primaryText} />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
                   <>
-                    <MaterialIcons name="shopping-bag" size={20} color={BrandColors.primaryText} />
+                    <MaterialIcons name="shopping-bag" size={20} color={colors.primaryText} />
                     <Text style={styles.primaryButtonText}>Place order</Text>
                   </>
                 )}
@@ -293,8 +295,9 @@ export default function CartScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   topBar: {
@@ -304,17 +307,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+    borderBottomColor: c.cardBorder,
   },
   iconBtn: { padding: 4, width: 32 },
   screenTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 18,
     fontWeight: '800',
   },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
   sectionTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 14,
@@ -323,9 +326,9 @@ const styles = StyleSheet.create({
   cartItem: {
     padding: 16,
     borderRadius: 16,
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
   },
   cartItemHeader: {
     flexDirection: 'row',
@@ -339,11 +342,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   typeBadgeText: { fontSize: 13, fontWeight: '700' },
-  specText: { fontSize: 14, color: BrandColors.textMuted, marginBottom: 4 },
-  metaText: { fontSize: 12, color: BrandColors.label, marginBottom: 4 },
+  specText: { fontSize: 14, color: c.textMuted, marginBottom: 4 },
+  metaText: { fontSize: 12, color: c.label, marginBottom: 4 },
   eyeText: {
     fontSize: 13,
-    color: GOLD,
+    color: c.primary,
     fontWeight: '700',
     marginBottom: 8,
   },
@@ -366,7 +369,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: BORDER,
+    borderTopColor: c.cardBorder,
   },
   qtyControls: {
     flexDirection: 'row',
@@ -378,7 +381,7 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: GOLD,
+    borderColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -387,9 +390,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 24,
     textAlign: 'center',
-    color: BrandColors.text,
+    color: c.text,
   },
-  lineTotal: { fontSize: 18, fontWeight: '800', color: GOLD },
+  lineTotal: { fontSize: 18, fontWeight: '800', color: c.primary },
   separator: { height: 12 },
   listFooter: {
     marginTop: 20,
@@ -403,29 +406,29 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: GOLD,
+    borderColor: c.primary,
     backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
   addMoreBtnText: {
-    color: GOLD,
+    color: c.primary,
     fontSize: 15,
     fontWeight: '700',
   },
   notesTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 17,
     fontWeight: '700',
     marginTop: 8,
   },
   notesInput: {
-    backgroundColor: CARD,
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: c.cardBorder,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     minHeight: 100,
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 15,
   },
   summaryBar: {
@@ -435,11 +438,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: BORDER,
-    backgroundColor: CARD,
+    borderTopColor: c.cardBorder,
+    backgroundColor: c.card,
   },
-  summaryLabel: { fontSize: 13, color: BrandColors.textMuted },
-  summaryTotal: { fontSize: 24, fontWeight: '800', color: GOLD },
+  summaryLabel: { fontSize: 13, color: c.textMuted },
+  summaryTotal: { fontSize: 24, fontWeight: '800', color: c.primary },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -447,10 +450,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 14,
-    backgroundColor: GOLD,
+    backgroundColor: c.primary,
   },
   primaryButtonText: {
-    color: BrandColors.primaryText,
+    color: c.primaryText,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -463,13 +466,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyTitle: {
-    color: BrandColors.text,
+    color: c.text,
     fontSize: 18,
     fontWeight: '700',
   },
   emptyText: {
     fontSize: 15,
-    color: BrandColors.textMuted,
+    color: c.textMuted,
     textAlign: 'center',
     marginBottom: 8,
   },

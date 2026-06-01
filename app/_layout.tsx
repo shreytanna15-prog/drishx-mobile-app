@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
@@ -8,20 +8,19 @@ LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 import { AuthProvider } from '@/lib/auth';
 import { CartProvider } from '@/lib/cart';
+import { ThemeProvider } from '@/lib/theme-provider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
   anchor: 'index',
 };
 
-export default function RootLayout() {
+function RootNavigation() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <CartProvider>
-          <Stack screenOptions={{ headerShown: false }}>
+    <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
@@ -38,8 +37,18 @@ export default function RootLayout() {
             <Stack.Screen name="order-details" options={{ headerShown: false }} />
             <Stack.Screen name="inventory" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </Stack>
-          <StatusBar style="auto" />
+      </Stack>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+    </NavigationThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <CartProvider>
+          <RootNavigation />
         </CartProvider>
       </AuthProvider>
     </ThemeProvider>

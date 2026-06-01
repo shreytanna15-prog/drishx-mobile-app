@@ -6,14 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { fetchNotifications, markAllNotificationsRead, type NotificationRecord } from '@/lib/notifications-api';
-
-const GOLD = BrandColors.primary;
-const BG = BrandColors.background;
-const CARD = BrandColors.card;
-const BORDER = BrandColors.cardBorder;
+import { useBrandColors } from '@/lib/theme-provider';
 
 function formatRelativeTime(value: string): string {
   const diffMs = Date.now() - new Date(value).getTime();
@@ -31,11 +28,21 @@ function notificationIcon(type: NotificationRecord['type']): keyof typeof Materi
   return 'notifications';
 }
 
-function NotificationRow({ item }: { item: NotificationRecord }) {
+type NotificationStyles = ReturnType<typeof createStyles>;
+
+function NotificationRow({
+  item,
+  styles,
+  colors,
+}: {
+  item: NotificationRecord;
+  styles: NotificationStyles;
+  colors: BrandColorScheme;
+}) {
   return (
     <View style={[styles.rowCard, !item.isRead && styles.rowCardUnread]}>
       <View style={styles.rowIconWrap}>
-        <MaterialIcons name={notificationIcon(item.type)} size={14} color={GOLD} />
+        <MaterialIcons name={notificationIcon(item.type)} size={14} color={colors.primary} />
       </View>
       <View style={styles.rowContent}>
         <Text style={styles.rowTitle}>{item.title}</Text>
@@ -53,6 +60,8 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -84,7 +93,7 @@ export default function NotificationsScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={8}>
-            <MaterialIcons name="arrow-back" size={22} color={GOLD} />
+            <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>Notifications</Text>
           <View style={styles.backButton} />
@@ -92,12 +101,12 @@ export default function NotificationsScreen() {
 
         {loading ? (
           <View style={styles.centeredState}>
-            <ActivityIndicator size="large" color={GOLD} />
+            <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading notifications...</Text>
           </View>
         ) : error ? (
           <View style={styles.centeredState}>
-            <MaterialIcons name="error-outline" size={44} color="#f87171" />
+            <MaterialIcons name="error-outline" size={44} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
             <Pressable style={styles.retryButton} onPress={loadNotifications}>
               <Text style={styles.retryText}>Retry</Text>
@@ -115,18 +124,20 @@ export default function NotificationsScreen() {
                     setRefreshing(true);
                     void loadNotifications();
                   }}
-                  tintColor={GOLD}
+                  tintColor={colors.primary}
                 />
               }
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 <View style={styles.centeredState}>
-                  <MaterialIcons name="notifications-none" size={44} color={BrandColors.textMuted} />
+                  <MaterialIcons name="notifications-none" size={44} color={colors.textMuted} />
                   <Text style={styles.stateText}>No notifications yet.</Text>
                 </View>
               }
-              renderItem={({ item }) => <NotificationRow item={item} />}
+              renderItem={({ item }) => (
+                <NotificationRow item={item} styles={styles} colors={colors} />
+              )}
             />
 
             {hasNotifications ? (
@@ -141,77 +152,78 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: BG },
-  safeArea: { flex: 1 },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-  },
-  backButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { color: BrandColors.text, fontSize: 18, fontWeight: '700' },
-  listWrap: { flex: 1, padding: 14 },
-  listContent: { paddingBottom: 8 },
-  rowCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 12,
-    backgroundColor: CARD,
-    padding: 12,
-  },
-  rowCardUnread: {
-    borderColor: GOLD,
-    backgroundColor: 'rgba(240, 161, 50, 0.06)',
-  },
-  rowIconWrap: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: BORDER,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(240, 161, 50, 0.10)',
-    marginTop: 2,
-  },
-  rowContent: { flex: 1 },
-  rowTitle: { color: BrandColors.text, fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  rowMessage: { color: BrandColors.textMuted, fontSize: 12, lineHeight: 17 },
-  rowTime: { color: BrandColors.label, fontSize: 11, marginTop: 2 },
-  separator: { height: 8 },
-  centeredState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  stateText: { color: BrandColors.textMuted, fontSize: 14, textAlign: 'center' },
-  errorText: { color: '#f87171', fontSize: 14, textAlign: 'center' },
-  retryButton: {
-    marginTop: 8,
-    backgroundColor: GOLD,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  retryText: { color: BrandColors.primaryText, fontWeight: '700' },
-  viewAllButton: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: GOLD,
-    borderRadius: 10,
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  viewAllText: { color: GOLD, fontWeight: '700' },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.cardBorder,
+    },
+    backButton: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+    listWrap: { flex: 1, padding: 14 },
+    listContent: { paddingBottom: 8 },
+    rowCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      borderRadius: 12,
+      backgroundColor: c.card,
+      padding: 12,
+    },
+    rowCardUnread: {
+      borderColor: c.primary,
+      backgroundColor: 'rgba(240, 161, 50, 0.06)',
+    },
+    rowIconWrap: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(240, 161, 50, 0.10)',
+      marginTop: 2,
+    },
+    rowContent: { flex: 1 },
+    rowTitle: { color: c.text, fontSize: 14, fontWeight: '700', marginBottom: 2 },
+    rowMessage: { color: c.textMuted, fontSize: 12, lineHeight: 17 },
+    rowTime: { color: c.label, fontSize: 11, marginTop: 2 },
+    separator: { height: 8 },
+    centeredState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      gap: 8,
+    },
+    stateText: { color: c.textMuted, fontSize: 14, textAlign: 'center' },
+    errorText: { color: c.danger, fontSize: 14, textAlign: 'center' },
+    retryButton: {
+      marginTop: 8,
+      backgroundColor: c.primary,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    retryText: { color: c.primaryText, fontWeight: '700' },
+    viewAllButton: {
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: c.primary,
+      borderRadius: 10,
+      alignItems: 'center',
+      paddingVertical: 10,
+    },
+    viewAllText: { color: c.primary, fontWeight: '700' },
+  });

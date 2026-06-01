@@ -7,10 +7,12 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
-import { BrandColors } from '@/constants/brand-colors';
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { useBrandColors } from '@/lib/theme-provider';
 
 const LOGIN_URL = `${BACKEND_BASE_URL}/api/auth/login`;
 
@@ -26,6 +28,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
 
   useEffect(() => {
     if (params.email && typeof params.email === 'string') {
@@ -116,7 +120,7 @@ export default function LoginScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@example.com"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
@@ -131,7 +135,7 @@ export default function LoginScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Password"
-                placeholderTextColor={BrandColors.placeholder}
+                placeholderTextColor={colors.placeholder}
                 secureTextEntry
                 autoCapitalize="none"
                 style={styles.input}
@@ -143,7 +147,7 @@ export default function LoginScreen() {
 
             <Pressable style={styles.button} onPress={handleLogin} disabled={loading}>
               {loading ? (
-                <ActivityIndicator color={BrandColors.primaryText} />
+                <ActivityIndicator color={colors.primaryText} />
               ) : (
                 <Text style={styles.buttonText}>Log in</Text>
               )}
@@ -158,88 +162,89 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: BrandColors.background,
-  },
-  root: {
-    flex: 1,
-    backgroundColor: BrandColors.background,
-  },
-  container: {
-    padding: 24,
-    minHeight: '100%',
-  },
-  card: {
-    borderRadius: 20,
-    padding: 24,
-    backgroundColor: BrandColors.card,
-    borderWidth: 1,
-    borderColor: BrandColors.cardBorder,
-  },
-  heading: {
-    color: BrandColors.text,
-    fontSize: 28,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  subheading: {
-    color: BrandColors.textMuted,
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  devApiHint: {
-    color: BrandColors.textMuted,
-    fontSize: 11,
-    marginBottom: 24,
-    fontFamily: 'monospace',
-  },
-  field: {
-    marginBottom: 16,
-  },
-  label: {
-    marginBottom: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    color: BrandColors.label,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: BrandColors.inputBorder,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: BrandColors.text,
-    backgroundColor: BrandColors.inputBg,
-  },
-  message: {
-    marginBottom: 16,
-    color: BrandColors.success,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  button: {
-    marginTop: 8,
-    borderRadius: 16,
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: BrandColors.primary,
-  },
-  buttonText: {
-    color: BrandColors.primaryText,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  backLink: {
-    marginTop: 18,
-    alignItems: 'center',
-  },
-  linkText: {
-    color: BrandColors.link,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-});
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    root: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    container: {
+      padding: 24,
+      minHeight: '100%',
+    },
+    card: {
+      borderRadius: 20,
+      padding: 24,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    heading: {
+      color: c.text,
+      fontSize: 28,
+      fontWeight: '800',
+      marginBottom: 6,
+    },
+    subheading: {
+      color: c.textMuted,
+      fontSize: 14,
+      marginBottom: 8,
+    },
+    devApiHint: {
+      color: c.textMuted,
+      fontSize: 11,
+      marginBottom: 24,
+      fontFamily: 'monospace',
+    },
+    field: {
+      marginBottom: 16,
+    },
+    label: {
+      marginBottom: 8,
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.label,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      fontSize: 16,
+      color: c.text,
+      backgroundColor: c.inputBg,
+    },
+    message: {
+      marginBottom: 16,
+      color: c.success,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    button: {
+      marginTop: 8,
+      borderRadius: 16,
+      height: 52,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.primary,
+    },
+    buttonText: {
+      color: c.primaryText,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    backLink: {
+      marginTop: 18,
+      alignItems: 'center',
+    },
+    linkText: {
+      color: c.link,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+  });
