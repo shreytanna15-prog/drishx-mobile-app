@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
-import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
+import type { FilterOption, LensItem, LensType, SelectableRange } from '@/lib/types/lens';
 
 export const PAGE_SIZE = 21;
 export const LOAD_MORE_AT_INDEX = 14;
@@ -20,6 +20,8 @@ export type LensesPageResponse = {
     brand: string | null;
     item: string | null;
     coating: string | null;
+    index?: number | null;
+    selectableRange?: SelectableRange | null;
   }>;
   total: number;
   page: number;
@@ -67,6 +69,8 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
     brand: item.brand,
     item: item.item,
     coating: item.coating,
+    index: item.index ?? null,
+    selectableRange: item.selectableRange ?? null,
   };
 }
 

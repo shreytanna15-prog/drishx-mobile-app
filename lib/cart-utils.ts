@@ -95,3 +95,33 @@ export function canAcceptPrescriptionInput(text: string, maxValue: number): bool
   }
   return isPrescriptionWithinMax(parsed, maxValue);
 }
+
+export function isPrescriptionWithinRange(value: number, minValue: number, maxValue: number): boolean {
+  return value <= minValue && value >= maxValue;
+}
+
+export function validatePrescriptionInRange(
+  label: string,
+  raw: string,
+  minValue: number,
+  maxValue: number
+): string | null {
+  if (!raw.trim()) {
+    return `Please select ${label}.`;
+  }
+  const parsed = parseNumericInput(raw);
+  if (parsed === null) {
+    return `Please enter a valid ${label} number.`;
+  }
+  if (!isPrescriptionWithinRange(parsed, minValue, maxValue)) {
+    return `${label} must be between ${formatPowerLabel(maxValue)} and ${formatPowerLabel(minValue)}.`;
+  }
+  return null;
+}
+
+export function formatPowerLabel(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  if (rounded === 0) return '0.00';
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(2)}`;
+}

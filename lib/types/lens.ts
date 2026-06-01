@@ -4,6 +4,17 @@ export type LensType = 'Kryptok' | 'Progressive' | 'Single Vision';
 
 export type ApiLensType = 'KRYPTOK' | 'PROGRESSIVE' | 'SINGLE_VISION';
 
+export type PowerAxisRange = {
+  min: number;
+  max: number;
+  options: number[];
+};
+
+export type SelectableRange = {
+  sph: PowerAxisRange;
+  cyl: PowerAxisRange | null;
+};
+
 export type LensItem = {
   id: string;
   costPrice: number | null;
@@ -19,6 +30,8 @@ export type LensItem = {
   brand?: string | null;
   item?: string | null;
   coating?: string | null;
+  index?: number | null;
+  selectableRange?: SelectableRange | null;
 };
 
 export type CartItem = LensItem & {
