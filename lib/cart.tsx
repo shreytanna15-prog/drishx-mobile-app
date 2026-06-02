@@ -1,6 +1,15 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { clearServerCart, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
@@ -17,6 +26,8 @@ type CartContextValue = {
   addToCart: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
   removeFromCart: (cartLineId: string) => Promise<void>;
   updateQuantity: (cartLineId: string, quantity: number) => Promise<void>;
+  /** Apply a delta (+/-1, etc). Safer for rapid taps than setting an absolute quantity. */
+  adjustQuantity: (cartLineId: string, delta: number) => Promise<void>;
   clearCart: () => Promise<void>;
   isInCart: (lensId: string) => boolean;
 };
@@ -30,6 +41,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false);
 
   const useServerCart = isSignedIn && !isStaff;
+  const mutationIdRef = useRef(0);
 
   const refreshCart = useCallback(async () => {
     if (!useServerCart) {
@@ -99,17 +111,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeFromCart = useCallback(
     async (cartLineId: string) => {
-      if (useServerCart) {
-        setSyncing(true);
-        try {
-          await removeCartLine(cartLineId, getAuthHeaders());
-        } finally {
-          setSyncing(false);
-        }
-      }
+      const snapshot = items;
       setItems((current) => current.filter((entry) => entry.cartLineId !== cartLineId));
+
+      if (!useServerCart) {
+        return;
+      }
+
+      try {
+        await removeCartLine(cartLineId, getAuthHeaders());
+      } catch {
+        setItems(snapshot);
+      }
     },
-    [getAuthHeaders, useServerCart]
+    [getAuthHeaders, items, useServerCart]
   );
 
   const updateQuantity = useCallback(
@@ -122,40 +137,133 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const existing = items.find((entry) => entry.cartLineId === cartLineId);
       if (!existing) return;
 
-      if (useServerCart) {
-        setSyncing(true);
-        try {
-          const lensItem: LensItem = {
-            id: existing.id,
-            costPrice: existing.costPrice,
-            price: existing.price,
-            sph: existing.sph,
-            cyl: existing.cyl,
-            axis: existing.axis,
-            add: existing.add,
-            eye: existing.eye,
-            quantity: existing.quantity,
-            createdAt: existing.createdAt,
-            lensType: existing.lensType,
-            brand: existing.brand,
-            item: existing.item,
-            coating: existing.coating,
-          };
-          const { item: saved } = await upsertCartLine(lensItem, quantity, getAuthHeaders());
-          setItems((current) =>
-            current.map((entry) => (entry.cartLineId === cartLineId ? saved : entry))
-          );
-        } finally {
-          setSyncing(false);
-        }
+      const snapshot = items;
+      setItems((current) =>
+        current.map((entry) =>
+          entry.cartLineId === cartLineId ? { ...entry, cartQuantity: quantity } : entry
+        )
+      );
+
+      if (!useServerCart) {
         return;
       }
 
-      setItems((current) =>
-        current.map((entry) => (entry.cartLineId === cartLineId ? { ...entry, cartQuantity: quantity } : entry))
-      );
+      try {
+        const lensItem: LensItem = {
+          id: existing.id,
+          costPrice: existing.costPrice,
+          price: existing.price,
+          sph: existing.sph,
+          cyl: existing.cyl,
+          axis: existing.axis,
+          add: existing.add,
+          eye: existing.eye,
+          quantity: existing.quantity,
+          createdAt: existing.createdAt,
+          lensType: existing.lensType,
+          brand: existing.brand,
+          item: existing.item,
+          coating: existing.coating,
+        };
+        const { item: saved } = await upsertCartLine(lensItem, quantity, getAuthHeaders());
+        setItems((current) =>
+          current.map((entry) => (entry.cartLineId === cartLineId ? saved : entry))
+        );
+      } catch {
+        setItems(snapshot);
+      }
     },
     [getAuthHeaders, items, removeFromCart, useServerCart]
+  );
+
+  const adjustQuantity = useCallback(
+    async (cartLineId: string, delta: number) => {
+      if (!delta) return;
+
+      if (!useServerCart) {
+        setItems((current) => {
+          const entry = current.find((e) => e.cartLineId === cartLineId);
+          if (!entry) return current;
+          const nextQty = entry.cartQuantity + delta;
+          if (nextQty <= 0) {
+            return current.filter((e) => e.cartLineId !== cartLineId);
+          }
+          return current.map((e) =>
+            e.cartLineId === cartLineId ? { ...e, cartQuantity: nextQty } : e
+          );
+        });
+        return;
+      }
+
+      // Capture latest response only (prevents older requests overwriting newer taps).
+      mutationIdRef.current += 1;
+      const mutationId = mutationIdRef.current;
+
+      let nextQty: number | null = null;
+      let lensItemToSave: LensItem | null = null;
+
+      setItems((current) => {
+        const entry = current.find((e) => e.cartLineId === cartLineId);
+        if (!entry) return current;
+
+        const computed = entry.cartQuantity + delta;
+        nextQty = computed;
+
+        lensItemToSave = {
+          id: entry.id,
+          costPrice: entry.costPrice,
+          price: entry.price,
+          sph: entry.sph,
+          cyl: entry.cyl,
+          axis: entry.axis,
+          add: entry.add,
+          eye: entry.eye,
+          quantity: entry.quantity,
+          createdAt: entry.createdAt,
+          lensType: entry.lensType,
+          brand: entry.brand,
+          item: entry.item,
+          coating: entry.coating,
+        };
+
+        if (computed <= 0) {
+          return current.filter((e) => e.cartLineId !== cartLineId);
+        }
+
+        return current.map((e) =>
+          e.cartLineId === cartLineId ? { ...e, cartQuantity: computed } : e
+        );
+      });
+
+      if (nextQty === null) return;
+
+      setSyncing(true);
+      try {
+        if (nextQty <= 0) {
+          await removeCartLine(cartLineId, getAuthHeaders());
+        } else {
+          const { item: saved } = await upsertCartLine(
+            lensItemToSave as LensItem,
+            nextQty,
+            getAuthHeaders()
+          );
+
+          // Ignore out-of-order responses.
+          if (mutationId !== mutationIdRef.current) return;
+
+          setItems((current) =>
+            current.map((e) => (e.cartLineId === cartLineId ? saved : e))
+          );
+        }
+      } catch {
+        // If something fails (stock/reservation), resync from server.
+        await refreshCart();
+      } finally {
+        // Allow UI to continue; syncing is only for optional indicators.
+        setSyncing(false);
+      }
+    },
+    [getAuthHeaders, refreshCart, useServerCart]
   );
 
   const clearCart = useCallback(async () => {
@@ -196,6 +304,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addToCart,
       removeFromCart,
       updateQuantity,
+      adjustQuantity,
       clearCart,
       isInCart,
     }),
@@ -209,6 +318,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addToCart,
       removeFromCart,
       updateQuantity,
+      adjustQuantity,
       clearCart,
       isInCart,
     ]

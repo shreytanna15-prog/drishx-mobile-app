@@ -13,6 +13,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useCart } from '@/lib/cart';
 import {
+  buildCartLineId,
   canAcceptPrescriptionInput,
   formatPowerLabel,
   parseNumericInput,
@@ -40,7 +41,7 @@ export default function LensProductScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string; mode?: string }>();
-  const { addToCart } = useCart();
+  const { addToCart, updateQuantity, items: cartItems } = useCart();
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
@@ -56,7 +57,34 @@ export default function LensProductScreen() {
   const [add, setAdd] = useState(item ? String(item.add ?? '') : '');
   const [quantity, setQuantity] = useState('1');
   const [error, setError] = useState<string | null>(null);
-  const [addedToCart, setAddedToCart] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const formQuantityText = quantity.trim();
+
+  const cartLineForSelection = useMemo(() => {
+    if (!item || isOnBehalfSelectMode) {
+      return null;
+    }
+
+    const parsedAdd = showAdd ? parseNumericInput(add) : null;
+    const cylForLine = selectableRange?.cyl ? cyl : item.cyl ?? 0;
+    const lineId = buildCartLineId({
+      id: item.id,
+      sph,
+      cyl: cylForLine,
+      add: parsedAdd,
+    });
+
+    return cartItems.find((entry) => entry.cartLineId === lineId) ?? null;
+  }, [add, cartItems, cyl, isOnBehalfSelectMode, item, showAdd, sph, selectableRange?.cyl]);
+
+  /** Button reflects whether this exact prescription + qty is already in the cart. */
+  const showsAddedState = useMemo(() => {
+    if (!cartLineForSelection || !formQuantityText) {
+      return false;
+    }
+    return String(cartLineForSelection.cartQuantity) === formQuantityText;
+  }, [cartLineForSelection, formQuantityText]);
 
   if (!item) {
     return (
@@ -103,7 +131,17 @@ export default function LensProductScreen() {
     setError(null);
   }
 
-  function handleSubmit() {
+  function handleSphChange(value: number) {
+    setSph(value);
+    setError(null);
+  }
+
+  function handleCylChange(value: number) {
+    setCyl(value);
+    setError(null);
+  }
+
+  async function handleSubmit() {
     const currentItem = item;
     if (!currentItem) {
       return;
@@ -186,12 +224,27 @@ export default function LensProductScreen() {
       return;
     }
 
-    setAddedToCart(true);
-    setError(null);
-    void addToCart(updatedItem, parsedQty).catch((err) => {
-      setAddedToCart(false);
-      setError(err instanceof Error ? err.message : 'Failed to add to cart.');
+    const lineId = buildCartLineId({
+      id: updatedItem.id,
+      sph,
+      cyl: parsedCyl,
+      add: parsedAdd,
     });
+    const existingLine = cartItems.find((entry) => entry.cartLineId === lineId);
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      if (existingLine) {
+        await updateQuantity(lineId, parsedQty);
+      } else {
+        await addToCart(updatedItem, parsedQty);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to cart.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -228,7 +281,7 @@ export default function LensProductScreen() {
                   <PrescriptionWheelPicker
                     options={selectableRange.sph.options}
                     value={sph}
-                    onChange={setSph}
+                    onChange={handleSphChange}
                   />
                 ) : null}
               </View>
@@ -237,7 +290,7 @@ export default function LensProductScreen() {
                   <PrescriptionWheelPicker
                     options={selectableRange.cyl.options}
                     value={cyl}
-                    onChange={setCyl}
+                    onChange={handleCylChange}
                   />
                 ) : (
                   <View style={styles.pickerColumnPlaceholder}>
@@ -276,17 +329,26 @@ export default function LensProductScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
           <Pressable
-            style={[styles.addBtn, addedToCart && styles.addBtnSuccess]}
-            onPress={handleSubmit}>
+            style={[styles.addBtn, showsAddedState && styles.addBtnSuccess, submitting && styles.addBtnDisabled]}
+            onPress={() => {
+              void handleSubmit();
+            }}
+            disabled={submitting}>
             <MaterialIcons
-              name={isOnBehalfSelectMode ? 'check-circle-outline' : addedToCart ? 'check-circle' : 'add-shopping-cart'}
+              name={
+                isOnBehalfSelectMode
+                  ? 'check-circle-outline'
+                  : showsAddedState
+                    ? 'check-circle'
+                    : 'add-shopping-cart'
+              }
               size={20}
               color={colors.primaryText}
             />
             <Text style={styles.addBtnText}>
-              {isOnBehalfSelectMode ? 'Select product' : addedToCart ? 'Added to cart' : 'Add to cart'}
+              {isOnBehalfSelectMode ? 'Select product' : showsAddedState ? 'Added to cart' : 'Add to cart'}
             </Text>
-            {isOnBehalfSelectMode || !addedToCart ? (
+            {isOnBehalfSelectMode || !showsAddedState ? (
               <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} />
             ) : null}
           </Pressable>

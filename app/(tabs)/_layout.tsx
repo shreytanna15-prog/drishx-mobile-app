@@ -7,11 +7,13 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { getCustomerNextRoute } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
+import { useCart } from '@/lib/cart';
 import { useBrandColors } from '@/lib/theme-provider';
 
 export default function TabLayout() {
   const router = useRouter();
   const { isSignedIn, isStaff, user } = useAuth();
+  const { itemCount } = useCart();
   const colors = useBrandColors();
   const [mounted, setMounted] = useState(false);
 
@@ -98,6 +100,15 @@ export default function TabLayout() {
           title: 'My Orders',
           href: isStaff ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.clipboard.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="cart"
+        options={{
+          title: 'Cart',
+          href: isStaff ? null : undefined,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
+          tabBarBadge: !isStaff && itemCount > 0 ? itemCount : undefined,
         }}
       />
       <Tabs.Screen

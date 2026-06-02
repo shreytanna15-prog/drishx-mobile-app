@@ -353,7 +353,7 @@ export default function ShopScreen() {
             onPress={() => setSearchActive((current) => !current)}>
             <MaterialIcons name="search" size={22} color={searchActive ? colors.primaryText : colors.primary} />
           </Pressable>
-          <Pressable style={styles.iconButton} onPress={() => router.push('/cart')}>
+          <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/cart')}>
             <MaterialIcons name="shopping-cart" size={22} color={colors.primary} />
             {itemCount > 0 && (
               <View style={styles.cartBadge}>
