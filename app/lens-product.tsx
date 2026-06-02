@@ -22,6 +22,7 @@ import {
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
 import { resolveSelectableRange } from '@/lib/prescription-range';
+import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -38,10 +39,11 @@ export default function LensProductScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ payload?: string }>();
+  const params = useLocalSearchParams<{ payload?: string; mode?: string }>();
   const { addToCart } = useCart();
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
+  const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
   const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
@@ -101,7 +103,7 @@ export default function LensProductScreen() {
     setError(null);
   }
 
-  function handleAddToCart() {
+  function handleSubmit() {
     const currentItem = item;
     if (!currentItem) {
       return;
@@ -174,6 +176,15 @@ export default function LensProductScreen() {
       index: currentItem.index,
       selectableRange: currentItem.selectableRange,
     };
+
+    if (isOnBehalfSelectMode) {
+      setPendingOnBehalfSelection({
+        lens: updatedItem,
+        quantity: parsedQty,
+      });
+      router.back();
+      return;
+    }
 
     setAddedToCart(true);
     setError(null);
@@ -266,14 +277,18 @@ export default function LensProductScreen() {
 
           <Pressable
             style={[styles.addBtn, addedToCart && styles.addBtnSuccess]}
-            onPress={handleAddToCart}>
+            onPress={handleSubmit}>
             <MaterialIcons
-              name={addedToCart ? 'check-circle' : 'add-shopping-cart'}
+              name={isOnBehalfSelectMode ? 'check-circle-outline' : addedToCart ? 'check-circle' : 'add-shopping-cart'}
               size={20}
               color={colors.primaryText}
             />
-            <Text style={styles.addBtnText}>{addedToCart ? 'Added to cart' : 'Add to cart'}</Text>
-            {!addedToCart ? <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} /> : null}
+            <Text style={styles.addBtnText}>
+              {isOnBehalfSelectMode ? 'Select product' : addedToCart ? 'Added to cart' : 'Add to cart'}
+            </Text>
+            {isOnBehalfSelectMode || !addedToCart ? (
+              <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} />
+            ) : null}
           </Pressable>
         </KeyboardAwareScroll>
       </SafeAreaView>

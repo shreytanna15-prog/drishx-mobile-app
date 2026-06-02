@@ -1,6 +1,6 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
-import type { ApiLensType, CartItem } from '@/lib/types/lens';
+import type { ApiLensType, CartItem, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
 
 export type OrderUser = {
@@ -18,6 +18,7 @@ export type OrderRecord = {
   id: string;
   orderNumber?: number | null;
   checkoutBatchId?: string | null;
+  orderImageUrl?: string | null;
   lensType: ApiLensType;
   quantity: number;
   unitPrice: number | string;
@@ -72,6 +73,7 @@ type CreateOrderPayload = {
   add?: number | null;
   eye?: string;
   notes?: string;
+  userId?: string;
 };
 
 function buildOrderPayload(item: CartItem): CreateOrderPayload {
@@ -101,7 +103,8 @@ export async function createOrder(
   item: CartItem,
   headers: Record<string, string>,
   notes?: string,
-  checkoutBatchId?: string
+  checkoutBatchId?: string,
+  userId?: string
 ): Promise<
   { success: true; orderId: string; status?: string } | { success: false; error: string }
 > {
@@ -110,6 +113,7 @@ export async function createOrder(
     ...body,
     ...(notes?.trim() ? { notes: notes.trim() } : {}),
     ...(checkoutBatchId?.trim() ? { checkoutBatchId: checkoutBatchId.trim() } : {}),
+    ...(userId?.trim() ? { userId: userId.trim() } : {}),
   };
 
   const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, {
@@ -127,6 +131,37 @@ export async function createOrder(
   const order = result.order ?? result;
   const status = typeof order?.status === 'string' ? order.status : 'PENDING';
   return { success: true, orderId: order?.id ?? result.id, status };
+}
+
+export async function createOrderFromLens(
+  lens: LensItem,
+  quantity: number,
+  headers: Record<string, string>,
+  options?: {
+    notes?: string;
+    checkoutBatchId?: string;
+    userId?: string;
+  }
+): Promise<
+  { success: true; orderId: string; status?: string } | { success: false; error: string }
+> {
+  const safeQuantity = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
+  const cartLikeItem: CartItem = {
+    ...lens,
+    cartLineId: lens.id,
+    cartLineKey: lens.id,
+    cartQuantity: safeQuantity,
+    reservedQuantity: safeQuantity,
+    isBackorder: false,
+  };
+
+  return createOrder(
+    cartLikeItem,
+    headers,
+    options?.notes,
+    options?.checkoutBatchId,
+    options?.userId
+  );
 }
 
 export async function fetchOrders(headers: Record<string, string>): Promise<OrderRecord[]> {

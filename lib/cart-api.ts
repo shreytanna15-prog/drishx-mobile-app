@@ -61,10 +61,27 @@ export async function fetchCart(headers: Record<string, string>): Promise<CartIt
   return items.map(mapServerItem);
 }
 
+export async function fetchCustomerCart(
+  customerId: string,
+  headers: Record<string, string>
+): Promise<CartItem[]> {
+  const response = await fetch(
+    `${BACKEND_BASE_URL}/api/cart?userId=${encodeURIComponent(customerId)}`,
+    { headers }
+  );
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to load customer cart.');
+  }
+  const items = (result.items ?? []) as ServerCartItem[];
+  return items.map(mapServerItem);
+}
+
 export async function upsertCartLine(
   item: LensItem,
   quantity: number,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  customerId?: string
 ): Promise<{ item: CartItem; message?: string }> {
   const cartLineKey = buildCartLineId(item);
   const lensType = item.lensType ?? 'Progressive';
@@ -87,6 +104,7 @@ export async function upsertCartLine(
       coating: item.coating,
       item: item.item,
       lensTypeLabel: lensType,
+      ...(customerId?.trim() ? { userId: customerId.trim() } : {}),
     }),
   });
 
@@ -103,10 +121,14 @@ export async function upsertCartLine(
 
 export async function removeCartLine(
   cartLineKey: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  customerId?: string
 ): Promise<void> {
+  const userParam = customerId?.trim()
+    ? `&userId=${encodeURIComponent(customerId.trim())}`
+    : '';
   const response = await fetch(
-    `${BACKEND_BASE_URL}/api/cart?cartLineKey=${encodeURIComponent(cartLineKey)}`,
+    `${BACKEND_BASE_URL}/api/cart?cartLineKey=${encodeURIComponent(cartLineKey)}${userParam}`,
     { method: 'DELETE', headers }
   );
   if (!response.ok) {
@@ -115,8 +137,14 @@ export async function removeCartLine(
   }
 }
 
-export async function clearServerCart(headers: Record<string, string>): Promise<void> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/cart`, { method: 'DELETE', headers });
+export async function clearServerCart(
+  headers: Record<string, string>,
+  customerId?: string
+): Promise<void> {
+  const userParam = customerId?.trim()
+    ? `?userId=${encodeURIComponent(customerId.trim())}`
+    : '';
+  const response = await fetch(`${BACKEND_BASE_URL}/api/cart${userParam}`, { method: 'DELETE', headers });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result?.error || 'Failed to clear cart.');

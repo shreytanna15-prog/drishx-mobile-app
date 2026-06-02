@@ -30,6 +30,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow DrishX to access your photos to upload prescription images for orders.",
+          "cameraPermission": "Allow DrishX to use the camera to photograph prescriptions for orders."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash/drishx-logo.png",

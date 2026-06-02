@@ -1,7 +1,8 @@
 'use client';
 
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useMemo, useState } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
@@ -22,6 +23,7 @@ import {
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import type { OrderRecord } from '@/lib/orders-api';
+import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 
 
 type CustomerOrderGroupDetailProps = {
@@ -176,11 +178,79 @@ export function CustomerOrderGroupDetail({
   const pillStyle = getStatusPillStyle(group.status.variant);
   const productSections = useMemo(() => buildOrderProductSections(group.orders), [group.orders]);
   const trackingStatus = useMemo(() => getBatchTrackingStatus(group.orders), [group.orders]);
+  const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setPhotoLoadFailed(false);
+  }, [group.key, group.photoUrl]);
 
   const cancellableOrders = group.orders.filter((order) => {
     const status = normalizeOrderStatus(order.status);
     return status === 'PENDING' || status === 'AWAITING_PROCUREMENT';
   });
+
+  if (group.isPhotoOrder) {
+    const order = group.orders[0];
+    const rawImageUrl = group.photoUrl ?? order.orderImageUrl ?? null;
+    const photoUri = rawImageUrl ? resolvePhotoOrderImageUrl(rawImageUrl) : null;
+    const canCancel = normalizeOrderStatus(order.status) === 'PENDING';
+
+    return (
+      <View style={styles.wrap}>
+        <View style={styles.heroCard}>
+          <Text style={styles.orderId}>{group.displayOrderId}</Text>
+          <View
+            style={[
+              styles.statusPill,
+              {
+                backgroundColor: pillStyle.backgroundColor,
+                borderColor: pillStyle.borderColor,
+              },
+            ]}>
+            <Text style={[styles.statusPillText, { color: pillStyle.color }]}>{group.status.label}</Text>
+          </View>
+          <Text style={styles.companyName}>{group.companyName}</Text>
+          <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
+          <Text style={styles.photoHint}>Your order will be placed soon. Details are in your photo.</Text>
+        </View>
+
+        {photoUri && !photoLoadFailed ? (
+          <Image
+            source={{ uri: photoUri }}
+            style={styles.photoImage}
+            contentFit="contain"
+            onError={() => setPhotoLoadFailed(true)}
+          />
+        ) : (
+          <View style={styles.photoMissing}>
+            <MaterialIcons name="image-not-supported" size={40} color={colors.textMuted} />
+            <Text style={styles.photoMissingText}>
+              {photoUri ? 'Could not load prescription photo' : 'Photo unavailable'}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.trackingCard}>
+          <OrderTrackingHorizontal status={trackingStatus} />
+        </View>
+
+        {canCancel ? (
+          <View style={styles.cancelBlock}>
+            <Pressable
+              style={[styles.cancelButton, cancellingId === order.id && styles.buttonDisabled]}
+              onPress={() => onCancelOrder(order.id)}
+              disabled={cancellingId === order.id}>
+              {cancellingId === order.id ? (
+                <ActivityIndicator color={colors.danger} />
+              ) : (
+                <Text style={styles.cancelText}>Cancel photo order</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.wrap}>
@@ -574,5 +644,35 @@ const createStyles = (c: BrandColorScheme) =>
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  photoHint: {
+    color: c.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 6,
+  },
+  photoImage: {
+    width: '100%',
+    height: 320,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
+  },
+  photoMissing: {
+    height: 200,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    backgroundColor: c.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  photoMissingText: {
+    color: c.textMuted,
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 16,
   },
 });

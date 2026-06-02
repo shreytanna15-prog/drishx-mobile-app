@@ -3,6 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
 import {
   ActivityIndicator,
   FlatList,
@@ -20,6 +21,7 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
+import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 
 
@@ -49,8 +51,8 @@ function groupMatchesStaffFilter(group: OrderListGroup, filter: StaffOrderFilter
 function OrderListRow({ group, onPress }: { group: OrderListGroup; onPress: () => void }) {
   const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
-  const productLabel = `${group.productCount} Product${group.productCount === 1 ? '' : 's'}`;
-  const pairLabel = `${group.pairCount} Pair${group.pairCount === 1 ? '' : 's'}`;
+  const photoUri =
+    group.isPhotoOrder && group.photoUrl ? resolvePhotoOrderImageUrl(group.photoUrl) : null;
 
   return (
     <Pressable style={styles.listRow} onPress={onPress}>
@@ -71,30 +73,40 @@ function OrderListRow({ group, onPress }: { group: OrderListGroup; onPress: () =
       <Text style={styles.listCompany}>{group.companyName}</Text>
       <Text style={styles.listDate}>{formatOrderDateTime(group.createdAt)}</Text>
 
-      <View style={styles.listMetricsRow}>
-        <Text style={styles.listMetricsText}>
-          {productLabel} · {pairLabel}
-        </Text>
-        <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
-      </View>
+      {group.isPhotoOrder ? (
+        <>
+          <Text style={styles.photoOrderNote}>Prescription photo order · details in image</Text>
+          {photoUri ? (
+            <Image source={{ uri: photoUri }} style={styles.photoThumb} contentFit="cover" />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <View style={styles.listMetricsRow}>
+            <Text style={styles.listMetricsText}>
+              {group.productCount} Product{group.productCount === 1 ? '' : 's'} · {group.pairCount}{' '}
+              Pair{group.pairCount === 1 ? '' : 's'}
+            </Text>
+            <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
+          </View>
 
-      {(group.readyProductCount > 0 || group.procurementProductCount > 0) && (
-        <View style={styles.fulfillmentRow}>
-          {group.readyProductCount > 0 ? (
-            <View style={styles.readyPill}>
-              <Text style={styles.readyPillText}>
-                {group.readyProductCount} Ready
-              </Text>
+          {(group.readyProductCount > 0 || group.procurementProductCount > 0) && (
+            <View style={styles.fulfillmentRow}>
+              {group.readyProductCount > 0 ? (
+                <View style={styles.readyPill}>
+                  <Text style={styles.readyPillText}>{group.readyProductCount} Ready</Text>
+                </View>
+              ) : null}
+              {group.procurementProductCount > 0 ? (
+                <View style={styles.procurementPill}>
+                  <Text style={styles.procurementPillText}>
+                    {group.procurementProductCount} Need Procurement
+                  </Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
-          {group.procurementProductCount > 0 ? (
-            <View style={styles.procurementPill}>
-              <Text style={styles.procurementPillText}>
-                {group.procurementProductCount} Need Procurement
-              </Text>
-            </View>
-          ) : null}
-        </View>
+          )}
+        </>
       )}
     </Pressable>
   );
@@ -139,7 +151,16 @@ export default function EmployeeOrdersScreen() {
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <Text style={styles.screenTitle}>Orders</Text>
+          <View style={styles.headerTopRow}>
+            <Text style={styles.screenTitle}>Orders</Text>
+            <Pressable
+              style={styles.newOrderButton}
+              onPress={() => router.push('/employee-order-on-behalf')}
+              accessibilityRole="button">
+              <MaterialIcons name="add-shopping-cart" size={18} color={colors.primaryText} />
+              <Text style={styles.newOrderButtonText}>Order on Behalf</Text>
+            </Pressable>
+          </View>
           <Text style={styles.subtitle}>Manage and update customer orders</Text>
         </View>
 
@@ -216,8 +237,24 @@ const createStyles = (c: BrandColorScheme) =>
   container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8 },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   screenTitle: { fontSize: 30, fontWeight: '800', color: c.text },
   subtitle: { marginTop: 4, fontSize: 14, color: c.textMuted },
+  newOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: c.primary,
+  },
+  newOrderButtonText: { color: c.primaryText, fontSize: 12, fontWeight: '700' },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 6, marginBottom: 8, gap: 10 },
   filterChip: {
     flex: 1,
@@ -282,6 +319,16 @@ const createStyles = (c: BrandColorScheme) =>
     borderColor: 'rgba(248, 113, 113, 0.3)',
   },
   procurementPillText: { color: c.danger, fontSize: 11, fontWeight: '700' },
+  photoOrderNote: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
+  photoThumb: {
+    marginTop: 10,
+    width: '100%',
+    height: 140,
+    borderRadius: 10,
+    backgroundColor: c.background,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+  },
   separator: { height: 12 },
   centeredState: {
     flex: 1,

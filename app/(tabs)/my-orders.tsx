@@ -94,14 +94,20 @@ function ListOrderRow({
       <Text style={styles.listCompany}>{group.companyName}</Text>
       <Text style={styles.listDate}>{formatOrderDateTime(group.createdAt)}</Text>
 
-      <View style={styles.listMetricsRow}>
-        <Text style={styles.listMetricsText}>
-          {productLabel} · {pairLabel}
+      {group.isPhotoOrder ? (
+        <Text style={styles.photoOrderNote}>
+          Photo order submitted · your order will be placed soon
         </Text>
-        <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
-      </View>
+      ) : (
+        <View style={styles.listMetricsRow}>
+          <Text style={styles.listMetricsText}>
+            {productLabel} · {pairLabel}
+          </Text>
+          <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
+        </View>
+      )}
 
-      {(group.readyProductCount > 0 || group.procurementProductCount > 0) && (
+      {!group.isPhotoOrder && (group.readyProductCount > 0 || group.procurementProductCount > 0) && (
         <View style={styles.fulfillmentRow}>
           {group.readyProductCount > 0 ? (
             <View style={styles.readyPill}>
@@ -410,6 +416,12 @@ const createStyles = (c: BrandColorScheme) =>
     color: c.text,
     fontSize: 16,
     fontWeight: '800',
+  },
+  photoOrderNote: {
+    color: c.textMuted,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 8,
   },
   fulfillmentRow: {
     flexDirection: 'row',

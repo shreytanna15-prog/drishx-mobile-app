@@ -2,9 +2,11 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -18,8 +20,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
+import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
+import { uploadPhotoOrder } from '@/lib/photo-orders-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
@@ -93,6 +97,8 @@ export default function ShopScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
   const { itemCount } = useCart();
+  const { getAuthHeaders } = useAuth();
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [lenses, setLenses] = useState<LensItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -230,6 +236,76 @@ export default function ShopScreen() {
   }).current;
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
+
+  const submitPhotoOrder = useCallback(
+    async (asset: ImagePicker.ImagePickerAsset) => {
+      const uri = asset.uri;
+      if (!uri) {
+        Alert.alert('Upload failed', 'Could not read the selected image.');
+        return;
+      }
+
+      const mimeType = asset.mimeType ?? 'image/jpeg';
+      const fileName =
+        asset.fileName ?? `prescription-${Date.now()}.${mimeType.includes('png') ? 'png' : 'jpg'}`;
+
+      setUploadingPhoto(true);
+      try {
+        const result = await uploadPhotoOrder(uri, mimeType, fileName, getAuthHeaders());
+        Alert.alert(
+          'Order received',
+          result.message || 'Your order will be placed soon. Our team will process your prescription photo.'
+        );
+      } catch (err) {
+        Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
+      } finally {
+        setUploadingPhoto(false);
+      }
+    },
+    [getAuthHeaders]
+  );
+
+  const handlePhotoOrderPress = useCallback(() => {
+    if (uploadingPhoto) return;
+
+    Alert.alert('Order with photo', 'Upload a prescription photo for our team to place your order.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Take photo',
+        onPress: async () => {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Camera access is required to take a photo.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ['images'],
+            quality: 0.85,
+          });
+          if (!result.canceled && result.assets[0]) {
+            await submitPhotoOrder(result.assets[0]);
+          }
+        },
+      },
+      {
+        text: 'Choose from gallery',
+        onPress: async () => {
+          const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (!permission.granted) {
+            Alert.alert('Permission needed', 'Photo library access is required.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 0.85,
+          });
+          if (!result.canceled && result.assets[0]) {
+            await submitPhotoOrder(result.assets[0]);
+          }
+        },
+      },
+    ]);
+  }, [submitPhotoOrder, uploadingPhoto]);
 
   const renderItem = useCallback(
     ({ item }: { item: LensItem }) => (
@@ -397,6 +473,19 @@ export default function ShopScreen() {
             )}
           </>
         )}
+
+        <Pressable
+          style={[styles.fab, uploadingPhoto && styles.fabDisabled]}
+          onPress={handlePhotoOrderPress}
+          disabled={uploadingPhoto}
+          accessibilityRole="button"
+          accessibilityLabel="Upload prescription photo for order">
+          {uploadingPhoto ? (
+            <ActivityIndicator color={colors.primaryText} />
+          ) : (
+            <MaterialIcons name="add-a-photo" size={26} color={colors.primaryText} />
+          )}
+        </Pressable>
       </SafeAreaView>
     </View>
   );
@@ -406,7 +495,7 @@ const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
   container: { flex: 1, backgroundColor: c.background },
   safeArea: { flex: 1 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 96 },
   productList: { flex: 1 },
   header: { paddingTop: 8, paddingBottom: 16, gap: 12 },
   headerFixed: { paddingHorizontal: 16 },
@@ -553,4 +642,21 @@ const createStyles = (c: BrandColorScheme) =>
     backgroundColor: c.primary,
   },
   retryText: { color: c.primaryText, fontWeight: '700' },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: c.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+  },
+  fabDisabled: { opacity: 0.75 },
 });

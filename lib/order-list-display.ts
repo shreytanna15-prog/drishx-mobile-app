@@ -26,6 +26,8 @@ export type OrderListGroup = {
   readyProductCount: number;
   procurementProductCount: number;
   status: OrderCardStatusDisplay;
+  isPhotoOrder?: boolean;
+  photoUrl?: string | null;
 };
 
 export function formatDisplayOrderId(order: OrderRecord): string {
@@ -51,6 +53,10 @@ export function formatOrderDateTime(value: string): string {
 
 function isProcurementLine(status: OrderTrackingStatus): boolean {
   return status === 'AWAITING_PROCUREMENT' || status === 'PARTIALLY_FULFILLED';
+}
+
+function isPhotoOrder(order: OrderRecord): boolean {
+  return Boolean(order.orderImageUrl?.trim());
 }
 
 export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDisplay {
@@ -107,15 +113,39 @@ export function groupOrdersForList(
   defaultCompanyName = 'Customer'
 ): OrderListGroup[] {
   const buckets = new Map<string, OrderRecord[]>();
+  const groups: OrderListGroup[] = [];
 
   for (const order of orders) {
+    if (isPhotoOrder(order)) {
+      const companyName =
+        order.user?.businessName?.trim() ||
+        companyFallback?.trim() ||
+        order.user?.name?.trim() ||
+        defaultCompanyName;
+
+      groups.push({
+        key: order.id,
+        orders: [order],
+        displayOrderId: formatDisplayOrderId(order),
+        companyName,
+        createdAt: order.createdAt,
+        productCount: 0,
+        pairCount: 0,
+        totalAmount: 0,
+        readyProductCount: 0,
+        procurementProductCount: 0,
+        status: { label: 'Photo order', variant: 'progress' },
+        isPhotoOrder: true,
+        photoUrl: order.orderImageUrl?.trim() || null,
+      });
+      continue;
+    }
+
     const key = order.checkoutBatchId?.trim() || order.id;
     const list = buckets.get(key) ?? [];
     list.push(order);
     buckets.set(key, list);
   }
-
-  const groups: OrderListGroup[] = [];
 
   for (const [key, batchOrders] of buckets) {
     const sorted = [...batchOrders].sort(

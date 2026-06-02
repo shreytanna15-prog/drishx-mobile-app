@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmployeeOrderGroupDetail } from '@/components/employee-order-group-detail';
+import { EmployeePhotoOrderDetail } from '@/components/employee-photo-order-detail';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -140,11 +141,19 @@ export default function OrderDetailsScreen() {
                 tintColor={colors.primary}
               />
             }>
-            <EmployeeOrderGroupDetail
-              group={orderGroup}
-              onUpdateStatus={handleUpdateStatus}
-              updatingOrderId={updatingOrderId}
-            />
+            {orderGroup.isPhotoOrder ? (
+              <EmployeePhotoOrderDetail
+                group={orderGroup}
+                onUpdateStatus={handleUpdateStatus}
+                updatingOrderId={updatingOrderId}
+              />
+            ) : (
+              <EmployeeOrderGroupDetail
+                group={orderGroup}
+                onUpdateStatus={handleUpdateStatus}
+                updatingOrderId={updatingOrderId}
+              />
+            )}
           </ScrollView>
         )}
       </SafeAreaView>
