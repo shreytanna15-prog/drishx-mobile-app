@@ -14,8 +14,8 @@ import type { CartItem } from '@/lib/types/lens';
 type CustomerCartDetailProps = {
   items: CartItem[];
   companyName?: string | null;
-  onIncrease: (cartLineId: string, quantity: number) => void;
-  onDecrease: (cartLineId: string, quantity: number) => void;
+  onIncrease: (cartLineId: string) => void;
+  onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
 };
 
@@ -77,8 +77,8 @@ function CartProductSectionCard({
   onRemove,
 }: {
   section: CartProductSection;
-  onIncrease: (cartLineId: string, quantity: number) => void;
-  onDecrease: (cartLineId: string, quantity: number) => void;
+  onIncrease: (cartLineId: string) => void;
+  onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
 }) {
   const styles = useThemedStyles(createStyles);
@@ -122,8 +122,8 @@ function CartProductSectionCard({
             <CartPowerRow
               key={line.cartLineId}
               line={line}
-              onIncrease={() => onIncrease(line.cartLineId, line.quantity + 1)}
-              onDecrease={() => onDecrease(line.cartLineId, line.quantity - 1)}
+              onIncrease={() => onIncrease(line.cartLineId)}
+              onDecrease={() => onDecrease(line.cartLineId)}
               onRemove={() => onRemove(line.cartLineId)}
             />
           ))}

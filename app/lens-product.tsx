@@ -23,6 +23,15 @@ import {
   validatePrescriptionInRange,
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
+import { useOrderMode } from '@/lib/order-mode';
+import {
+  coerceDisplayQuantity,
+  getDefaultDisplayQuantity,
+  getDefaultQuantityUnit,
+  piecesFromDisplayQuantity,
+  validateDisplayQuantityForMode,
+  type QuantityUnit,
+} from '@/lib/order-quantity';
 import { formatAddValue, formatAxisValue, isSameLensPower } from '@/lib/lens-display';
 import { fetchRelatedLenses } from '@/lib/lenses-api';
 import { resolveSelectableRange } from '@/lib/prescription-range';
@@ -45,6 +54,7 @@ export default function LensProductScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string; mode?: string }>();
   const { addToCart, updateQuantity, items: cartItems } = useCart();
+  const { mode: orderMode, isWholesale } = useOrderMode();
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
@@ -58,13 +68,19 @@ export default function LensProductScreen() {
   const [sph, setSph] = useState<number>(initialSph);
   const [cyl, setCyl] = useState<number>(initialCyl);
   const [add, setAdd] = useState(item ? String(item.add ?? '') : '');
-  const [quantity, setQuantity] = useState('1');
+  const [qtyUnit, setQtyUnit] = useState<QuantityUnit>(() => getDefaultQuantityUnit(orderMode));
+  const [quantity, setQuantity] = useState(() =>
+    String(getDefaultDisplayQuantity(orderMode, getDefaultQuantityUnit(orderMode)))
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
 
   const formQuantityText = quantity.trim();
+  const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
+  const totalPieces =
+    displayQtyNumber > 0 ? piecesFromDisplayQuantity(displayQtyNumber, qtyUnit) : 0;
 
   useEffect(() => {
     if (!item) {
@@ -75,9 +91,26 @@ export default function LensProductScreen() {
     setSph(range?.sph.options[0] ?? item.sph);
     setCyl(range?.cyl?.options[0] ?? item.cyl ?? 0);
     setAdd(String(item.add ?? ''));
-    setQuantity('1');
+    const unit = getDefaultQuantityUnit(orderMode);
+    setQtyUnit(unit);
+    setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
     setError(null);
-  }, [item?.id]);
+  }, [item?.id, orderMode]);
+
+  useEffect(() => {
+    const unit = getDefaultQuantityUnit(orderMode);
+    setQtyUnit(unit);
+    setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
+  }, [orderMode]);
+
+  function handleQtyUnitChange(nextUnit: QuantityUnit) {
+    if (nextUnit === qtyUnit) {
+      return;
+    }
+    setQtyUnit(nextUnit);
+    setQuantity(String(getDefaultDisplayQuantity(orderMode, nextUnit)));
+    setError(null);
+  }
 
   useEffect(() => {
     if (!item?.id || !item.lensType) {
@@ -150,8 +183,10 @@ export default function LensProductScreen() {
     if (!cartLineForSelection || !formQuantityText) {
       return false;
     }
-    return String(cartLineForSelection.cartQuantity) === formQuantityText;
-  }, [cartLineForSelection, formQuantityText]);
+    return (
+      totalPieces > 0 && cartLineForSelection.cartQuantity === totalPieces
+    );
+  }, [cartLineForSelection, totalPieces]);
 
   if (!item) {
     return (
@@ -202,7 +237,12 @@ export default function LensProductScreen() {
 
   function handleQuantityChange(text: string) {
     const sanitized = sanitizePositiveIntegerInput(text);
-    setQuantity(sanitized === '' ? '' : sanitized);
+    if (sanitized === '') {
+      setQuantity('');
+      setError(null);
+      return;
+    }
+    setQuantity(coerceDisplayQuantity(sanitized, qtyUnit, orderMode));
     setError(null);
   }
 
@@ -265,11 +305,13 @@ export default function LensProductScreen() {
       parsedAdd = parseNumericInput(add)!;
     }
 
-    const parsedQty = Number(quantity);
-    if (!Number.isInteger(parsedQty) || parsedQty < 1) {
-      setError('Quantity must be at least 1.');
+    const parsedDisplayQty = Number(quantity);
+    const qtyError = validateDisplayQuantityForMode(parsedDisplayQty, qtyUnit, orderMode);
+    if (qtyError) {
+      setError(qtyError);
       return;
     }
+    const parsedQty = piecesFromDisplayQuantity(parsedDisplayQty, qtyUnit);
 
     const updatedItem: LensItem = {
       id: currentItem.id,
@@ -360,7 +402,43 @@ export default function LensProductScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Prescription</Text>
+          {isWholesale ? (
+            <Text style={styles.pairsOnlyNotice}>You are able to order in pairs only.</Text>
+          ) : null}
           <Text style={styles.sectionHint}>{prescriptionHint}</Text>
+
+          <View style={styles.qtyUnitRow}>
+            <Text style={styles.qtyUnitLabel}>Qty</Text>
+            <Pressable
+              style={styles.qtyUnitOption}
+              onPress={() => handleQtyUnitChange('piece')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: qtyUnit === 'piece' }}>
+              <View style={[styles.qtyUnitRadio, qtyUnit === 'piece' && styles.qtyUnitRadioSelected]}>
+                {qtyUnit === 'piece' ? <View style={styles.qtyUnitRadioDot} /> : null}
+              </View>
+              <Text style={[styles.qtyUnitOptionText, qtyUnit === 'piece' && styles.qtyUnitOptionTextActive]}>
+                Piece
+              </Text>
+            </Pressable>
+            <Pressable
+              style={styles.qtyUnitOption}
+              onPress={() => handleQtyUnitChange('pair')}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: qtyUnit === 'pair' }}>
+              <View style={[styles.qtyUnitRadio, qtyUnit === 'pair' && styles.qtyUnitRadioSelected]}>
+                {qtyUnit === 'pair' ? <View style={styles.qtyUnitRadioDot} /> : null}
+              </View>
+              <Text style={[styles.qtyUnitOptionText, qtyUnit === 'pair' && styles.qtyUnitOptionTextActive]}>
+                Pair
+              </Text>
+            </Pressable>
+            {totalPieces > 0 ? (
+              <Text style={styles.qtyUnitPiecesHint}>
+                = {totalPieces} pc{totalPieces === 1 ? '' : 's'}
+              </Text>
+            ) : null}
+          </View>
 
           <View style={styles.prescriptionCard}>
             <View style={styles.prescriptionHeader}>
@@ -409,7 +487,7 @@ export default function LensProductScreen() {
                   onChangeText={handleQuantityChange}
                   keyboardType="number-pad"
                   style={showAdd ? styles.compactFieldInput : styles.qtyFieldInput}
-                  placeholder="1"
+                  placeholder={String(getDefaultDisplayQuantity(orderMode, qtyUnit))}
                   placeholderTextColor={colors.placeholder}
                 />
               </View>
@@ -530,6 +608,69 @@ const createStyles = (c: BrandColorScheme) =>
       textTransform: 'uppercase',
       letterSpacing: 0.5,
       marginBottom: 6,
+    },
+    pairsOnlyNotice: {
+      color: c.primary,
+      fontSize: 13,
+      fontWeight: '700',
+      marginBottom: 6,
+    },
+    qtyUnitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 12,
+      marginBottom: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    qtyUnitLabel: {
+      color: c.text,
+      fontSize: 14,
+      fontWeight: '700',
+      marginRight: 4,
+    },
+    qtyUnitOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    qtyUnitRadio: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    qtyUnitRadioSelected: {
+      borderColor: c.primary,
+    },
+    qtyUnitRadioDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: c.primary,
+    },
+    qtyUnitOptionText: {
+      color: c.textMuted,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    qtyUnitOptionTextActive: {
+      color: c.text,
+      fontWeight: '700',
+    },
+    qtyUnitPiecesHint: {
+      marginLeft: 'auto',
+      color: c.primary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     sectionHint: { color: c.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 12 },
     prescriptionCard: {

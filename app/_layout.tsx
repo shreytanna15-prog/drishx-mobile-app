@@ -8,6 +8,7 @@ LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 import { AuthProvider } from '@/lib/auth';
 import { CartProvider } from '@/lib/cart';
+import { OrderModeProvider } from '@/lib/order-mode';
 import { ThemeProvider } from '@/lib/theme-provider';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -47,9 +48,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <CartProvider>
-          <RootNavigation />
-        </CartProvider>
+        <OrderModeProvider>
+          <CartProvider>
+            <RootNavigation />
+          </CartProvider>
+        </OrderModeProvider>
       </AuthProvider>
     </ThemeProvider>
   );

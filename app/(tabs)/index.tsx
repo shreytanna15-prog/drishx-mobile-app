@@ -22,6 +22,7 @@ import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
+import { useOrderMode } from '@/lib/order-mode';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
@@ -56,6 +57,7 @@ export default function HomeScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { user, isStaff, getAuthHeaders } = useAuth();
+  const { setMode } = useOrderMode();
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
   const [staffOverview, setStaffOverview] = useState({
@@ -359,14 +361,22 @@ export default function HomeScreen() {
             <QuickIcon
               icon="shopping-cart"
               label="Place order"
-              onPress={() => goToShop(router)}
+              onPress={() => {
+                setMode('retail');
+                goToShop(router);
+              }}
             />
             <QuickIcon icon="receipt-long" label="My orders" onPress={() => router.push('/my-orders')} />
             <QuickIcon icon="description" label="Invoices" onPress={() => router.push('/invoices' as never)} />
             <QuickIcon icon="headset-mic" label="Support" onPress={comingSoon} />
           </View>
 
-          <Pressable style={styles.wholesaleBtn} onPress={() => goToShop(router)}>
+          <Pressable
+            style={styles.wholesaleBtn}
+            onPress={() => {
+              setMode('wholesale');
+              goToShop(router);
+            }}>
             <MaterialIcons name="storefront" size={22} color={colors.primaryText} />
             <Text style={styles.wholesaleBtnText}>Place wholesale order</Text>
           </Pressable>
