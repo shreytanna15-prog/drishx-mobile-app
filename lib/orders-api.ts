@@ -25,6 +25,12 @@ export type OrderRecord = {
   totalAmount: number | string;
   status: OrderTrackingStatus;
   notes?: string | null;
+  /** Customer-selected prescription at checkout (preferred over catalog lens). */
+  sph?: number | string | null;
+  cyl?: number | string | null;
+  axis?: number | null;
+  add?: number | string | null;
+  eye?: string | null;
   createdAt: string;
   updatedAt?: string;
   user?: OrderUser;
@@ -206,7 +212,25 @@ export async function updateOrderStatus(
   return result;
 }
 
+function hasOrderPrescription(order: OrderRecord): boolean {
+  const hasSph = order.sph !== undefined && order.sph !== null && order.sph !== '';
+  const hasCyl = order.cyl !== undefined && order.cyl !== null && order.cyl !== '';
+  return hasSph || hasCyl;
+}
+
 export function getOrderLensDetails(order: OrderRecord) {
+  if (hasOrderPrescription(order)) {
+    const catalog =
+      order.progressiveLens ?? order.kryptokLens ?? order.singleVisionLens ?? null;
+    return {
+      sph: order.sph ?? catalog?.sph ?? 0,
+      cyl: order.cyl ?? catalog?.cyl ?? null,
+      axis: order.axis ?? (order.kryptokLens?.axis ?? order.progressiveLens?.axis ?? null),
+      add: order.add ?? (order.kryptokLens?.add ?? order.progressiveLens?.add ?? null),
+      eye: order.eye ?? order.progressiveLens?.eye ?? undefined,
+    };
+  }
+
   if (order.progressiveLens) {
     return {
       sph: order.progressiveLens.sph,

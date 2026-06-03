@@ -160,7 +160,7 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
             </View>
           </View>
           {section.lines.map((line) => (
-            <PowerTableRow key={line.orderId} line={line} />
+            <PowerTableRow key={line.orderIds?.join(':') ?? line.orderId} line={line} />
           ))}
         </View>
       ) : null}

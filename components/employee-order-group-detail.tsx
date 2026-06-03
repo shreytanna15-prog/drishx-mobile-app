@@ -258,7 +258,7 @@ function ProductSectionCard({
             }
             return (
               <PowerTableRow
-                key={line.orderId}
+                key={line.orderIds?.join(':') ?? line.orderId}
                 line={line}
                 order={order}
                 onMarkPacked={onMarkPacked}

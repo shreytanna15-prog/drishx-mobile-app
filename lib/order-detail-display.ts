@@ -7,6 +7,8 @@ export type PickState = 'full' | 'partial' | 'none' | 'cancelled';
 
 export type PowerLineRow = {
   orderId: string;
+  /** All order ids merged into this row (same SPH/CYL within a product). */
+  orderIds?: string[];
   sphCylLabel: string;
   ordered: number;
   picked: number;
@@ -63,13 +65,35 @@ function getProductMeta(order: OrderRecord): { key: string; title: string; subti
   };
 }
 
+function normalizePowerValue(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') {
+    return '—';
+  }
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return String(value);
+  }
+  const rounded = Math.round(num * 100) / 100;
+  const fixed = rounded.toFixed(2);
+  if (rounded === 0) {
+    return '0';
+  }
+  if (fixed.endsWith('.00')) {
+    return String(Math.trunc(rounded));
+  }
+  if (fixed.endsWith('0')) {
+    return fixed.slice(0, -1);
+  }
+  return fixed;
+}
+
 function formatSphCyl(order: OrderRecord): string {
   const details = getOrderLensDetails(order);
   if (!details) {
     return '—';
   }
-  const sph = details.sph ?? '—';
-  const cyl = details.cyl ?? '—';
+  const sph = normalizePowerValue(details.sph);
+  const cyl = normalizePowerValue(details.cyl);
   return `${sph} / ${cyl}`;
 }
 
@@ -95,6 +119,57 @@ export function getLinePickInfo(order: OrderRecord): { ordered: number; picked: 
   }
 
   return { ordered, picked: 0, pickState: 'none' };
+}
+
+function derivePickState(ordered: number, picked: number, allCancelled: boolean): PickState {
+  if (allCancelled) {
+    return 'cancelled';
+  }
+  if (picked >= ordered) {
+    return 'full';
+  }
+  if (picked > 0) {
+    return 'partial';
+  }
+  return 'none';
+}
+
+function mergePowerLines(lines: PowerLineRow[]): PowerLineRow[] {
+  const merged = new Map<
+    string,
+    PowerLineRow & { orderIds: string[]; cancelledLines: number }
+  >();
+
+  for (const line of lines) {
+    const existing = merged.get(line.sphCylLabel);
+    if (!existing) {
+      merged.set(line.sphCylLabel, {
+        ...line,
+        orderIds: [line.orderId],
+        cancelledLines: line.pickState === 'cancelled' ? 1 : 0,
+      });
+      continue;
+    }
+
+    existing.ordered += line.ordered;
+    existing.picked += line.picked;
+    existing.orderIds.push(line.orderId);
+    if (line.pickState === 'cancelled') {
+      existing.cancelledLines += 1;
+    }
+    existing.pickState = derivePickState(
+      existing.ordered,
+      existing.picked,
+      existing.cancelledLines === existing.orderIds.length
+    );
+  }
+
+  return [...merged.values()]
+    .map(({ orderIds, cancelledLines: _cancelledLines, ...line }) => ({
+      ...line,
+      orderIds,
+    }))
+    .sort((a, b) => a.sphCylLabel.localeCompare(b.sphCylLabel));
 }
 
 export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSection[] {
@@ -131,7 +206,7 @@ export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSe
 
   return [...sections.values()].map((section) => ({
     ...section,
-    lines: section.lines.sort((a, b) => a.sphCylLabel.localeCompare(b.sphCylLabel)),
+    lines: mergePowerLines(section.lines),
   }));
 }
 
