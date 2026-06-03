@@ -175,11 +175,19 @@ export default function LensProductScreen() {
   const maxAdd = item.add ?? 0;
 
   const prescriptionHint = selectableRange
-    ? `Scroll to select SPH (${formatPowerLabel(selectableRange.sph.max)} to ${formatPowerLabel(selectableRange.sph.min)})${
-        selectableRange.cyl
-          ? ` and CYL (${formatPowerLabel(selectableRange.cyl.max)} to ${formatPowerLabel(selectableRange.cyl.min)})`
-          : ''
-      }.`
+    ? (() => {
+        const sphOpts = selectableRange.sph.options;
+        const sphStart = sphOpts[0] ?? selectableRange.sph.min;
+        const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
+        let hint = `Scroll to select SPH (${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)})`;
+        if (selectableRange.cyl?.options.length) {
+          const cylOpts = selectableRange.cyl.options;
+          const cylStart = cylOpts[0] ?? selectableRange.cyl.min;
+          const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
+          hint += ` and CYL (${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)})`;
+        }
+        return `${hint}.`;
+      })()
     : `Select prescription values for this lens.`;
 
   function handleAddChange(text: string) {
