@@ -2,11 +2,12 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { RelatedLensCard } from '@/components/related-lens-card';
 import { PRESCRIPTION_PICKER_HEIGHT, PrescriptionWheelPicker } from '@/components/prescription-wheel-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -22,6 +23,8 @@ import {
   validatePrescriptionInRange,
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
+import { formatAddValue, formatAxisValue, isSameLensPower } from '@/lib/lens-display';
+import { fetchRelatedLenses } from '@/lib/lenses-api';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import type { LensItem } from '@/lib/types/lens';
@@ -58,8 +61,72 @@ export default function LensProductScreen() {
   const [quantity, setQuantity] = useState('1');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
 
   const formQuantityText = quantity.trim();
+
+  useEffect(() => {
+    if (!item) {
+      return;
+    }
+
+    const range = resolveSelectableRange(item);
+    setSph(range?.sph.options[0] ?? item.sph);
+    setCyl(range?.cyl?.options[0] ?? item.cyl ?? 0);
+    setAdd(String(item.add ?? ''));
+    setQuantity('1');
+    setError(null);
+  }, [item?.id]);
+
+  useEffect(() => {
+    if (!item?.id || !item.lensType) {
+      setRelatedLenses([]);
+      return;
+    }
+
+    const lensId = item.id;
+    const lensType = item.lensType;
+    const currentLens = item;
+    let cancelled = false;
+
+    async function loadRelated() {
+      setRelatedLoading(true);
+      try {
+        const items = await fetchRelatedLenses(lensId, lensType);
+        const filtered = items.filter(
+          (related) => !isSameLensPower(related, currentLens)
+        );
+        if (!cancelled) {
+          setRelatedLenses(filtered);
+        }
+      } catch {
+        if (!cancelled) {
+          setRelatedLenses([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setRelatedLoading(false);
+        }
+      }
+    }
+
+    void loadRelated();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item?.id, item?.lensType, item?.sph, item?.cyl]);
+
+  function openRelatedLens(related: LensItem) {
+    router.push({
+      pathname: '/lens-product',
+      params: {
+        payload: encodeURIComponent(JSON.stringify(related)),
+        ...(params.mode ? { mode: params.mode } : {}),
+      },
+    });
+  }
 
   const cartLineForSelection = useMemo(() => {
     if (!item || isOnBehalfSelectMode) {
@@ -266,6 +333,24 @@ export default function LensProductScreen() {
             <Text style={styles.summaryPrice}>₹{item.price} / pc</Text>
           </View>
 
+          <Text style={styles.sectionTitle}>Details</Text>
+          <View style={styles.prescriptionCard}>
+            <View style={styles.prescriptionHeader}>
+              <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
+              <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
+              <Text style={styles.prescriptionHeaderLabel}>ADD</Text>
+              <Text style={styles.prescriptionHeaderLabel}>AXIS</Text>
+            </View>
+            <View style={styles.catalogDetailRow}>
+              <Text style={styles.catalogDetailValue}>{formatPowerLabel(item.sph)}</Text>
+              <Text style={styles.catalogDetailValue}>
+                {item.cyl != null ? formatPowerLabel(item.cyl) : '—'}
+              </Text>
+              <Text style={styles.catalogDetailValue}>{formatAddValue(item.add)}</Text>
+              <Text style={styles.catalogDetailValue}>{formatAxisValue(item.axis)}</Text>
+            </View>
+          </View>
+
           <Text style={styles.sectionTitle}>Prescription</Text>
           <Text style={styles.sectionHint}>{prescriptionHint}</Text>
 
@@ -273,10 +358,22 @@ export default function LensProductScreen() {
             <View style={styles.prescriptionHeader}>
               <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
               <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
-              <Text style={styles.prescriptionHeaderLabel}>QTY</Text>
+              <Text
+                style={[
+                  styles.prescriptionHeaderLabel,
+                  showAdd ? styles.prescriptionHeaderLabelNarrow : null,
+                ]}>
+                QTY
+              </Text>
+              {showAdd ? (
+                <View style={styles.addHeaderCell}>
+                  <Text style={styles.prescriptionHeaderLabelCompact}>ADD</Text>
+                  <Text style={styles.addMaxHint}>max {formatPowerLabel(maxAdd)}</Text>
+                </View>
+              ) : null}
             </View>
             <View style={styles.prescriptionRow}>
-              <View style={styles.pickerColumn}>
+              <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
                 {selectableRange ? (
                   <PrescriptionWheelPicker
                     options={selectableRange.sph.options}
@@ -285,7 +382,7 @@ export default function LensProductScreen() {
                   />
                 ) : null}
               </View>
-              <View style={styles.pickerColumn}>
+              <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
                 {selectableRange?.cyl ? (
                   <PrescriptionWheelPicker
                     options={selectableRange.cyl.options}
@@ -298,33 +395,30 @@ export default function LensProductScreen() {
                   </View>
                 )}
               </View>
-              <View style={styles.qtyColumn}>
+              <View style={[styles.compactFieldColumn, showAdd && styles.compactFieldColumnNarrow]}>
                 <TextInput
                   value={quantity}
                   onChangeText={handleQuantityChange}
                   keyboardType="number-pad"
-                  style={styles.qtyFieldInput}
-                  placeholder="Qty"
+                  style={showAdd ? styles.compactFieldInput : styles.qtyFieldInput}
+                  placeholder="1"
                   placeholderTextColor={colors.placeholder}
                 />
               </View>
+              {showAdd ? (
+                <View style={styles.compactFieldColumnNarrow}>
+                  <TextInput
+                    value={add}
+                    onChangeText={handleAddChange}
+                    keyboardType="numbers-and-punctuation"
+                    style={styles.compactFieldInput}
+                    placeholder={formatPowerLabel(maxAdd)}
+                    placeholderTextColor={colors.placeholder}
+                  />
+                </View>
+              ) : null}
             </View>
           </View>
-
-          {showAdd ? (
-            <View style={styles.addFieldWrap}>
-              <Text style={styles.fieldLabel}>ADD</Text>
-              <Text style={styles.maxHint}>max {maxAdd}</Text>
-              <TextInput
-                value={add}
-                onChangeText={handleAddChange}
-                keyboardType="numbers-and-punctuation"
-                style={styles.input}
-                placeholder={String(maxAdd)}
-                placeholderTextColor={colors.placeholder}
-              />
-            </View>
-          ) : null}
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -352,6 +446,26 @@ export default function LensProductScreen() {
               <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} />
             ) : null}
           </Pressable>
+
+          {!isOnBehalfSelectMode ? (
+            <View style={styles.relatedSection}>
+              <View style={styles.relatedDivider} />
+              <Text style={styles.relatedTitle}>Related Products</Text>
+              {relatedLoading ? (
+                <Text style={styles.relatedHint}>Loading related lenses…</Text>
+              ) : relatedLenses.length > 0 ? (
+                relatedLenses.map((related) => (
+                  <RelatedLensCard
+                    key={related.id}
+                    item={related}
+                    onPress={() => openRelatedLens(related)}
+                  />
+                ))
+              ) : (
+                <Text style={styles.relatedHint}>No related lenses found for this product.</Text>
+              )}
+            </View>
+          ) : null}
         </KeyboardAwareScroll>
       </SafeAreaView>
     </View>
@@ -387,6 +501,20 @@ const createStyles = (c: BrandColorScheme) =>
     summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
     summaryType: { color: c.text, fontSize: 16, marginTop: 6, fontWeight: '600' },
     summaryPrice: { color: c.primary, fontSize: 18, marginTop: 8, fontWeight: '800' },
+    catalogDetailRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: c.card,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+    },
+    catalogDetailValue: {
+      flex: 1,
+      textAlign: 'center',
+      fontSize: 14,
+      fontWeight: '600',
+      color: c.textMuted,
+    },
     sectionTitle: {
       color: c.label,
       fontSize: 13,
@@ -405,14 +533,38 @@ const createStyles = (c: BrandColorScheme) =>
     },
     prescriptionHeader: {
       flexDirection: 'row',
+      alignItems: 'center',
       backgroundColor: c.menuRowAlt,
       paddingVertical: 10,
       paddingHorizontal: 8,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.cardBorder,
     },
+    addHeaderCell: {
+      flex: 0.85,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addMaxHint: {
+      fontSize: 9,
+      fontWeight: '600',
+      color: c.primary,
+      marginTop: 2,
+      letterSpacing: 0.2,
+    },
     prescriptionHeaderLabel: {
       flex: 1,
+      textAlign: 'center',
+      fontSize: 11,
+      fontWeight: '600',
+      color: c.label,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    prescriptionHeaderLabelNarrow: {
+      flex: 0.82,
+    },
+    prescriptionHeaderLabelCompact: {
       textAlign: 'center',
       fontSize: 11,
       fontWeight: '600',
@@ -428,17 +580,24 @@ const createStyles = (c: BrandColorScheme) =>
       paddingHorizontal: 4,
     },
     pickerColumn: { flex: 1 },
+    pickerColumnCompact: { flex: 1.05 },
     pickerColumnPlaceholder: {
       height: PRESCRIPTION_PICKER_HEIGHT,
       alignItems: 'center',
       justifyContent: 'center',
     },
     pickerPlaceholderText: { color: c.textMuted, fontSize: 18 },
-    qtyColumn: {
+    compactFieldColumn: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 6,
+    },
+    compactFieldColumnNarrow: {
+      flex: 0.82,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 4,
     },
     qtyFieldInput: {
       width: '100%',
@@ -454,20 +613,20 @@ const createStyles = (c: BrandColorScheme) =>
       paddingVertical: 10,
       paddingHorizontal: 8,
     },
-    addFieldWrap: { marginBottom: 18 },
-    fieldLabel: { color: c.label, fontWeight: '600', fontSize: 12, marginBottom: 3 },
-    maxHint: { color: c.primary, fontWeight: '600', fontSize: 11, marginBottom: 6 },
-    input: {
+    compactFieldInput: {
+      width: '100%',
+      minWidth: 48,
+      maxWidth: 62,
       borderWidth: 1,
       borderColor: c.inputBorder,
+      borderRadius: 8,
       backgroundColor: c.inputBg,
       color: c.text,
-      fontSize: 16,
-      fontWeight: '600',
-      borderRadius: 12,
+      fontSize: 13,
+      fontWeight: '700',
       textAlign: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 10,
+      paddingVertical: 7,
+      paddingHorizontal: 4,
     },
     errorText: { color: c.danger, textAlign: 'center', marginBottom: 12, fontSize: 14 },
     addBtn: {
@@ -487,5 +646,24 @@ const createStyles = (c: BrandColorScheme) =>
       opacity: 0.6,
     },
     addBtnText: { color: c.primaryText, fontWeight: '800', fontSize: 16 },
+    relatedSection: { marginTop: 28 },
+    relatedDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: c.cardBorder,
+      marginBottom: 16,
+    },
+    relatedTitle: {
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginBottom: 14,
+    },
+    relatedHint: {
+      color: c.textMuted,
+      fontSize: 13,
+      textAlign: 'center',
+      lineHeight: 19,
+    },
     emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
   });

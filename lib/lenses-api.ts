@@ -103,3 +103,21 @@ export async function fetchLensesPage({
 
   return response.json();
 }
+
+export async function fetchRelatedLenses(
+  lensId: string,
+  lensType: LensType
+): Promise<LensItem[]> {
+  const params = new URLSearchParams({
+    id: lensId,
+    lensType: filterToApiType(lensType),
+  });
+
+  const response = await fetch(`${BACKEND_BASE_URL}/api/lenses/related?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to load related lenses');
+  }
+
+  const data = (await response.json()) as { items: LensesPageResponse['items'] };
+  return (data.items ?? []).map(mapApiLens);
+}

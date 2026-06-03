@@ -23,6 +23,7 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
+import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
 import { uploadPhotoOrder } from '@/lib/photo-orders-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
 
@@ -67,7 +68,8 @@ function LensProductCard({
   const lensType = item.lensType ?? 'Progressive';
   const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
   const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
-  const sphCyl = `${item.sph}/${item.cyl ?? '—'}`;
+  const sphCyl = formatSphCylSlash(item);
+  const addAxis = formatAddAxisLabel(item);
 
   return (
     <Pressable style={styles.productCard} onPress={onPress}>
@@ -75,6 +77,9 @@ function LensProductCard({
         <View style={styles.compactTopLeft}>
           <Text style={styles.compactTitle} numberOfLines={1}>
             {brand} {sphCyl}
+          </Text>
+          <Text style={styles.powerMetaText} numberOfLines={1}>
+            {addAxis}
           </Text>
         </View>
         <View style={styles.priceBlock}>
@@ -593,6 +598,12 @@ const createStyles = (c: BrandColorScheme) =>
     fontSize: 16,
     color: c.text,
     fontWeight: '700',
+  },
+  powerMetaText: {
+    fontSize: 12,
+    color: c.textMuted,
+    fontWeight: '600',
+    marginTop: 2,
   },
   priceBlock: { flexDirection: 'row', alignItems: 'flex-start' },
   priceCurrency: { fontSize: 13, fontWeight: '700', color: c.primary, marginTop: 1, marginRight: 1 },
