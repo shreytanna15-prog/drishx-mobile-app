@@ -16,24 +16,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { WholesaleRangePicker } from '@/components/wholesale-range-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   buildCartLineId,
   sanitizePositiveIntegerInput,
-  sanitizeSignedNumericInput,
   formatPowerLabel,
-  parseNumericInput,
 } from '@/lib/cart-utils';
 import { formatAxisValue } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
 import {
+  WHOLESALE_ADD_BOUND_OPTIONS,
+  WHOLESALE_CYL_BOUND_OPTIONS,
+  WHOLESALE_SPH_BOUND_OPTIONS,
+} from '@/lib/wholesale-range-options';
+import {
   buildPowerList,
   isAllowedCompoundCombo,
-  parseStep,
   powerKey,
   type WholesaleGridMode,
 } from '@/lib/wholesale-powers';
@@ -51,8 +54,21 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 
 type QtyMap = Record<string, string>;
 
-const KRYPTOK_AXIS_VALUES = [45, 90, 135, 180] as const;
+const BIFOCAL_AXIS_VALUES = [45, 90, 135, 180] as const;
 const GRID_PAGE_SIZE = 10;
+
+type WholesaleEyeOption = 'LEFT' | 'RIGHT' | 'BOTH';
+
+const PROGRESSIVE_EYE_OPTIONS: { id: WholesaleEyeOption; label: string }[] = [
+  { id: 'LEFT', label: 'Left eye' },
+  { id: 'RIGHT', label: 'Right eye' },
+  { id: 'BOTH', label: 'Both eyes' },
+];
+
+function progressiveCartEyes(selected: WholesaleEyeOption): Array<'LEFT' | 'RIGHT'> {
+  if (selected === 'BOTH') return ['LEFT', 'RIGHT'];
+  return [selected];
+}
 
 type GridEntry = {
   key: string;
@@ -110,21 +126,22 @@ export default function WholesaleProductOrderScreen() {
 
   const [mode, setModeState] = useState<WholesaleGridMode>('compound');
 
-  const [sphFrom, setSphFrom] = useState('-6.00');
-  const [sphTo, setSphTo] = useState('+2.00');
-  const [sphStep, setSphStep] = useState('0.25');
+  const [sphFrom, setSphFrom] = useState(-6);
+  const [sphTo, setSphTo] = useState(2);
+  const [sphStep, setSphStep] = useState(0.25);
 
-  const [cylFrom, setCylFrom] = useState('0.00');
-  const [cylTo, setCylTo] = useState('1.50');
-  const [cylStep, setCylStep] = useState('0.25');
+  const [cylFrom, setCylFrom] = useState(0);
+  const [cylTo, setCylTo] = useState(1.5);
+  const [cylStep, setCylStep] = useState(0.25);
 
-  const [sphAddFrom, setSphAddFrom] = useState('+1.00');
-  const [sphAddTo, setSphAddTo] = useState('+3.00');
-  const [sphAddStep, setSphAddStep] = useState('0.25');
-  const [cylAddFrom, setCylAddFrom] = useState('+1.00');
-  const [cylAddTo, setCylAddTo] = useState('+3.00');
-  const [cylAddStep, setCylAddStep] = useState('0.25');
-  const [selectedAxis, setSelectedAxis] = useState<number>(KRYPTOK_AXIS_VALUES[0]);
+  const [sphAddFrom, setSphAddFrom] = useState(1);
+  const [sphAddTo, setSphAddTo] = useState(3);
+  const [sphAddStep, setSphAddStep] = useState(0.25);
+  const [cylAddFrom, setCylAddFrom] = useState(1);
+  const [cylAddTo, setCylAddTo] = useState(3);
+  const [cylAddStep, setCylAddStep] = useState(0.25);
+  const [selectedAxis, setSelectedAxis] = useState<number>(BIFOCAL_AXIS_VALUES[0]);
+  const [selectedEye, setSelectedEye] = useState<WholesaleEyeOption>('LEFT');
 
   const [pairsDefault, setPairsDefault] = useState('1');
   const [qtyMap, setQtyMap] = useState<QtyMap>({});
@@ -134,46 +151,36 @@ export default function WholesaleProductOrderScreen() {
   const [visibleGridCount, setVisibleGridCount] = useState(GRID_PAGE_SIZE);
 
   const sphList = useMemo(() => {
-    const from = parseNumericInput(sphFrom);
-    const to = parseNumericInput(sphTo);
-    const step = parseStep(sphStep);
-    if (from === null || to === null || step === null) return [];
-    return buildPowerList(from, to, step);
+    if (!Number.isFinite(sphStep) || sphStep <= 0) return [];
+    return buildPowerList(sphFrom, sphTo, sphStep);
   }, [sphFrom, sphTo, sphStep]);
 
   const cylList = useMemo(() => {
-    const from = parseNumericInput(cylFrom);
-    const to = parseNumericInput(cylTo);
-    const step = parseStep(cylStep);
-    if (from === null || to === null || step === null) return [];
-    return buildPowerList(from, to, step);
+    if (!Number.isFinite(cylStep) || cylStep <= 0) return [];
+    return buildPowerList(cylFrom, cylTo, cylStep);
   }, [cylFrom, cylTo, cylStep]);
 
   const isKryptok = item?.lensType === 'Kryptok';
+  const isProgressive = item?.lensType === 'Progressive';
+  const isBifocalLens = isKryptok || isProgressive;
   const isSingleVision = item?.lensType === 'Single Vision';
 
   const sphAddList = useMemo(() => {
-    if (!isKryptok) return [];
-    const from = parseNumericInput(sphAddFrom);
-    const to = parseNumericInput(sphAddTo);
-    const step = parseStep(sphAddStep);
-    if (from === null || to === null || step === null) return [];
-    return buildPowerList(from, to, step);
-  }, [isKryptok, sphAddFrom, sphAddStep, sphAddTo]);
+    if (!isBifocalLens) return [];
+    if (!Number.isFinite(sphAddStep) || sphAddStep <= 0) return [];
+    return buildPowerList(sphAddFrom, sphAddTo, sphAddStep);
+  }, [isBifocalLens, sphAddFrom, sphAddStep, sphAddTo]);
 
   const cylAddList = useMemo(() => {
-    if (!isKryptok) return [];
-    const from = parseNumericInput(cylAddFrom);
-    const to = parseNumericInput(cylAddTo);
-    const step = parseStep(cylAddStep);
-    if (from === null || to === null || step === null) return [];
-    return buildPowerList(from, to, step);
-  }, [cylAddFrom, cylAddStep, cylAddTo, isKryptok]);
+    if (!isBifocalLens) return [];
+    if (!Number.isFinite(cylAddStep) || cylAddStep <= 0) return [];
+    return buildPowerList(cylAddFrom, cylAddTo, cylAddStep);
+  }, [cylAddFrom, cylAddStep, cylAddTo, isBifocalLens]);
 
   const gridEntries = useMemo((): GridEntry[] => {
     if (Object.keys(qtyMap).length === 0) return [];
 
-    if (isKryptok && mode === 'sph-only') {
+    if (isBifocalLens && mode === 'sph-only') {
       const entries: GridEntry[] = [];
       for (const sph of sphList) {
         for (const sphAdd of sphAddList) {
@@ -193,7 +200,7 @@ export default function WholesaleProductOrderScreen() {
       return entries;
     }
 
-    if (isKryptok && mode === 'cyl-only') {
+    if (isBifocalLens && mode === 'cyl-only') {
       const entries: GridEntry[] = [];
       for (const cyl of cylList) {
         for (const cylAdd of cylAddList) {
@@ -213,7 +220,7 @@ export default function WholesaleProductOrderScreen() {
       return entries;
     }
 
-    if (isKryptok && mode === 'compound') {
+    if (isBifocalLens && mode === 'compound') {
       const entries: GridEntry[] = [];
       for (const sph of sphList) {
         for (const cyl of cylList) {
@@ -293,7 +300,7 @@ export default function WholesaleProductOrderScreen() {
   }, [
     cylAddList,
     cylList,
-    isKryptok,
+    isBifocalLens,
     isSingleVision,
     mode,
     qtyMap,
@@ -344,13 +351,13 @@ export default function WholesaleProductOrderScreen() {
         setGenerating(false);
         return;
       }
-      if (isKryptok && sphAddList.length === 0) {
+      if (isBifocalLens && sphAddList.length === 0) {
         setError('Enter a valid SPH ADD range (+1 to +3) and step.');
         setGenerating(false);
         return;
       }
       const next: QtyMap = {};
-      if (isKryptok) {
+      if (isBifocalLens) {
         for (const sph of sphList) {
           for (const sphAdd of sphAddList) {
             next[qtyKeySphAdd(sph, sphAdd)] = String(defaultPairs);
@@ -373,13 +380,13 @@ export default function WholesaleProductOrderScreen() {
         setGenerating(false);
         return;
       }
-      if (isKryptok && cylAddList.length === 0) {
+      if (isBifocalLens && cylAddList.length === 0) {
         setError('Enter a valid CYL ADD range (+1 to +3) and step.');
         setGenerating(false);
         return;
       }
       const next: QtyMap = {};
-      if (isKryptok) {
+      if (isBifocalLens) {
         for (const cyl of cylList) {
           for (const cylAdd of cylAddList) {
             next[qtyKeyCylAxisAdd(cyl, selectedAxis, cylAdd)] = String(defaultPairs);
@@ -402,13 +409,13 @@ export default function WholesaleProductOrderScreen() {
       setGenerating(false);
       return;
     }
-    if (isKryptok && (sphAddList.length === 0 || cylAddList.length === 0)) {
+    if (isBifocalLens && (sphAddList.length === 0 || cylAddList.length === 0)) {
       setError('Enter valid SPH ADD and CYL ADD ranges (+1 to +3) and step.');
       setGenerating(false);
       return;
     }
     const next: QtyMap = {};
-    if (isKryptok) {
+    if (isBifocalLens) {
       for (const sph of sphList) {
         for (const cyl of cylList) {
           if (!isAllowedCompoundCombo(sph, cyl)) {
@@ -456,27 +463,14 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
-    const entries: {
-      sph: number;
-      cyl: number | null;
-      add: number | null;
-      axis: number | null;
-      pairs: number;
-    }[] = [];
-
-    for (const entry of gridEntries) {
+    const entries = gridEntries.flatMap((entry) => {
       const pairsText = qtyMap[entry.key];
       const pairs = Number(pairsText);
-      if (Number.isInteger(pairs) && pairs >= 1) {
-        entries.push({
-          sph: entry.sph,
-          cyl: entry.cyl,
-          add: entry.add,
-          axis: entry.axis,
-          pairs,
-        });
+      if (!Number.isInteger(pairs) || pairs < 1) {
+        return [];
       }
-    }
+      return [{ ...entry, pairs }];
+    });
 
     if (entries.length === 0) {
       setError('Enter at least 1 quantity in the grid.');
@@ -486,40 +480,45 @@ export default function WholesaleProductOrderScreen() {
     // Wholesale: pairs only -> convert to pieces (2 per pair).
     const failures: string[] = [];
     let success = 0;
+    const eyesToAdd = isProgressive ? progressiveCartEyes(selectedEye) : [undefined];
 
     for (const entry of entries) {
       const pieces = piecesFromDisplayQuantity(entry.pairs, 'pair');
-      const cartItem: LensItem = {
-        ...item,
-        sph: entry.sph,
-        cyl: entry.cyl,
-        add: entry.add,
-        cylAdd: entry.cylAdd,
-        axis: entry.axis,
-        eye: undefined,
-      };
 
-      const lineId = buildCartLineId(cartItem);
-      const existing = cartItems.find((x) => x.cartLineId === lineId);
-      try {
-        if (existing) {
-          await updateQuantity(lineId, pieces);
-        } else {
-          await addToCart(cartItem, pieces);
+      for (const eye of eyesToAdd) {
+        const cartItem: LensItem = {
+          ...item,
+          sph: entry.sph,
+          cyl: entry.cyl,
+          add: entry.add,
+          cylAdd: entry.cylAdd,
+          axis: entry.axis,
+          eye,
+        };
+
+        const lineId = buildCartLineId(cartItem);
+        const existing = cartItems.find((x) => x.cartLineId === lineId);
+        try {
+          if (existing) {
+            await updateQuantity(lineId, pieces);
+          } else {
+            await addToCart(cartItem, pieces);
+          }
+          success += 1;
+        } catch (err) {
+          const parts = [
+            eye ? `Eye ${eye}` : null,
+            `SPH ${formatPowerLabel(entry.sph)}`,
+            entry.sphAdd != null ? `SPH ADD ${formatPowerLabel(entry.sphAdd)}` : null,
+            entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
+            entry.cylAdd != null ? `CYL ADD ${formatPowerLabel(entry.cylAdd)}` : null,
+            entry.axis != null ? `AXIS ${formatAxisValue(entry.axis)}` : null,
+            entry.add != null && entry.sphAdd == null && entry.cylAdd == null
+              ? `ADD ${formatPowerLabel(entry.add)}`
+              : null,
+          ].filter(Boolean);
+          failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
         }
-        success += 1;
-      } catch (err) {
-        const parts = [
-          `SPH ${formatPowerLabel(entry.sph)}`,
-          entry.sphAdd != null ? `SPH ADD ${formatPowerLabel(entry.sphAdd)}` : null,
-          entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
-          entry.cylAdd != null ? `CYL ADD ${formatPowerLabel(entry.cylAdd)}` : null,
-          entry.axis != null ? `AXIS ${formatAxisValue(entry.axis)}` : null,
-          entry.add != null && entry.sphAdd == null && entry.cylAdd == null
-            ? `ADD ${formatPowerLabel(entry.add)}`
-            : null,
-        ].filter(Boolean);
-        failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
       }
     }
 
@@ -602,84 +601,53 @@ export default function WholesaleProductOrderScreen() {
             </Pressable>
           </View>
 
+          {isProgressive ? (
+            <>
+              <Text style={styles.sectionTitle}>Eye</Text>
+              <View style={styles.eyeRow}>
+                {PROGRESSIVE_EYE_OPTIONS.map((option) => {
+                  const active = selectedEye === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      style={[styles.eyeChip, active && styles.eyeChipActive]}
+                      onPress={() => setSelectedEye(option.id)}>
+                      <Text style={[styles.eyeChipText, active && styles.eyeChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
           <Text style={styles.sectionTitle}>Ranges</Text>
 
           {(mode === 'sph-only' || mode === 'compound') ? (
             <View style={styles.rangeCard}>
               <Text style={styles.rangeTitle}>SPH</Text>
-              <View style={styles.rangeRow}>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>From</Text>
-                  <TextInput
-                    value={sphFrom}
-                    onChangeText={(t) => setSphFrom(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="-6.00"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>To</Text>
-                  <TextInput
-                    value={sphTo}
-                    onChangeText={(t) => setSphTo(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="+2.00"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>Step</Text>
-                  <TextInput
-                    value={sphStep}
-                    onChangeText={(t) => setSphStep(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="0.25"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-              </View>
-              {isKryptok && (mode === 'sph-only' || mode === 'compound') ? (
+              <WholesaleRangePicker
+                from={sphFrom}
+                to={sphTo}
+                step={sphStep}
+                boundOptions={WHOLESALE_SPH_BOUND_OPTIONS}
+                onFromChange={setSphFrom}
+                onToChange={setSphTo}
+                onStepChange={setSphStep}
+              />
+              {isBifocalLens && (mode === 'sph-only' || mode === 'compound') ? (
                 <View style={styles.addSection}>
                   <Text style={styles.rangeTitle}>ADD</Text>
-                  <View style={styles.rangeRow}>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>From</Text>
-                      <TextInput
-                        value={sphAddFrom}
-                        onChangeText={(t) => setSphAddFrom(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="+1.00"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>To</Text>
-                      <TextInput
-                        value={sphAddTo}
-                        onChangeText={(t) => setSphAddTo(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="+3.00"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>Step</Text>
-                      <TextInput
-                        value={sphAddStep}
-                        onChangeText={(t) => setSphAddStep(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="0.25"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                  </View>
+                  <WholesaleRangePicker
+                    from={sphAddFrom}
+                    to={sphAddTo}
+                    step={sphAddStep}
+                    boundOptions={WHOLESALE_ADD_BOUND_OPTIONS}
+                    onFromChange={setSphAddFrom}
+                    onToChange={setSphAddTo}
+                    onStepChange={setSphAddStep}
+                  />
                 </View>
               ) : null}
             </View>
@@ -688,46 +656,20 @@ export default function WholesaleProductOrderScreen() {
           {(mode === 'cyl-only' || mode === 'compound') ? (
             <View style={styles.rangeCard}>
               <Text style={styles.rangeTitle}>CYL</Text>
-              <View style={styles.rangeRow}>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>From</Text>
-                  <TextInput
-                    value={cylFrom}
-                    onChangeText={(t) => setCylFrom(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="0.00"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>To</Text>
-                  <TextInput
-                    value={cylTo}
-                    onChangeText={(t) => setCylTo(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="1.50"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-                <View style={styles.rangeField}>
-                  <Text style={styles.fieldLabel}>Step</Text>
-                  <TextInput
-                    value={cylStep}
-                    onChangeText={(t) => setCylStep(sanitizeSignedNumericInput(t))}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.input}
-                    placeholder="0.25"
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-              </View>
-              {isKryptok ? (
+              <WholesaleRangePicker
+                from={cylFrom}
+                to={cylTo}
+                step={cylStep}
+                boundOptions={WHOLESALE_CYL_BOUND_OPTIONS}
+                onFromChange={setCylFrom}
+                onToChange={setCylTo}
+                onStepChange={setCylStep}
+              />
+              {isBifocalLens ? (
                 <View style={styles.axisSection}>
                   <Text style={styles.fieldLabel}>Axis</Text>
                   <View style={styles.axisRow}>
-                    {KRYPTOK_AXIS_VALUES.map((axis) => {
+                    {BIFOCAL_AXIS_VALUES.map((axis) => {
                       const active = selectedAxis === axis;
                       return (
                         <Pressable
@@ -743,44 +685,18 @@ export default function WholesaleProductOrderScreen() {
                   </View>
                 </View>
               ) : null}
-              {isKryptok && (mode === 'cyl-only' || mode === 'compound') ? (
+              {isBifocalLens && (mode === 'cyl-only' || mode === 'compound') ? (
                 <View style={styles.addSection}>
                   <Text style={styles.rangeTitle}>ADD</Text>
-                  <View style={styles.rangeRow}>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>From</Text>
-                      <TextInput
-                        value={cylAddFrom}
-                        onChangeText={(t) => setCylAddFrom(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="+1.00"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>To</Text>
-                      <TextInput
-                        value={cylAddTo}
-                        onChangeText={(t) => setCylAddTo(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="+3.00"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                    <View style={styles.rangeField}>
-                      <Text style={styles.fieldLabel}>Step</Text>
-                      <TextInput
-                        value={cylAddStep}
-                        onChangeText={(t) => setCylAddStep(sanitizeSignedNumericInput(t))}
-                        keyboardType="numbers-and-punctuation"
-                        style={styles.input}
-                        placeholder="0.25"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                    </View>
-                  </View>
+                  <WholesaleRangePicker
+                    from={cylAddFrom}
+                    to={cylAddTo}
+                    step={cylAddStep}
+                    boundOptions={WHOLESALE_ADD_BOUND_OPTIONS}
+                    onFromChange={setCylAddFrom}
+                    onToChange={setCylAddTo}
+                    onStepChange={setCylAddStep}
+                  />
                 </View>
               ) : null}
             </View>
@@ -858,7 +774,11 @@ export default function WholesaleProductOrderScreen() {
         <View style={styles.bottomBar}>
           <View>
             <Text style={styles.bottomMeta}>{totalPairs} pair{totalPairs === 1 ? '' : 's'} selected</Text>
-            <Text style={styles.bottomHint}>Will add multiple lines to cart</Text>
+            <Text style={styles.bottomHint}>
+              {isProgressive && selectedEye === 'BOTH'
+                ? 'Adds LEFT + RIGHT lines per selection'
+                : 'Will add multiple lines to cart'}
+            </Text>
           </View>
           <Pressable style={styles.addBtn} onPress={() => void handleAddAllToCart()} disabled={totalPairs < 1}>
             <MaterialIcons name="add-shopping-cart" size={20} color={colors.primaryText} />
@@ -935,21 +855,7 @@ const createStyles = (c: BrandColorScheme) =>
       gap: 10,
     },
     rangeTitle: { color: c.text, fontSize: 14, fontWeight: '800' },
-    rangeRow: { flexDirection: 'row', gap: 10 },
-    rangeField: { flex: 1, gap: 6 },
     fieldLabel: { color: c.textMuted, fontSize: 11, fontWeight: '700' },
-    input: {
-      borderWidth: 1,
-      borderColor: c.inputBorder,
-      borderRadius: 12,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 14,
-      fontWeight: '700',
-      color: c.text,
-      backgroundColor: c.inputBg,
-      textAlign: 'center',
-    },
     defaultQtyRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1024,6 +930,25 @@ const createStyles = (c: BrandColorScheme) =>
       borderBottomColor: c.cardBorder,
     },
     addSection: { gap: 10, marginTop: 4 },
+    eyeRow: {
+      flexDirection: 'row',
+      gap: 8,
+      padding: 4,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+    },
+    eyeChip: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    eyeChipActive: { backgroundColor: c.primary },
+    eyeChipText: { color: c.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    eyeChipTextActive: { color: c.primaryText },
     axisSection: { gap: 8 },
     axisRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     axisChip: {
