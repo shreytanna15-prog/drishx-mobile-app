@@ -51,3 +51,30 @@ export function powerKey(value: number): string {
   return roundPower(value).toFixed(2);
 }
 
+/**
+ * Wholesale compound rules (Single Vision & Kryptok):
+ * - both + allowed, both - allowed, SPH+ with CYL- allowed
+ * - SPH- with CYL+ is NOT allowed
+ */
+export function isAllowedCompoundCombo(sph: number, cyl: number): boolean {
+  return !(sph < 0 && cyl > 0);
+}
+
+/** @deprecated Use isAllowedCompoundCombo */
+export const isAllowedSvCompoundCombo = isAllowedCompoundCombo;
+
+export function countCompoundCombos(sphList: number[], cylList: number[]): number {
+  let count = 0;
+  for (const sph of sphList) {
+    for (const cyl of cylList) {
+      if (isAllowedCompoundCombo(sph, cyl)) {
+        count += 1;
+      }
+    }
+  }
+  return count;
+}
+
+/** @deprecated Use countCompoundCombos */
+export const countSvCompoundCombos = countCompoundCombos;
+

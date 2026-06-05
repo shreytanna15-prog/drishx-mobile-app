@@ -11,17 +11,32 @@ import {
   Text,
   TextInput,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
-import { sanitizePositiveIntegerInput, sanitizeSignedNumericInput, formatPowerLabel, parseNumericInput } from '@/lib/cart-utils';
+import {
+  buildCartLineId,
+  sanitizePositiveIntegerInput,
+  sanitizeSignedNumericInput,
+  formatPowerLabel,
+  parseNumericInput,
+} from '@/lib/cart-utils';
+import { formatAxisValue } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
-import { buildPowerList, parseStep, powerKey, type WholesaleGridMode } from '@/lib/wholesale-powers';
+import {
+  buildPowerList,
+  isAllowedCompoundCombo,
+  parseStep,
+  powerKey,
+  type WholesaleGridMode,
+} from '@/lib/wholesale-powers';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -36,8 +51,40 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 
 type QtyMap = Record<string, string>;
 
+const KRYPTOK_AXIS_VALUES = [45, 90, 135, 180] as const;
+const GRID_PAGE_SIZE = 10;
+
+type GridEntry = {
+  key: string;
+  label: string;
+  sph: number;
+  cyl: number | null;
+  add: number | null;
+  sphAdd: number | null;
+  cylAdd: number | null;
+  axis: number | null;
+};
+
 function qtyKeyCompound(sph: number, cyl: number) {
   return `${powerKey(sph)}|${powerKey(cyl)}`;
+}
+
+function qtyKeySphAdd(sph: number, add: number) {
+  return `${powerKey(sph)}|add:${powerKey(add)}`;
+}
+
+function qtyKeyCylAxisAdd(cyl: number, axis: number, add: number) {
+  return `${powerKey(cyl)}|axis:${axis}|add:${powerKey(add)}`;
+}
+
+function qtyKeyCompoundKryptok(
+  sph: number,
+  cyl: number,
+  axis: number,
+  sphAdd: number,
+  cylAdd: number
+) {
+  return `${powerKey(sph)}|${powerKey(cyl)}|axis:${axis}|sphAdd:${powerKey(sphAdd)}|cylAdd:${powerKey(cylAdd)}`;
 }
 
 function normalizePairsText(text: string): string {
@@ -71,11 +118,20 @@ export default function WholesaleProductOrderScreen() {
   const [cylTo, setCylTo] = useState('1.50');
   const [cylStep, setCylStep] = useState('0.25');
 
+  const [sphAddFrom, setSphAddFrom] = useState('+1.00');
+  const [sphAddTo, setSphAddTo] = useState('+3.00');
+  const [sphAddStep, setSphAddStep] = useState('0.25');
+  const [cylAddFrom, setCylAddFrom] = useState('+1.00');
+  const [cylAddTo, setCylAddTo] = useState('+3.00');
+  const [cylAddStep, setCylAddStep] = useState('0.25');
+  const [selectedAxis, setSelectedAxis] = useState<number>(KRYPTOK_AXIS_VALUES[0]);
+
   const [pairsDefault, setPairsDefault] = useState('1');
   const [qtyMap, setQtyMap] = useState<QtyMap>({});
 
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [visibleGridCount, setVisibleGridCount] = useState(GRID_PAGE_SIZE);
 
   const sphList = useMemo(() => {
     const from = parseNumericInput(sphFrom);
@@ -93,7 +149,183 @@ export default function WholesaleProductOrderScreen() {
     return buildPowerList(from, to, step);
   }, [cylFrom, cylTo, cylStep]);
 
+  const isKryptok = item?.lensType === 'Kryptok';
+  const isSingleVision = item?.lensType === 'Single Vision';
+
+  const sphAddList = useMemo(() => {
+    if (!isKryptok) return [];
+    const from = parseNumericInput(sphAddFrom);
+    const to = parseNumericInput(sphAddTo);
+    const step = parseStep(sphAddStep);
+    if (from === null || to === null || step === null) return [];
+    return buildPowerList(from, to, step);
+  }, [isKryptok, sphAddFrom, sphAddStep, sphAddTo]);
+
+  const cylAddList = useMemo(() => {
+    if (!isKryptok) return [];
+    const from = parseNumericInput(cylAddFrom);
+    const to = parseNumericInput(cylAddTo);
+    const step = parseStep(cylAddStep);
+    if (from === null || to === null || step === null) return [];
+    return buildPowerList(from, to, step);
+  }, [cylAddFrom, cylAddStep, cylAddTo, isKryptok]);
+
+  const gridEntries = useMemo((): GridEntry[] => {
+    if (Object.keys(qtyMap).length === 0) return [];
+
+    if (isKryptok && mode === 'sph-only') {
+      const entries: GridEntry[] = [];
+      for (const sph of sphList) {
+        for (const sphAdd of sphAddList) {
+          const key = qtyKeySphAdd(sph, sphAdd);
+          entries.push({
+            key,
+            label: `SPH ${formatPowerLabel(sph)} · ADD ${formatPowerLabel(sphAdd)}`,
+            sph,
+            cyl: null,
+            add: sphAdd,
+            sphAdd,
+            cylAdd: null,
+            axis: null,
+          });
+        }
+      }
+      return entries;
+    }
+
+    if (isKryptok && mode === 'cyl-only') {
+      const entries: GridEntry[] = [];
+      for (const cyl of cylList) {
+        for (const cylAdd of cylAddList) {
+          const key = qtyKeyCylAxisAdd(cyl, selectedAxis, cylAdd);
+          entries.push({
+            key,
+            label: `CYL ${formatPowerLabel(cyl)} · AXIS ${formatAxisValue(selectedAxis)} · ADD ${formatPowerLabel(cylAdd)}`,
+            sph: 0,
+            cyl,
+            add: cylAdd,
+            sphAdd: null,
+            cylAdd,
+            axis: selectedAxis,
+          });
+        }
+      }
+      return entries;
+    }
+
+    if (isKryptok && mode === 'compound') {
+      const entries: GridEntry[] = [];
+      for (const sph of sphList) {
+        for (const cyl of cylList) {
+          if (!isAllowedCompoundCombo(sph, cyl)) {
+            continue;
+          }
+          for (const sphAdd of sphAddList) {
+            for (const cylAdd of cylAddList) {
+              const key = qtyKeyCompoundKryptok(sph, cyl, selectedAxis, sphAdd, cylAdd);
+              entries.push({
+                key,
+                label: `SPH ${formatPowerLabel(sph)} ADD ${formatPowerLabel(sphAdd)} · CYL ${formatPowerLabel(cyl)} ADD ${formatPowerLabel(cylAdd)} · AXIS ${formatAxisValue(selectedAxis)}`,
+                sph,
+                cyl,
+                add: sphAdd,
+                sphAdd,
+                cylAdd,
+                axis: selectedAxis,
+              });
+            }
+          }
+        }
+      }
+      return entries;
+    }
+
+    if (mode === 'sph-only') {
+      return sphList.map((sph) => ({
+        key: powerKey(sph),
+        label: formatPowerLabel(sph),
+        sph,
+        cyl: null,
+        add: null,
+        sphAdd: null,
+        cylAdd: null,
+        axis: null,
+      }));
+    }
+
+    if (mode === 'cyl-only') {
+      return cylList.map((cyl) => ({
+        key: powerKey(cyl),
+        label: formatPowerLabel(cyl),
+        sph: 0,
+        cyl,
+        add: null,
+        sphAdd: null,
+        cylAdd: null,
+        axis: null,
+      }));
+    }
+
+    if (mode === 'compound') {
+      const entries: GridEntry[] = [];
+      for (const sph of sphList) {
+        for (const cyl of cylList) {
+          if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) {
+            continue;
+          }
+          const key = qtyKeyCompound(sph, cyl);
+          entries.push({
+            key,
+            label: `SPH ${formatPowerLabel(sph)} / CYL ${formatPowerLabel(cyl)}`,
+            sph,
+            cyl,
+            add: null,
+            sphAdd: null,
+            cylAdd: null,
+            axis: null,
+          });
+        }
+      }
+      return entries;
+    }
+
+    return [];
+  }, [
+    cylAddList,
+    cylList,
+    isKryptok,
+    isSingleVision,
+    mode,
+    qtyMap,
+    selectedAxis,
+    sphAddList,
+    sphList,
+  ]);
+
+  const visibleGridEntries = useMemo(
+    () => gridEntries.slice(0, visibleGridCount),
+    [gridEntries, visibleGridCount]
+  );
+
+  useEffect(() => {
+    setVisibleGridCount(GRID_PAGE_SIZE);
+  }, [mode]);
+
   const title = item ? `${item.brand || 'Lens'} • Wholesale` : 'Wholesale';
+
+  function handleContentScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    if (gridEntries.length <= visibleGridCount) {
+      return;
+    }
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 160) {
+      setVisibleGridCount((current) => Math.min(current + GRID_PAGE_SIZE, gridEntries.length));
+    }
+  }
+
+  function selectAxis(value: number) {
+    setSelectedAxis(value);
+  }
 
   function handleGenerate() {
     setGenerating(true);
@@ -112,11 +344,25 @@ export default function WholesaleProductOrderScreen() {
         setGenerating(false);
         return;
       }
+      if (isKryptok && sphAddList.length === 0) {
+        setError('Enter a valid SPH ADD range (+1 to +3) and step.');
+        setGenerating(false);
+        return;
+      }
       const next: QtyMap = {};
-      for (const sph of sphList) {
-        next[powerKey(sph)] = String(defaultPairs);
+      if (isKryptok) {
+        for (const sph of sphList) {
+          for (const sphAdd of sphAddList) {
+            next[qtyKeySphAdd(sph, sphAdd)] = String(defaultPairs);
+          }
+        }
+      } else {
+        for (const sph of sphList) {
+          next[powerKey(sph)] = String(defaultPairs);
+        }
       }
       setQtyMap(next);
+      setVisibleGridCount(GRID_PAGE_SIZE);
       setGenerating(false);
       return;
     }
@@ -127,11 +373,25 @@ export default function WholesaleProductOrderScreen() {
         setGenerating(false);
         return;
       }
+      if (isKryptok && cylAddList.length === 0) {
+        setError('Enter a valid CYL ADD range (+1 to +3) and step.');
+        setGenerating(false);
+        return;
+      }
       const next: QtyMap = {};
-      for (const cyl of cylList) {
-        next[powerKey(cyl)] = String(defaultPairs);
+      if (isKryptok) {
+        for (const cyl of cylList) {
+          for (const cylAdd of cylAddList) {
+            next[qtyKeyCylAxisAdd(cyl, selectedAxis, cylAdd)] = String(defaultPairs);
+          }
+        }
+      } else {
+        for (const cyl of cylList) {
+          next[powerKey(cyl)] = String(defaultPairs);
+        }
       }
       setQtyMap(next);
+      setVisibleGridCount(GRID_PAGE_SIZE);
       setGenerating(false);
       return;
     }
@@ -142,18 +402,43 @@ export default function WholesaleProductOrderScreen() {
       setGenerating(false);
       return;
     }
-    if (sphList.length * cylList.length > 350) {
-      setError('Grid is too large. Reduce ranges or increase step.');
+    if (isKryptok && (sphAddList.length === 0 || cylAddList.length === 0)) {
+      setError('Enter valid SPH ADD and CYL ADD ranges (+1 to +3) and step.');
       setGenerating(false);
       return;
     }
     const next: QtyMap = {};
-    for (const sph of sphList) {
-      for (const cyl of cylList) {
-        next[qtyKeyCompound(sph, cyl)] = String(defaultPairs);
+    if (isKryptok) {
+      for (const sph of sphList) {
+        for (const cyl of cylList) {
+          if (!isAllowedCompoundCombo(sph, cyl)) {
+            continue;
+          }
+          for (const sphAdd of sphAddList) {
+            for (const cylAdd of cylAddList) {
+              next[qtyKeyCompoundKryptok(sph, cyl, selectedAxis, sphAdd, cylAdd)] =
+                String(defaultPairs);
+            }
+          }
+        }
+      }
+    } else {
+      for (const sph of sphList) {
+        for (const cyl of cylList) {
+          if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) {
+            continue;
+          }
+          next[qtyKeyCompound(sph, cyl)] = String(defaultPairs);
+        }
       }
     }
+    if (Object.keys(next).length === 0) {
+      setError('No valid combinations for the selected ranges.');
+      setGenerating(false);
+      return;
+    }
     setQtyMap(next);
+    setVisibleGridCount(GRID_PAGE_SIZE);
     setGenerating(false);
   }
 
@@ -171,34 +456,25 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
-    const entries: { sph: number; cyl: number | null; pairs: number }[] = [];
+    const entries: {
+      sph: number;
+      cyl: number | null;
+      add: number | null;
+      axis: number | null;
+      pairs: number;
+    }[] = [];
 
-    if (mode === 'sph-only') {
-      for (const sph of sphList) {
-        const pairsText = qtyMap[powerKey(sph)];
-        const pairs = Number(pairsText);
-        if (Number.isInteger(pairs) && pairs >= 1) {
-          entries.push({ sph, cyl: null, pairs });
-        }
-      }
-    } else if (mode === 'cyl-only') {
-      for (const cyl of cylList) {
-        const pairsText = qtyMap[powerKey(cyl)];
-        const pairs = Number(pairsText);
-        if (Number.isInteger(pairs) && pairs >= 1) {
-          // If user chooses CYL-only, we keep SPH 0.00.
-          entries.push({ sph: 0, cyl, pairs });
-        }
-      }
-    } else {
-      for (const sph of sphList) {
-        for (const cyl of cylList) {
-          const pairsText = qtyMap[qtyKeyCompound(sph, cyl)];
-          const pairs = Number(pairsText);
-          if (Number.isInteger(pairs) && pairs >= 1) {
-            entries.push({ sph, cyl, pairs });
-          }
-        }
+    for (const entry of gridEntries) {
+      const pairsText = qtyMap[entry.key];
+      const pairs = Number(pairsText);
+      if (Number.isInteger(pairs) && pairs >= 1) {
+        entries.push({
+          sph: entry.sph,
+          cyl: entry.cyl,
+          add: entry.add,
+          axis: entry.axis,
+          pairs,
+        });
       }
     }
 
@@ -217,12 +493,13 @@ export default function WholesaleProductOrderScreen() {
         ...item,
         sph: entry.sph,
         cyl: entry.cyl,
-        add: null,
-        axis: null,
+        add: entry.add,
+        cylAdd: entry.cylAdd,
+        axis: entry.axis,
         eye: undefined,
       };
 
-      const lineId = `${cartItem.id}:${cartItem.sph}:${cartItem.cyl ?? ''}:${cartItem.add ?? ''}`;
+      const lineId = buildCartLineId(cartItem);
       const existing = cartItems.find((x) => x.cartLineId === lineId);
       try {
         if (existing) {
@@ -232,7 +509,17 @@ export default function WholesaleProductOrderScreen() {
         }
         success += 1;
       } catch (err) {
-        failures.push(`${formatPowerLabel(entry.sph)} / ${entry.cyl == null ? '—' : formatPowerLabel(entry.cyl)}: ${err instanceof Error ? err.message : 'Failed'}`);
+        const parts = [
+          `SPH ${formatPowerLabel(entry.sph)}`,
+          entry.sphAdd != null ? `SPH ADD ${formatPowerLabel(entry.sphAdd)}` : null,
+          entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
+          entry.cylAdd != null ? `CYL ADD ${formatPowerLabel(entry.cylAdd)}` : null,
+          entry.axis != null ? `AXIS ${formatAxisValue(entry.axis)}` : null,
+          entry.add != null && entry.sphAdd == null && entry.cylAdd == null
+            ? `ADD ${formatPowerLabel(entry.add)}`
+            : null,
+        ].filter(Boolean);
+        failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
       }
     }
 
@@ -284,7 +571,11 @@ export default function WholesaleProductOrderScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleContentScroll}
+          scrollEventThrottle={200}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{[item.item, item.coating].filter(Boolean).join(' · ') || 'Standard'}</Text>
@@ -351,6 +642,46 @@ export default function WholesaleProductOrderScreen() {
                   />
                 </View>
               </View>
+              {isKryptok && (mode === 'sph-only' || mode === 'compound') ? (
+                <View style={styles.addSection}>
+                  <Text style={styles.rangeTitle}>ADD</Text>
+                  <View style={styles.rangeRow}>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>From</Text>
+                      <TextInput
+                        value={sphAddFrom}
+                        onChangeText={(t) => setSphAddFrom(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="+1.00"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>To</Text>
+                      <TextInput
+                        value={sphAddTo}
+                        onChangeText={(t) => setSphAddTo(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="+3.00"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>Step</Text>
+                      <TextInput
+                        value={sphAddStep}
+                        onChangeText={(t) => setSphAddStep(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="0.25"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -392,6 +723,66 @@ export default function WholesaleProductOrderScreen() {
                   />
                 </View>
               </View>
+              {isKryptok ? (
+                <View style={styles.axisSection}>
+                  <Text style={styles.fieldLabel}>Axis</Text>
+                  <View style={styles.axisRow}>
+                    {KRYPTOK_AXIS_VALUES.map((axis) => {
+                      const active = selectedAxis === axis;
+                      return (
+                        <Pressable
+                          key={axis}
+                          style={[styles.axisChip, active && styles.axisChipActive]}
+                          onPress={() => selectAxis(axis)}>
+                          <Text style={[styles.axisChipText, active && styles.axisChipTextActive]}>
+                            {axis}°
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ) : null}
+              {isKryptok && (mode === 'cyl-only' || mode === 'compound') ? (
+                <View style={styles.addSection}>
+                  <Text style={styles.rangeTitle}>ADD</Text>
+                  <View style={styles.rangeRow}>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>From</Text>
+                      <TextInput
+                        value={cylAddFrom}
+                        onChangeText={(t) => setCylAddFrom(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="+1.00"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>To</Text>
+                      <TextInput
+                        value={cylAddTo}
+                        onChangeText={(t) => setCylAddTo(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="+3.00"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                    <View style={styles.rangeField}>
+                      <Text style={styles.fieldLabel}>Step</Text>
+                      <TextInput
+                        value={cylAddStep}
+                        onChangeText={(t) => setCylAddStep(sanitizeSignedNumericInput(t))}
+                        keyboardType="numbers-and-punctuation"
+                        style={styles.input}
+                        placeholder="0.25"
+                        placeholderTextColor={colors.placeholder}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -418,56 +809,25 @@ export default function WholesaleProductOrderScreen() {
             <View style={styles.emptyGrid}>
               <Text style={styles.emptyGridText}>Tap “Generate” to create the grid.</Text>
             </View>
-          ) : mode === 'compound' ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={styles.gridWrap}>
-                <View style={styles.gridHeaderRow}>
-                  <View style={[styles.gridCell, styles.gridHeaderCell, styles.gridCornerCell]}>
-                    <Text style={styles.gridHeaderText}>CYL \ SPH</Text>
-                  </View>
-                  {sphList.map((sph) => (
-                    <View key={powerKey(sph)} style={[styles.gridCell, styles.gridHeaderCell]}>
-                      <Text style={styles.gridHeaderText}>{formatPowerLabel(sph)}</Text>
-                    </View>
-                  ))}
-                </View>
-                {cylList.map((cyl) => (
-                  <View key={powerKey(cyl)} style={styles.gridRow}>
-                    <View style={[styles.gridCell, styles.gridHeaderCell]}>
-                      <Text style={styles.gridHeaderText}>{formatPowerLabel(cyl)}</Text>
-                    </View>
-                    {sphList.map((sph) => {
-                      const key = qtyKeyCompound(sph, cyl);
-                      return (
-                        <View key={key} style={styles.gridCell}>
-                          <TextInput
-                            value={qtyMap[key] ?? ''}
-                            onChangeText={(t) =>
-                              setQtyMap((cur) => ({ ...cur, [key]: normalizePairsText(t) }))
-                            }
-                            keyboardType="number-pad"
-                            style={styles.gridInput}
-                            placeholder="0"
-                            placeholderTextColor={colors.placeholder}
-                          />
-                        </View>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-            </ScrollView>
           ) : (
-            <View style={styles.listGrid}>
-              {(mode === 'sph-only' ? sphList : cylList).map((v) => {
-                const key = powerKey(v);
-                return (
-                  <View key={key} style={styles.listRow}>
-                    <Text style={styles.listPower}>{formatPowerLabel(v)}</Text>
+            <>
+              <Text style={styles.gridCountHint}>
+                Showing {visibleGridEntries.length} of {gridEntries.length} combination
+                {gridEntries.length === 1 ? '' : 's'}
+                {visibleGridEntries.length < gridEntries.length ? ' · scroll for more' : ''}
+              </Text>
+              <View style={styles.listGrid}>
+                {visibleGridEntries.map((entry) => (
+                  <View key={entry.key} style={styles.listRow}>
+                    <Text style={styles.listPower} numberOfLines={2}>
+                      {entry.label}
+                    </Text>
                     <View style={styles.listQtyBox}>
                       <TextInput
-                        value={qtyMap[key] ?? ''}
-                        onChangeText={(t) => setQtyMap((cur) => ({ ...cur, [key]: normalizePairsText(t) }))}
+                        value={qtyMap[entry.key] ?? ''}
+                        onChangeText={(t) =>
+                          setQtyMap((cur) => ({ ...cur, [entry.key]: normalizePairsText(t) }))
+                        }
                         keyboardType="number-pad"
                         style={styles.listQtyInput}
                         placeholder="0"
@@ -476,9 +836,22 @@ export default function WholesaleProductOrderScreen() {
                       <Text style={styles.listQtySuffix}>pairs</Text>
                     </View>
                   </View>
-                );
-              })}
-            </View>
+                ))}
+              </View>
+              {visibleGridEntries.length < gridEntries.length ? (
+                <Pressable
+                  style={styles.loadMoreBtn}
+                  onPress={() =>
+                    setVisibleGridCount((current) =>
+                      Math.min(current + GRID_PAGE_SIZE, gridEntries.length)
+                    )
+                  }>
+                  <Text style={styles.loadMoreText}>
+                    Load more ({gridEntries.length - visibleGridEntries.length} remaining)
+                  </Text>
+                </Pressable>
+              ) : null}
+            </>
           )}
         </ScrollView>
 
@@ -623,38 +996,17 @@ const createStyles = (c: BrandColorScheme) =>
       alignItems: 'center',
     },
     emptyGridText: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
-    gridWrap: {
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: c.card,
-    },
-    gridHeaderRow: { flexDirection: 'row' },
-    gridRow: { flexDirection: 'row' },
-    gridCell: {
-      width: 86,
-      height: 46,
-      borderRightWidth: StyleSheet.hairlineWidth,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderColor: c.cardBorder,
+    gridCountHint: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+    loadMoreBtn: {
       alignItems: 'center',
       justifyContent: 'center',
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
       backgroundColor: c.card,
     },
-    gridHeaderCell: { backgroundColor: c.menuRowAlt },
-    gridCornerCell: { width: 110 },
-    gridHeaderText: { color: c.text, fontSize: 11, fontWeight: '800' },
-    gridInput: {
-      width: '100%',
-      height: '100%',
-      textAlign: 'center',
-      color: c.text,
-      fontWeight: '900',
-      fontSize: 13,
-      padding: 0,
-      backgroundColor: c.inputBg,
-    },
+    loadMoreText: { color: c.primary, fontSize: 13, fontWeight: '800' },
     listGrid: {
       backgroundColor: c.card,
       borderRadius: 14,
@@ -671,7 +1023,26 @@ const createStyles = (c: BrandColorScheme) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.cardBorder,
     },
-    listPower: { color: c.text, fontSize: 14, fontWeight: '900' },
+    addSection: { gap: 10, marginTop: 4 },
+    axisSection: { gap: 8 },
+    axisRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    axisChip: {
+      minWidth: 58,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      backgroundColor: c.inputBg,
+      alignItems: 'center',
+    },
+    axisChipActive: {
+      backgroundColor: c.primary,
+      borderColor: c.primary,
+    },
+    axisChipText: { color: c.textMuted, fontSize: 13, fontWeight: '800' },
+    axisChipTextActive: { color: c.primaryText },
+    listPower: { color: c.text, fontSize: 14, fontWeight: '900', flex: 1, paddingRight: 8 },
     listQtyBox: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     listQtyInput: {
       width: 68,

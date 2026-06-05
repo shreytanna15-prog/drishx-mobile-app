@@ -23,6 +23,8 @@ export type LensItem = {
   cyl: number | null;
   axis: number | null;
   add: number | null;
+  /** Kryptok wholesale compound: CYL-side ADD when it differs from SPH ADD. */
+  cylAdd?: number | null;
   eye?: string;
   quantity: number;
   createdAt: string;

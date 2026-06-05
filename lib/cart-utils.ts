@@ -1,7 +1,9 @@
 import type { LensItem } from '@/lib/types/lens';
 
-export function buildCartLineId(item: Pick<LensItem, 'id' | 'sph' | 'cyl' | 'add'>): string {
-  return `${item.id}:${item.sph}:${item.cyl ?? ''}:${item.add ?? ''}`;
+export function buildCartLineId(
+  item: Pick<LensItem, 'id' | 'sph' | 'cyl' | 'add'> & Partial<Pick<LensItem, 'axis' | 'cylAdd'>>
+): string {
+  return `${item.id}:${item.sph}:${item.cyl ?? ''}:${item.add ?? ''}:${item.axis ?? ''}:${item.cylAdd ?? ''}`;
 }
 
 export function parseNumericInput(value: string): number | null {
