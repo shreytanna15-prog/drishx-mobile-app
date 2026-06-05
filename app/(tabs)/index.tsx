@@ -208,7 +208,7 @@ export default function HomeScreen() {
 
             <View style={styles.sectionCard}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Today's overview</Text>
+                <Text style={styles.sectionTitle}>Today&apos;s overview</Text>
               </View>
               {staffLoading ? (
                 <View style={styles.overviewLoading}>
@@ -375,7 +375,7 @@ export default function HomeScreen() {
             style={styles.wholesaleBtn}
             onPress={() => {
               setMode('wholesale');
-              goToShop(router);
+              router.push('/wholesale');
             }}>
             <MaterialIcons name="storefront" size={22} color={colors.primaryText} />
             <Text style={styles.wholesaleBtnText}>Place wholesale order</Text>
