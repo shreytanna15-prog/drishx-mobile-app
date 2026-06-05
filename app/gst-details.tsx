@@ -8,10 +8,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import type { BrandColorScheme } from '@/constants/brand-colors';
-import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
-import { useBrandColors } from '@/lib/theme-provider';
 
 export default function GstDetailsScreen() {
   const router = useRouter();
@@ -26,8 +26,9 @@ export default function GstDetailsScreen() {
   const [state, setState] = useState('');
   const [pincode, setPincode] = useState('');
   const [loading, setLoading] = useState(false);
-  const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
+  const colors = useSystemBrandColors();
+  const statusBarStyle = useStatusBarStyle();
+  const styles = useSystemThemedStyles(createStyles);
 
   async function handleSubmit() {
     if (!userId) {
@@ -68,7 +69,7 @@ export default function GstDetailsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container}>
           <View style={styles.card}>
             <Text style={styles.heading}>GST details</Text>

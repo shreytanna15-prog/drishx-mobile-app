@@ -2,7 +2,7 @@
 
 import { useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 
 import { BrandSplash } from '@/components/brand-splash';
@@ -14,15 +14,18 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function SplashRoute() {
   const router = useRouter();
-  const { isSignedIn, user } = useAuth();
+  const { isSignedIn, user, isReady } = useAuth();
   const hasNavigated = useRef(false);
+  const splashFinished = useRef(false);
 
   const onLayout = useCallback(async () => {
     await SplashScreen.hideAsync();
   }, []);
 
-  const handleSplashFinish = useCallback(() => {
-    if (hasNavigated.current) return;
+  const navigateFromSplash = useCallback(() => {
+    if (hasNavigated.current || !isReady || !splashFinished.current) {
+      return;
+    }
     hasNavigated.current = true;
 
     if (isSignedIn && user) {
@@ -39,7 +42,16 @@ export default function SplashRoute() {
     }
 
     router.replace('/onboarding');
-  }, [isSignedIn, user, router]);
+  }, [isReady, isSignedIn, user, router]);
+
+  const handleSplashFinish = useCallback(() => {
+    splashFinished.current = true;
+    navigateFromSplash();
+  }, [navigateFromSplash]);
+
+  useEffect(() => {
+    navigateFromSplash();
+  }, [navigateFromSplash]);
 
   return (
     <View style={styles.root} onLayout={onLayout}>

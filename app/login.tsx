@@ -8,11 +8,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import type { BrandColorScheme } from '@/constants/brand-colors';
-import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
-import { useBrandColors } from '@/lib/theme-provider';
 
 const LOGIN_URL = `${BACKEND_BASE_URL}/api/auth/login`;
 
@@ -28,8 +28,9 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
+  const colors = useSystemBrandColors();
+  const statusBarStyle = useStatusBarStyle();
+  const styles = useSystemThemedStyles(createStyles);
 
   useEffect(() => {
     if (params.email && typeof params.email === 'string') {
@@ -103,7 +104,7 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
           <View style={styles.card}>
             <Text style={styles.heading}>Login</Text>

@@ -12,7 +12,7 @@ import { useBrandColors } from '@/lib/theme-provider';
 
 export default function TabLayout() {
   const router = useRouter();
-  const { isSignedIn, isStaff, user } = useAuth();
+  const { isSignedIn, isStaff, user, isReady } = useAuth();
   const { itemCount } = useCart();
   const colors = useBrandColors();
   const [mounted, setMounted] = useState(false);
@@ -22,7 +22,7 @@ export default function TabLayout() {
   }, []);
 
   useEffect(() => {
-    if (!mounted) return;
+    if (!mounted || !isReady) return;
 
     if (!isSignedIn) {
       const timeout = setTimeout(() => {
@@ -47,9 +47,9 @@ export default function TabLayout() {
         return () => clearTimeout(timeout);
       }
     }
-  }, [mounted, isSignedIn, user, router]);
+  }, [mounted, isReady, isSignedIn, user, router]);
 
-  if (!isSignedIn || (user && getCustomerNextRoute(user) !== '/(tabs)')) {
+  if (!isReady || !isSignedIn || (user && getCustomerNextRoute(user) !== '/(tabs)')) {
     return null;
   }
 

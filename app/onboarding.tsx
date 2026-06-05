@@ -2,6 +2,7 @@
 
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
@@ -14,6 +15,10 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import type { BrandColorScheme } from '@/constants/brand-colors';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -75,6 +80,9 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const scrollRef = useRef<ScrollView>(null);
   const [index, setIndex] = useState(0);
+  const colors = useSystemBrandColors();
+  const statusBarStyle = useStatusBarStyle();
+  const styles = useSystemThemedStyles(createStyles);
 
   const canGoNext = index < PAGES.length - 1;
 
@@ -106,6 +114,7 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <StatusBar style={statusBarStyle} />
       <View style={styles.root}>
         <View style={styles.topBar}>
           <View />
@@ -127,7 +136,7 @@ export default function OnboardingScreen() {
                 {page.features.map((f) => (
                   <View key={f.title} style={styles.card}>
                     <View style={styles.iconWrap}>
-                      <MaterialCommunityIcons name={f.icon} size={22} color="#F0A132" />
+                      <MaterialCommunityIcons name={f.icon} size={22} color={colors.primary} />
                     </View>
                     <View style={styles.cardText}>
                       <Text style={styles.cardTitle}>{f.title}</Text>
@@ -159,108 +168,110 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: '#0B0F14',
-  },
-  root: {
-    flex: 1,
-    backgroundColor: '#0B0F14',
-  },
-  topBar: {
-    height: 44,
-    paddingHorizontal: 18,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  skipBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  skipText: {
-    color: '#B9C0CC',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pagerContent: {
-    alignItems: 'center',
-  },
-  page: {
-    width: SCREEN_WIDTH,
-    paddingHorizontal: 18,
-    justifyContent: 'center',
-    minHeight: SCREEN_HEIGHT * 0.62,
-  },
-  cards: {
-    gap: 14,
-  },
-  card: {
-    flexDirection: 'row',
-    gap: 14,
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    backgroundColor: '#0F1620',
-    borderWidth: 1,
-    borderColor: 'rgba(240, 161, 50, 0.18)',
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(240, 161, 50, 0.12)',
-  },
-  cardText: {
-    flex: 1,
-  },
-  cardTitle: {
-    color: '#EAF0FA',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  cardDesc: {
-    color: '#AAB2C0',
-    fontSize: 12.5,
-    lineHeight: 18,
-  },
-  footer: {
-    paddingHorizontal: 18,
-    paddingBottom: 18,
-    gap: 14,
-  },
-  dots: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  dotIdle: {
-    backgroundColor: 'rgba(255,255,255,0.22)',
-  },
-  dotActive: {
-    width: 18,
-    backgroundColor: '#F0A132',
-  },
-  primaryBtn: {
-    height: 52,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F0A132',
-  },
-  primaryText: {
-    color: '#0B0F14',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-});
-
+const createStyles = (c: BrandColorScheme) =>
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    root: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    topBar: {
+      height: 44,
+      paddingHorizontal: 18,
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    skipBtn: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+    },
+    skipText: {
+      color: c.label,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    pagerContent: {
+      alignItems: 'center',
+    },
+    page: {
+      width: SCREEN_WIDTH,
+      paddingHorizontal: 18,
+      justifyContent: 'center',
+      minHeight: SCREEN_HEIGHT * 0.62,
+    },
+    cards: {
+      gap: 14,
+    },
+    card: {
+      flexDirection: 'row',
+      gap: 14,
+      borderRadius: 18,
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+    },
+    iconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(240, 161, 50, 0.12)',
+    },
+    cardText: {
+      flex: 1,
+    },
+    cardTitle: {
+      color: c.text,
+      fontSize: 15,
+      fontWeight: '700',
+      marginBottom: 4,
+    },
+    cardDesc: {
+      color: c.textMuted,
+      fontSize: 12.5,
+      lineHeight: 18,
+    },
+    footer: {
+      paddingHorizontal: 18,
+      paddingBottom: 18,
+      gap: 14,
+    },
+    dots: {
+      alignSelf: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    dot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+    },
+    dotIdle: {
+      backgroundColor: c.textMuted,
+      opacity: 0.35,
+    },
+    dotActive: {
+      width: 18,
+      backgroundColor: c.primary,
+      opacity: 1,
+    },
+    primaryBtn: {
+      height: 52,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: c.primary,
+    },
+    primaryText: {
+      color: c.primaryText,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+  });

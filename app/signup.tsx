@@ -8,9 +8,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import type { BrandColorScheme } from '@/constants/brand-colors';
-import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
+import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
-import { useBrandColors } from '@/lib/theme-provider';
 
 const SIGNUP_URL = `${BACKEND_BASE_URL}/api/auth/signup`;
 
@@ -26,8 +26,9 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
+  const colors = useSystemBrandColors();
+  const statusBarStyle = useStatusBarStyle();
+  const styles = useSystemThemedStyles(createStyles);
 
   async function handleSignup() {
     setMessage('');
@@ -87,7 +88,7 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar style="light" />
+      <StatusBar style={statusBarStyle} />
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
           <View style={styles.card}>
             <Text style={styles.heading}>Create account</Text>
