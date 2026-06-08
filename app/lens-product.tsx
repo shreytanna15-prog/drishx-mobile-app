@@ -67,7 +67,7 @@ export default function LensProductScreen() {
 
   const [sph, setSph] = useState<number>(initialSph);
   const [cyl, setCyl] = useState<number>(initialCyl);
-  const [add, setAdd] = useState(item ? String(item.add ?? '') : '');
+  const [add, setAdd] = useState(item && item.add != null ? formatPowerLabel(item.add) : '');
   const [qtyUnit, setQtyUnit] = useState<QuantityUnit>(() => getDefaultQuantityUnit(orderMode));
   const [quantity, setQuantity] = useState(() =>
     String(getDefaultDisplayQuantity(orderMode, getDefaultQuantityUnit(orderMode)))
@@ -90,7 +90,7 @@ export default function LensProductScreen() {
     const range = resolveSelectableRange(item);
     setSph(range?.sph.options[0] ?? item.sph);
     setCyl(range?.cyl?.options[0] ?? item.cyl ?? 0);
-    setAdd(String(item.add ?? ''));
+    setAdd(item.add != null ? formatPowerLabel(item.add) : '');
     const unit = getDefaultQuantityUnit(orderMode);
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
@@ -228,11 +228,19 @@ export default function LensProductScreen() {
   function handleAddChange(text: string) {
     const sanitized = sanitizeSignedNumericInput(text);
     if (!canAcceptPrescriptionInput(sanitized, maxAdd)) {
-      setError(`ADD cannot be greater than ${maxAdd}.`);
+      setError(`ADD cannot be greater than ${formatPowerLabel(maxAdd)}.`);
       return;
     }
     setAdd(sanitized);
     setError(null);
+  }
+
+  function handleAddBlur() {
+    const parsed = parseNumericInput(add);
+    if (parsed === null) {
+      return;
+    }
+    setAdd(formatPowerLabel(parsed));
   }
 
   function handleQuantityChange(text: string) {
@@ -496,6 +504,7 @@ export default function LensProductScreen() {
                   <TextInput
                     value={add}
                     onChangeText={handleAddChange}
+                    onBlur={handleAddBlur}
                     keyboardType="numbers-and-punctuation"
                     style={styles.compactFieldInput}
                     placeholder={formatPowerLabel(maxAdd)}

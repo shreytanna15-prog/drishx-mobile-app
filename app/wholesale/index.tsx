@@ -54,7 +54,7 @@ export default function WholesaleCategoryScreen() {
               style={styles.card}
               onPress={() =>
                 router.push({
-                  pathname: '/wholesale/products',
+                  pathname: '/wholesale/items',
                   params: { category: cat.id },
                 })
               }>

@@ -20,31 +20,12 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
 import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
-import type { FilterOption, LensItem } from '@/lib/types/lens';
-
-type CategoryId = 'sv' | 'kt' | 'v2';
-
-function categoryToFilter(category: CategoryId): FilterOption {
-  switch (category) {
-    case 'sv':
-      return 'Single Vision';
-    case 'kt':
-      return 'Kryptok';
-    case 'v2':
-      return 'Progressive';
-  }
-}
-
-function categoryTitle(category: CategoryId): string {
-  switch (category) {
-    case 'sv':
-      return 'Single Vision';
-    case 'kt':
-      return 'Kryptok';
-    case 'v2':
-      return 'Progressive';
-  }
-}
+import type { LensItem } from '@/lib/types/lens';
+import {
+  parseWholesaleCategory,
+  wholesaleCategoryToFilter,
+  wholesaleCategoryTitle,
+} from '@/lib/wholesale-navigation';
 
 function LensRow({ item, onPress }: { item: LensItem; onPress: () => void }) {
   const styles = useThemedStyles(createStyles);
@@ -80,15 +61,15 @@ export default function WholesaleProductsScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ category?: string; item?: string }>();
 
-  const category = useMemo(() => {
-    const raw = Array.isArray(params.category) ? params.category[0] : params.category;
-    if (raw === 'sv' || raw === 'kt' || raw === 'v2') return raw;
-    return 'sv' as const;
-  }, [params.category]);
+  const category = useMemo(() => parseWholesaleCategory(params.category), [params.category]);
+  const selectedItem = useMemo(() => {
+    const raw = Array.isArray(params.item) ? params.item[0] : params.item;
+    return raw?.trim() ?? '';
+  }, [params.item]);
 
-  const filter = useMemo(() => categoryToFilter(category), [category]);
+  const filter = useMemo(() => wholesaleCategoryToFilter(category), [category]);
 
   const [lenses, setLenses] = useState<LensItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -129,6 +110,7 @@ export default function WholesaleProductsScreen() {
           page: pageToLoad,
           type: filter,
           search: debouncedSearchRef.current,
+          item: selectedItem || undefined,
         });
 
         if (currentRequestId !== requestIdRef.current) return;
@@ -153,7 +135,7 @@ export default function WholesaleProductsScreen() {
         }
       }
     },
-    [filter]
+    [filter, selectedItem]
   );
 
   useEffect(() => {
@@ -161,7 +143,7 @@ export default function WholesaleProductsScreen() {
     hasMoreRef.current = true;
     setInitialLoading(true);
     loadPage(1, true);
-  }, [filter, debouncedSearch, loadPage]);
+  }, [filter, selectedItem, debouncedSearch, loadPage]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,7 +177,7 @@ export default function WholesaleProductsScreen() {
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
 
-  const title = `${categoryTitle(category)} • Wholesale`;
+  const title = selectedItem || `${wholesaleCategoryTitle(category)} • Wholesale`;
 
   return (
     <View style={styles.root}>

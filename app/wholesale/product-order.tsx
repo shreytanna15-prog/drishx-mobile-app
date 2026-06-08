@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -11,11 +12,10 @@ import {
   Text,
   TextInput,
   View,
-  type NativeScrollEvent,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { WholesaleQtyMatrix } from '@/components/wholesale-qty-matrix';
 import { WholesaleRangePicker } from '@/components/wholesale-range-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -29,17 +29,25 @@ import { formatAxisValue } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
+import { resolveSelectableRange } from '@/lib/prescription-range';
 import {
-  WHOLESALE_ADD_BOUND_OPTIONS,
-  WHOLESALE_CYL_BOUND_OPTIONS,
-  WHOLESALE_SPH_BOUND_OPTIONS,
+  getDefaultRangeEndpoints,
+  resolveWholesaleBoundOptions,
 } from '@/lib/wholesale-range-options';
 import {
-  buildPowerList,
-  isAllowedCompoundCombo,
-  powerKey,
-  type WholesaleGridMode,
-} from '@/lib/wholesale-powers';
+  buildWholesaleMatrixSpec,
+  buildWholesaleQtyMap,
+  countMatrixCells,
+  countVisibleMatrixCells,
+  MATRIX_INITIAL_COLS,
+  MATRIX_INITIAL_ROWS,
+  MATRIX_LOAD_MORE_COLS,
+  MATRIX_LOAD_MORE_ROWS,
+  resolveGridEntryFromKey,
+  yieldToUi,
+  type BuildMatrixParams,
+} from '@/lib/wholesale-matrix';
+import { buildPowerList, type WholesaleGridMode } from '@/lib/wholesale-powers';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -55,7 +63,6 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 type QtyMap = Record<string, string>;
 
 const BIFOCAL_AXIS_VALUES = [45, 90, 135, 180] as const;
-const GRID_PAGE_SIZE = 10;
 
 type WholesaleEyeOption = 'LEFT' | 'RIGHT' | 'BOTH';
 
@@ -68,39 +75,6 @@ const PROGRESSIVE_EYE_OPTIONS: { id: WholesaleEyeOption; label: string }[] = [
 function progressiveCartEyes(selected: WholesaleEyeOption): Array<'LEFT' | 'RIGHT'> {
   if (selected === 'BOTH') return ['LEFT', 'RIGHT'];
   return [selected];
-}
-
-type GridEntry = {
-  key: string;
-  label: string;
-  sph: number;
-  cyl: number | null;
-  add: number | null;
-  sphAdd: number | null;
-  cylAdd: number | null;
-  axis: number | null;
-};
-
-function qtyKeyCompound(sph: number, cyl: number) {
-  return `${powerKey(sph)}|${powerKey(cyl)}`;
-}
-
-function qtyKeySphAdd(sph: number, add: number) {
-  return `${powerKey(sph)}|add:${powerKey(add)}`;
-}
-
-function qtyKeyCylAxisAdd(cyl: number, axis: number, add: number) {
-  return `${powerKey(cyl)}|axis:${axis}|add:${powerKey(add)}`;
-}
-
-function qtyKeyCompoundKryptok(
-  sph: number,
-  cyl: number,
-  axis: number,
-  sphAdd: number,
-  cylAdd: number
-) {
-  return `${powerKey(sph)}|${powerKey(cyl)}|axis:${axis}|sphAdd:${powerKey(sphAdd)}|cylAdd:${powerKey(cylAdd)}`;
 }
 
 function normalizePairsText(text: string): string {
@@ -120,26 +94,29 @@ export default function WholesaleProductOrderScreen() {
   const { addToCart, updateQuantity, items: cartItems } = useCart();
   const { setMode } = useOrderMode();
 
+  const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
+  const boundOptions = useMemo(
+    () => (item ? resolveWholesaleBoundOptions(item) : { sph: [], cyl: [], add: [] }),
+    [item]
+  );
+
   useEffect(() => {
     setMode('wholesale');
   }, [setMode]);
 
   const [mode, setModeState] = useState<WholesaleGridMode>('compound');
 
-  const [sphFrom, setSphFrom] = useState(-6);
-  const [sphTo, setSphTo] = useState(2);
+  const [sphFrom, setSphFrom] = useState(0);
+  const [sphTo, setSphTo] = useState(0);
   const [sphStep, setSphStep] = useState(0.25);
 
   const [cylFrom, setCylFrom] = useState(0);
-  const [cylTo, setCylTo] = useState(1.5);
+  const [cylTo, setCylTo] = useState(0);
   const [cylStep, setCylStep] = useState(0.25);
 
-  const [sphAddFrom, setSphAddFrom] = useState(1);
-  const [sphAddTo, setSphAddTo] = useState(3);
-  const [sphAddStep, setSphAddStep] = useState(0.25);
-  const [cylAddFrom, setCylAddFrom] = useState(1);
-  const [cylAddTo, setCylAddTo] = useState(3);
-  const [cylAddStep, setCylAddStep] = useState(0.25);
+  const [addFrom, setAddFrom] = useState(1);
+  const [addTo, setAddTo] = useState(3);
+  const [addStep, setAddStep] = useState(0.25);
   const [selectedAxis, setSelectedAxis] = useState<number>(BIFOCAL_AXIS_VALUES[0]);
   const [selectedEye, setSelectedEye] = useState<WholesaleEyeOption>('LEFT');
 
@@ -148,7 +125,50 @@ export default function WholesaleProductOrderScreen() {
 
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
-  const [visibleGridCount, setVisibleGridCount] = useState(GRID_PAGE_SIZE);
+  const [visibleRowCount, setVisibleRowCount] = useState(MATRIX_INITIAL_ROWS);
+  const [visibleColCount, setVisibleColCount] = useState(MATRIX_INITIAL_COLS);
+
+  useEffect(() => {
+    if (!item) {
+      return;
+    }
+
+    const bounds = resolveWholesaleBoundOptions(item);
+    const sph = getDefaultRangeEndpoints(bounds.sph);
+    const cyl = getDefaultRangeEndpoints(bounds.cyl);
+    const add = getDefaultRangeEndpoints(bounds.add);
+
+    setSphFrom(sph.from);
+    setSphTo(sph.to);
+    setCylFrom(cyl.from);
+    setCylTo(cyl.to);
+    setAddFrom(add.from);
+    setAddTo(add.to);
+    setSphStep(0.25);
+    setCylStep(0.25);
+    setAddStep(0.25);
+    setQtyMap({});
+    setError(null);
+    setVisibleRowCount(MATRIX_INITIAL_ROWS);
+    setVisibleColCount(MATRIX_INITIAL_COLS);
+  }, [item?.id]);
+
+  const rangeHint = useMemo(() => {
+    if (!selectableRange) {
+      return null;
+    }
+    const sphOpts = selectableRange.sph.options;
+    const sphStart = sphOpts[0] ?? selectableRange.sph.min;
+    const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
+    let hint = `SPH ${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)}`;
+    if (selectableRange.cyl?.options.length) {
+      const cylOpts = selectableRange.cyl.options;
+      const cylStart = cylOpts[0] ?? selectableRange.cyl.min;
+      const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
+      hint += ` · CYL ${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)}`;
+    }
+    return hint;
+  }, [selectableRange]);
 
   const sphList = useMemo(() => {
     if (!Number.isFinite(sphStep) || sphStep <= 0) return [];
@@ -165,178 +185,73 @@ export default function WholesaleProductOrderScreen() {
   const isBifocalLens = isKryptok || isProgressive;
   const isSingleVision = item?.lensType === 'Single Vision';
 
-  const sphAddList = useMemo(() => {
+  const addList = useMemo(() => {
     if (!isBifocalLens) return [];
-    if (!Number.isFinite(sphAddStep) || sphAddStep <= 0) return [];
-    return buildPowerList(sphAddFrom, sphAddTo, sphAddStep);
-  }, [isBifocalLens, sphAddFrom, sphAddStep, sphAddTo]);
+    if (!Number.isFinite(addStep) || addStep <= 0) return [];
+    return buildPowerList(addFrom, addTo, addStep);
+  }, [addFrom, addStep, addTo, isBifocalLens]);
 
-  const cylAddList = useMemo(() => {
-    if (!isBifocalLens) return [];
-    if (!Number.isFinite(cylAddStep) || cylAddStep <= 0) return [];
-    return buildPowerList(cylAddFrom, cylAddTo, cylAddStep);
-  }, [cylAddFrom, cylAddStep, cylAddTo, isBifocalLens]);
-
-  const gridEntries = useMemo((): GridEntry[] => {
-    if (Object.keys(qtyMap).length === 0) return [];
-
-    if (isBifocalLens && mode === 'sph-only') {
-      const entries: GridEntry[] = [];
-      for (const sph of sphList) {
-        for (const sphAdd of sphAddList) {
-          const key = qtyKeySphAdd(sph, sphAdd);
-          entries.push({
-            key,
-            label: `SPH ${formatPowerLabel(sph)} · ADD ${formatPowerLabel(sphAdd)}`,
-            sph,
-            cyl: null,
-            add: sphAdd,
-            sphAdd,
-            cylAdd: null,
-            axis: null,
-          });
-        }
-      }
-      return entries;
-    }
-
-    if (isBifocalLens && mode === 'cyl-only') {
-      const entries: GridEntry[] = [];
-      for (const cyl of cylList) {
-        for (const cylAdd of cylAddList) {
-          const key = qtyKeyCylAxisAdd(cyl, selectedAxis, cylAdd);
-          entries.push({
-            key,
-            label: `CYL ${formatPowerLabel(cyl)} · AXIS ${formatAxisValue(selectedAxis)} · ADD ${formatPowerLabel(cylAdd)}`,
-            sph: 0,
-            cyl,
-            add: cylAdd,
-            sphAdd: null,
-            cylAdd,
-            axis: selectedAxis,
-          });
-        }
-      }
-      return entries;
-    }
-
-    if (isBifocalLens && mode === 'compound') {
-      const entries: GridEntry[] = [];
-      for (const sph of sphList) {
-        for (const cyl of cylList) {
-          if (!isAllowedCompoundCombo(sph, cyl)) {
-            continue;
-          }
-          for (const sphAdd of sphAddList) {
-            for (const cylAdd of cylAddList) {
-              const key = qtyKeyCompoundKryptok(sph, cyl, selectedAxis, sphAdd, cylAdd);
-              entries.push({
-                key,
-                label: `SPH ${formatPowerLabel(sph)} ADD ${formatPowerLabel(sphAdd)} · CYL ${formatPowerLabel(cyl)} ADD ${formatPowerLabel(cylAdd)} · AXIS ${formatAxisValue(selectedAxis)}`,
-                sph,
-                cyl,
-                add: sphAdd,
-                sphAdd,
-                cylAdd,
-                axis: selectedAxis,
-              });
-            }
-          }
-        }
-      }
-      return entries;
-    }
-
-    if (mode === 'sph-only') {
-      return sphList.map((sph) => ({
-        key: powerKey(sph),
-        label: formatPowerLabel(sph),
-        sph,
-        cyl: null,
-        add: null,
-        sphAdd: null,
-        cylAdd: null,
-        axis: null,
-      }));
-    }
-
-    if (mode === 'cyl-only') {
-      return cylList.map((cyl) => ({
-        key: powerKey(cyl),
-        label: formatPowerLabel(cyl),
-        sph: 0,
-        cyl,
-        add: null,
-        sphAdd: null,
-        cylAdd: null,
-        axis: null,
-      }));
-    }
-
-    if (mode === 'compound') {
-      const entries: GridEntry[] = [];
-      for (const sph of sphList) {
-        for (const cyl of cylList) {
-          if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) {
-            continue;
-          }
-          const key = qtyKeyCompound(sph, cyl);
-          entries.push({
-            key,
-            label: `SPH ${formatPowerLabel(sph)} / CYL ${formatPowerLabel(cyl)}`,
-            sph,
-            cyl,
-            add: null,
-            sphAdd: null,
-            cylAdd: null,
-            axis: null,
-          });
-        }
-      }
-      return entries;
-    }
-
-    return [];
-  }, [
-    cylAddList,
-    cylList,
-    isBifocalLens,
-    isSingleVision,
-    mode,
-    qtyMap,
-    selectedAxis,
-    sphAddList,
-    sphList,
-  ]);
-
-  const visibleGridEntries = useMemo(
-    () => gridEntries.slice(0, visibleGridCount),
-    [gridEntries, visibleGridCount]
+  const matrixParams = useMemo(
+    (): BuildMatrixParams => ({
+      mode,
+      isBifocalLens,
+      isSingleVision,
+      sphList,
+      cylList,
+      addList,
+      selectedAxis,
+    }),
+    [addList, cylList, isBifocalLens, isSingleVision, mode, selectedAxis, sphList]
   );
 
+  const matrixSpec = useMemo(
+    () => buildWholesaleMatrixSpec(matrixParams),
+    [matrixParams]
+  );
+
+  const hasGeneratedGrid = Object.keys(qtyMap).length > 0;
+
+  const visibleMatrixRows = useMemo(
+    () => matrixSpec?.rows.slice(0, visibleRowCount) ?? [],
+    [matrixSpec, visibleRowCount]
+  );
+
+  const visibleMatrixCols = useMemo(
+    () => matrixSpec?.cols.slice(0, visibleColCount) ?? [],
+    [matrixSpec, visibleColCount]
+  );
+
+  const totalMatrixCells = useMemo(
+    () => (hasGeneratedGrid ? Object.keys(qtyMap).length : matrixSpec ? countMatrixCells(matrixSpec) : 0),
+    [hasGeneratedGrid, matrixSpec, qtyMap]
+  );
+
+  const visibleMatrixCells = useMemo(
+    () =>
+      matrixSpec
+        ? countVisibleMatrixCells(matrixSpec, visibleRowCount, visibleColCount)
+        : 0,
+    [matrixSpec, visibleColCount, visibleRowCount]
+  );
+
+  const hasMoreRows = matrixSpec ? visibleMatrixRows.length < matrixSpec.rows.length : false;
+  const hasMoreCols = matrixSpec ? visibleMatrixCols.length < matrixSpec.cols.length : false;
+
   useEffect(() => {
-    setVisibleGridCount(GRID_PAGE_SIZE);
+    setVisibleRowCount(MATRIX_INITIAL_ROWS);
+    setVisibleColCount(MATRIX_INITIAL_COLS);
   }, [mode]);
 
   const title = item ? `${item.brand || 'Lens'} • Wholesale` : 'Wholesale';
-
-  function handleContentScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
-    if (gridEntries.length <= visibleGridCount) {
-      return;
-    }
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 160) {
-      setVisibleGridCount((current) => Math.min(current + GRID_PAGE_SIZE, gridEntries.length));
-    }
-  }
 
   function selectAxis(value: number) {
     setSelectedAxis(value);
   }
 
-  function handleGenerate() {
+  async function handleGenerate() {
     setGenerating(true);
     setError(null);
+    setQtyMap({});
 
     const defaultPairs = Number(pairsDefault.trim());
     if (!Number.isInteger(defaultPairs) || defaultPairs < 1) {
@@ -351,102 +266,62 @@ export default function WholesaleProductOrderScreen() {
         setGenerating(false);
         return;
       }
-      if (isBifocalLens && sphAddList.length === 0) {
-        setError('Enter a valid SPH ADD range (+1 to +3) and step.');
+      if (isBifocalLens && addList.length === 0) {
+        setError('Enter a valid ADD range (+1 to +3) and step.');
         setGenerating(false);
         return;
       }
-      const next: QtyMap = {};
-      if (isBifocalLens) {
-        for (const sph of sphList) {
-          for (const sphAdd of sphAddList) {
-            next[qtyKeySphAdd(sph, sphAdd)] = String(defaultPairs);
-          }
-        }
-      } else {
-        for (const sph of sphList) {
-          next[powerKey(sph)] = String(defaultPairs);
-        }
-      }
-      setQtyMap(next);
-      setVisibleGridCount(GRID_PAGE_SIZE);
-      setGenerating(false);
-      return;
-    }
-
-    if (mode === 'cyl-only') {
+    } else if (mode === 'cyl-only') {
       if (cylList.length === 0) {
         setError('Enter a valid CYL range and step.');
         setGenerating(false);
         return;
       }
-      if (isBifocalLens && cylAddList.length === 0) {
-        setError('Enter a valid CYL ADD range (+1 to +3) and step.');
+      if (isBifocalLens && addList.length === 0) {
+        setError('Enter a valid ADD range (+1 to +3) and step.');
         setGenerating(false);
         return;
       }
-      const next: QtyMap = {};
-      if (isBifocalLens) {
-        for (const cyl of cylList) {
-          for (const cylAdd of cylAddList) {
-            next[qtyKeyCylAxisAdd(cyl, selectedAxis, cylAdd)] = String(defaultPairs);
-          }
-        }
-      } else {
-        for (const cyl of cylList) {
-          next[powerKey(cyl)] = String(defaultPairs);
-        }
+    } else {
+      if (sphList.length === 0 || cylList.length === 0) {
+        setError('Enter valid SPH and CYL ranges and steps.');
+        setGenerating(false);
+        return;
       }
-      setQtyMap(next);
-      setVisibleGridCount(GRID_PAGE_SIZE);
-      setGenerating(false);
-      return;
+      if (isBifocalLens && addList.length === 0) {
+        setError('Enter a valid ADD range (+1 to +3) and step.');
+        setGenerating(false);
+        return;
+      }
     }
 
-    // compound
-    if (sphList.length === 0 || cylList.length === 0) {
-      setError('Enter valid SPH and CYL ranges and steps.');
-      setGenerating(false);
-      return;
-    }
-    if (isBifocalLens && (sphAddList.length === 0 || cylAddList.length === 0)) {
-      setError('Enter valid SPH ADD and CYL ADD ranges (+1 to +3) and step.');
-      setGenerating(false);
-      return;
-    }
-    const next: QtyMap = {};
-    if (isBifocalLens) {
-      for (const sph of sphList) {
-        for (const cyl of cylList) {
-          if (!isAllowedCompoundCombo(sph, cyl)) {
-            continue;
-          }
-          for (const sphAdd of sphAddList) {
-            for (const cylAdd of cylAddList) {
-              next[qtyKeyCompoundKryptok(sph, cyl, selectedAxis, sphAdd, cylAdd)] =
-                String(defaultPairs);
-            }
-          }
-        }
-      }
-    } else {
-      for (const sph of sphList) {
-        for (const cyl of cylList) {
-          if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) {
-            continue;
-          }
-          next[qtyKeyCompound(sph, cyl)] = String(defaultPairs);
-        }
-      }
-    }
+    await yieldToUi();
+
+    const next = await buildWholesaleQtyMap(matrixParams, defaultPairs);
     if (Object.keys(next).length === 0) {
       setError('No valid combinations for the selected ranges.');
       setGenerating(false);
       return;
     }
+
     setQtyMap(next);
-    setVisibleGridCount(GRID_PAGE_SIZE);
+    setVisibleRowCount(MATRIX_INITIAL_ROWS);
+    setVisibleColCount(MATRIX_INITIAL_COLS);
     setGenerating(false);
+  }
+
+  function handleLoadMoreMatrix() {
+    if (!matrixSpec) return;
+    setVisibleRowCount((current) =>
+      Math.min(current + MATRIX_LOAD_MORE_ROWS, matrixSpec.rows.length)
+    );
+    setVisibleColCount((current) =>
+      Math.min(current + MATRIX_LOAD_MORE_COLS, matrixSpec.cols.length)
+    );
+  }
+
+  function handleMatrixQtyChange(key: string, text: string) {
+    setQtyMap((current) => ({ ...current, [key]: normalizePairsText(text) }));
   }
 
   function totalPairsSelected(): number {
@@ -463,10 +338,13 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
-    const entries = gridEntries.flatMap((entry) => {
-      const pairsText = qtyMap[entry.key];
+    const entries = Object.entries(qtyMap).flatMap(([key, pairsText]) => {
       const pairs = Number(pairsText);
       if (!Number.isInteger(pairs) || pairs < 1) {
+        return [];
+      }
+      const entry = resolveGridEntryFromKey(key, matrixParams);
+      if (!entry) {
         return [];
       }
       return [{ ...entry, pairs }];
@@ -509,13 +387,9 @@ export default function WholesaleProductOrderScreen() {
           const parts = [
             eye ? `Eye ${eye}` : null,
             `SPH ${formatPowerLabel(entry.sph)}`,
-            entry.sphAdd != null ? `SPH ADD ${formatPowerLabel(entry.sphAdd)}` : null,
             entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
-            entry.cylAdd != null ? `CYL ADD ${formatPowerLabel(entry.cylAdd)}` : null,
             entry.axis != null ? `AXIS ${formatAxisValue(entry.axis)}` : null,
-            entry.add != null && entry.sphAdd == null && entry.cylAdd == null
-              ? `ADD ${formatPowerLabel(entry.add)}`
-              : null,
+            entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
           ].filter(Boolean);
           failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
         }
@@ -570,11 +444,7 @@ export default function WholesaleProductOrderScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          onScroll={handleContentScroll}
-          scrollEventThrottle={200}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{[item.item, item.coating].filter(Boolean).join(' · ') || 'Standard'}</Text>
@@ -623,6 +493,7 @@ export default function WholesaleProductOrderScreen() {
           ) : null}
 
           <Text style={styles.sectionTitle}>Ranges</Text>
+          {rangeHint ? <Text style={styles.rangeHint}>{rangeHint}</Text> : null}
 
           {(mode === 'sph-only' || mode === 'compound') ? (
             <View style={styles.rangeCard}>
@@ -631,25 +502,11 @@ export default function WholesaleProductOrderScreen() {
                 from={sphFrom}
                 to={sphTo}
                 step={sphStep}
-                boundOptions={WHOLESALE_SPH_BOUND_OPTIONS}
+                boundOptions={boundOptions.sph}
                 onFromChange={setSphFrom}
                 onToChange={setSphTo}
                 onStepChange={setSphStep}
               />
-              {isBifocalLens && (mode === 'sph-only' || mode === 'compound') ? (
-                <View style={styles.addSection}>
-                  <Text style={styles.rangeTitle}>ADD</Text>
-                  <WholesaleRangePicker
-                    from={sphAddFrom}
-                    to={sphAddTo}
-                    step={sphAddStep}
-                    boundOptions={WHOLESALE_ADD_BOUND_OPTIONS}
-                    onFromChange={setSphAddFrom}
-                    onToChange={setSphAddTo}
-                    onStepChange={setSphAddStep}
-                  />
-                </View>
-              ) : null}
             </View>
           ) : null}
 
@@ -660,7 +517,7 @@ export default function WholesaleProductOrderScreen() {
                 from={cylFrom}
                 to={cylTo}
                 step={cylStep}
-                boundOptions={WHOLESALE_CYL_BOUND_OPTIONS}
+                boundOptions={boundOptions.cyl}
                 onFromChange={setCylFrom}
                 onToChange={setCylTo}
                 onStepChange={setCylStep}
@@ -685,20 +542,22 @@ export default function WholesaleProductOrderScreen() {
                   </View>
                 </View>
               ) : null}
-              {isBifocalLens && (mode === 'cyl-only' || mode === 'compound') ? (
-                <View style={styles.addSection}>
-                  <Text style={styles.rangeTitle}>ADD</Text>
-                  <WholesaleRangePicker
-                    from={cylAddFrom}
-                    to={cylAddTo}
-                    step={cylAddStep}
-                    boundOptions={WHOLESALE_ADD_BOUND_OPTIONS}
-                    onFromChange={setCylAddFrom}
-                    onToChange={setCylAddTo}
-                    onStepChange={setCylAddStep}
-                  />
-                </View>
-              ) : null}
+            </View>
+          ) : null}
+
+          {isBifocalLens ? (
+            <View style={styles.rangeCard}>
+              <Text style={styles.rangeTitle}>ADD</Text>
+              <Text style={styles.addHint}>Common for SPH and CYL</Text>
+              <WholesaleRangePicker
+                from={addFrom}
+                to={addTo}
+                step={addStep}
+                boundOptions={boundOptions.add}
+                onFromChange={setAddFrom}
+                onToChange={setAddTo}
+                onStepChange={setAddStep}
+              />
             </View>
           ) : null}
 
@@ -712,58 +571,59 @@ export default function WholesaleProductOrderScreen() {
               placeholder="1"
               placeholderTextColor={colors.placeholder}
             />
-            <Pressable style={styles.generateBtn} onPress={handleGenerate} disabled={generating}>
-              <MaterialIcons name="grid-view" size={18} color={colors.primaryText} />
-              <Text style={styles.generateBtnText}>Generate</Text>
+            <Pressable
+              style={[styles.generateBtn, generating && styles.generateBtnDisabled]}
+              onPress={() => void handleGenerate()}
+              disabled={generating}>
+              {generating ? (
+                <ActivityIndicator size="small" color={colors.primaryText} />
+              ) : (
+                <MaterialIcons name="grid-view" size={18} color={colors.primaryText} />
+              )}
+              <Text style={styles.generateBtnText}>{generating ? 'Generating…' : 'Generate'}</Text>
             </Pressable>
           </View>
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <Text style={styles.sectionTitle}>Quantity grid</Text>
-          {Object.keys(qtyMap).length === 0 ? (
+          <Text style={styles.sectionTitle}>Quantity matrix</Text>
+          {generating ? (
+            <View style={styles.matrixLoader}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.matrixLoaderText}>Building quantity matrix…</Text>
+            </View>
+          ) : !hasGeneratedGrid || !matrixSpec ? (
             <View style={styles.emptyGrid}>
-              <Text style={styles.emptyGridText}>Tap “Generate” to create the grid.</Text>
+              <Text style={styles.emptyGridText}>Tap “Generate” to create the matrix.</Text>
             </View>
           ) : (
             <>
               <Text style={styles.gridCountHint}>
-                Showing {visibleGridEntries.length} of {gridEntries.length} combination
-                {gridEntries.length === 1 ? '' : 's'}
-                {visibleGridEntries.length < gridEntries.length ? ' · scroll for more' : ''}
+                Showing {visibleMatrixRows.length} of {matrixSpec.rows.length} row
+                {matrixSpec.rows.length === 1 ? '' : 's'} · {visibleMatrixCols.length} of{' '}
+                {matrixSpec.cols.length} col
+                {matrixSpec.cols.length === 1 ? '' : 's'} · {visibleMatrixCells} visible ·{' '}
+                {totalMatrixCells} total pair
+                {totalMatrixCells === 1 ? '' : 's'}
               </Text>
-              <View style={styles.listGrid}>
-                {visibleGridEntries.map((entry) => (
-                  <View key={entry.key} style={styles.listRow}>
-                    <Text style={styles.listPower} numberOfLines={2}>
-                      {entry.label}
-                    </Text>
-                    <View style={styles.listQtyBox}>
-                      <TextInput
-                        value={qtyMap[entry.key] ?? ''}
-                        onChangeText={(t) =>
-                          setQtyMap((cur) => ({ ...cur, [entry.key]: normalizePairsText(t) }))
-                        }
-                        keyboardType="number-pad"
-                        style={styles.listQtyInput}
-                        placeholder="0"
-                        placeholderTextColor={colors.placeholder}
-                      />
-                      <Text style={styles.listQtySuffix}>pairs</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-              {visibleGridEntries.length < gridEntries.length ? (
-                <Pressable
-                  style={styles.loadMoreBtn}
-                  onPress={() =>
-                    setVisibleGridCount((current) =>
-                      Math.min(current + GRID_PAGE_SIZE, gridEntries.length)
-                    )
-                  }>
+              <WholesaleQtyMatrix
+                spec={matrixSpec}
+                visibleRows={visibleMatrixRows}
+                visibleCols={visibleMatrixCols}
+                qtyMap={qtyMap}
+                onQtyChange={handleMatrixQtyChange}
+              />
+              <Text style={styles.pairsLegend}>Enter quantities in pairs.</Text>
+              {hasMoreRows || hasMoreCols ? (
+                <Pressable style={styles.loadMoreBtn} onPress={handleLoadMoreMatrix}>
                   <Text style={styles.loadMoreText}>
-                    Load more ({gridEntries.length - visibleGridEntries.length} remaining)
+                    Load more
+                    {hasMoreRows
+                      ? ` · ${matrixSpec.rows.length - visibleMatrixRows.length} rows`
+                      : ''}
+                    {hasMoreCols
+                      ? ` · ${matrixSpec.cols.length - visibleMatrixCols.length} cols`
+                      : ''}
                   </Text>
                 </Pressable>
               ) : null}
@@ -827,6 +687,13 @@ const createStyles = (c: BrandColorScheme) =>
       letterSpacing: 0.5,
       marginTop: 6,
     },
+    rangeHint: {
+      color: c.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 18,
+      marginTop: -4,
+    },
     toggleRow: {
       flexDirection: 'row',
       gap: 8,
@@ -855,6 +722,13 @@ const createStyles = (c: BrandColorScheme) =>
       gap: 10,
     },
     rangeTitle: { color: c.text, fontSize: 14, fontWeight: '800' },
+    addHint: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: -4,
+      marginBottom: 4,
+    },
     fieldLabel: { color: c.textMuted, fontSize: 11, fontWeight: '700' },
     defaultQtyRow: {
       flexDirection: 'row',
@@ -890,7 +764,19 @@ const createStyles = (c: BrandColorScheme) =>
       paddingHorizontal: 12,
       paddingVertical: 10,
     },
+    generateBtnDisabled: { opacity: 0.85 },
     generateBtnText: { color: c.primaryText, fontSize: 13, fontWeight: '900' },
+    matrixLoader: {
+      paddingVertical: 32,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      alignItems: 'center',
+      gap: 12,
+    },
+    matrixLoaderText: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
     errorText: { color: c.danger, fontSize: 13, fontWeight: '700', textAlign: 'center' },
     emptyGrid: {
       paddingVertical: 18,
@@ -903,6 +789,13 @@ const createStyles = (c: BrandColorScheme) =>
     },
     emptyGridText: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
     gridCountHint: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+    pairsLegend: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 8,
+      textAlign: 'center',
+    },
     loadMoreBtn: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -913,22 +806,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.card,
     },
     loadMoreText: { color: c.primary, fontSize: 13, fontWeight: '800' },
-    listGrid: {
-      backgroundColor: c.card,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      overflow: 'hidden',
-    },
-    listRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: c.cardBorder,
-    },
     addSection: { gap: 10, marginTop: 4 },
     eyeRow: {
       flexDirection: 'row',
@@ -967,22 +844,6 @@ const createStyles = (c: BrandColorScheme) =>
     },
     axisChipText: { color: c.textMuted, fontSize: 13, fontWeight: '800' },
     axisChipTextActive: { color: c.primaryText },
-    listPower: { color: c.text, fontSize: 14, fontWeight: '900', flex: 1, paddingRight: 8 },
-    listQtyBox: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    listQtyInput: {
-      width: 68,
-      borderWidth: 1,
-      borderColor: c.inputBorder,
-      borderRadius: 12,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      fontSize: 14,
-      fontWeight: '900',
-      color: c.text,
-      backgroundColor: c.inputBg,
-      textAlign: 'center',
-    },
-    listQtySuffix: { color: c.textMuted, fontSize: 12, fontWeight: '700' },
     bottomBar: {
       position: 'absolute',
       left: 0,

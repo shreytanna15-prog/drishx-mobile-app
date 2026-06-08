@@ -74,16 +74,33 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
   };
 }
 
+export type LensCatalogItem = {
+  name: string;
+  productCount: number;
+};
+
+export async function fetchLensCatalogItems(type: string): Promise<LensCatalogItem[]> {
+  const params = new URLSearchParams({ type });
+  const response = await fetch(`${BACKEND_BASE_URL}/api/lenses/items?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to load lens items');
+  }
+  const data = (await response.json()) as { items?: LensCatalogItem[] };
+  return data.items ?? [];
+}
+
 export async function fetchLensesPage({
   page,
   limit = PAGE_SIZE,
   type,
   search,
+  item,
 }: {
   page: number;
   limit?: number;
   type: FilterOption;
   search: string;
+  item?: string;
 }): Promise<LensesPageResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -94,6 +111,11 @@ export async function fetchLensesPage({
   const trimmedSearch = search.trim();
   if (trimmedSearch) {
     params.set('search', trimmedSearch);
+  }
+
+  const trimmedItem = item?.trim();
+  if (trimmedItem) {
+    params.set('item', trimmedItem);
   }
 
   const response = await fetch(`${BACKEND_BASE_URL}/api/lenses?${params.toString()}`);

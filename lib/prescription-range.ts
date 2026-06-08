@@ -1,4 +1,4 @@
-import type { LensItem, SelectableRange } from '@/lib/types/lens';
+import type { LensItem, PowerAxisRange, SelectableRange } from '@/lib/types/lens';
 
 const POWER_STEP = 0.25;
 
@@ -70,10 +70,28 @@ function normalizeSelectableRange(range: SelectableRange): SelectableRange {
   };
 }
 
+/** Full CYL scroll range for a product card (0 → card max CYL in 0.25 steps). */
+function resolveProductCylRange(cylMax: number): PowerAxisRange {
+  const max = roundQuarter(cylMax);
+  const options = generatePowerOptions(0, max);
+  return { min: 0, max, options };
+}
+
 /** API range when present; otherwise 0 → product max in 0.25 steps. */
 export function resolveSelectableRange(item: LensItem): SelectableRange {
   if (item.selectableRange?.sph.options.length) {
-    return normalizeSelectableRange(item.selectableRange);
+    const normalized = normalizeSelectableRange(item.selectableRange);
+
+    // API tiers can narrow CYL to a single value for high SPH rows (e.g. -2 only).
+    // Always expose the full product-card CYL range so users can scroll 0 → max CYL.
+    if (item.cyl != null) {
+      return {
+        ...normalized,
+        cyl: resolveProductCylRange(item.cyl),
+      };
+    }
+
+    return normalized;
   }
 
   const sphMin = 0;
@@ -81,11 +99,10 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
   const sphOptions = generatePowerOptions(sphMin, sphMax);
 
   if (item.cyl != null) {
-    const cylMax = roundQuarter(item.cyl);
-    const cylOptions = generatePowerOptions(0, cylMax);
+    const cylRange = resolveProductCylRange(item.cyl);
     return {
       sph: { min: sphMin, max: sphMax, options: sphOptions },
-      cyl: { min: 0, max: cylMax, options: cylOptions },
+      cyl: cylRange,
     };
   }
 

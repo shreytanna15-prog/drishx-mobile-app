@@ -1,3 +1,5 @@
+import { formatPowerLabel } from '@/lib/cart-utils';
+import { formatAddValue } from '@/lib/lens-display';
 import type { CartItem } from '@/lib/types/lens';
 
 export type CartPowerLine = {
@@ -34,11 +36,11 @@ function getCartProductMeta(item: CartItem): { key: string; title: string; subti
 }
 
 function formatSphCyl(item: CartItem): string {
-  const sphCyl = `${item.sph} / ${item.cyl ?? '—'}`;
+  const sphCyl = `${formatPowerLabel(item.sph)} / ${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
   if (item.lensType === 'Single Vision') {
     return sphCyl;
   }
-  return item.add != null ? `${sphCyl} · ADD ${item.add}` : sphCyl;
+  return item.add != null ? `${sphCyl} · ADD ${formatAddValue(item.add)}` : sphCyl;
 }
 
 function formatExpiresIn(expiresAt?: string): string | null {
