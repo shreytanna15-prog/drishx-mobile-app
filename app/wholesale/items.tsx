@@ -60,7 +60,13 @@ export default function WholesaleItemsScreen() {
 
   const category = useMemo(() => parseWholesaleCategory(params.category), [params.category]);
   const categoryTitle =
-    category === 'kt' ? 'KRYPTOK' : category === 'v2' ? 'PROGRESSIVE' : wholesaleCategoryTitle(category);
+    category === 'kt'
+      ? 'KRYPTOK'
+      : category === 'v2'
+        ? 'PROGRESSIVE'
+        : category === 'sv'
+          ? 'SINGLE VISION'
+          : wholesaleCategoryTitle(category);
 
   const [items, setItems] = useState<LensCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,7 +129,7 @@ export default function WholesaleItemsScreen() {
             renderItem={({ item }) => (
               <ItemCard
                 item={item}
-                uppercase={category === 'kt' || category === 'v2'}
+                uppercase={category === 'kt' || category === 'v2' || category === 'sv'}
                 onPress={() =>
                   router.push({
                     pathname: '/wholesale/products',
