@@ -18,8 +18,8 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { fetchLensCatalogItems, type LensCatalogItem } from '@/lib/lenses-api';
 import {
+  catalogCategoryDisplayTitle,
   parseWholesaleCategory,
-  wholesaleCategoryTitle,
   wholesaleCategoryToApiType,
 } from '@/lib/wholesale-navigation';
 
@@ -59,14 +59,7 @@ export default function WholesaleItemsScreen() {
   const params = useLocalSearchParams<{ category?: string }>();
 
   const category = useMemo(() => parseWholesaleCategory(params.category), [params.category]);
-  const categoryTitle =
-    category === 'kt'
-      ? 'KRYPTOK'
-      : category === 'v2'
-        ? 'PROGRESSIVE'
-        : category === 'sv'
-          ? 'SINGLE VISION'
-          : wholesaleCategoryTitle(category);
+  const categoryTitle = catalogCategoryDisplayTitle(category);
 
   const [items, setItems] = useState<LensCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);

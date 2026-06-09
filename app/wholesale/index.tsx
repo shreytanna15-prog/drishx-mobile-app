@@ -10,19 +10,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useOrderMode } from '@/lib/order-mode';
-
-type WholesaleCategory = {
-  id: 'sv' | 'kt' | 'v2';
-  title: string;
-  subtitle: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-};
-
-const CATEGORIES: WholesaleCategory[] = [
-  { id: 'sv', title: 'Single Vision', subtitle: 'SV products', icon: 'remove-red-eye' },
-  { id: 'kt', title: 'Kryptok', subtitle: 'KT products', icon: 'visibility' },
-  { id: 'v2', title: 'Progressive', subtitle: 'V2 products', icon: 'center-focus-strong' },
-];
+import { LENS_CATALOG_CATEGORIES } from '@/lib/wholesale-navigation';
 
 export default function WholesaleCategoryScreen() {
   const colors = useBrandColors();
@@ -48,7 +36,7 @@ export default function WholesaleCategoryScreen() {
 
         <Text style={styles.hint}>Select a category</Text>
         <View style={styles.grid}>
-          {CATEGORIES.map((cat) => (
+          {LENS_CATALOG_CATEGORIES.map((cat) => (
             <Pressable
               key={cat.id}
               style={styles.card}

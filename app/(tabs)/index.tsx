@@ -26,6 +26,7 @@ import { useOrderMode } from '@/lib/order-mode';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
+import { filterToCatalogCategory } from '@/lib/wholesale-navigation';
 
 const STAFF_PENDING_STATUSES = ['PENDING', 'PICKING', 'PACKED', 'DISPATCHED', 'PARTIALLY_FULFILLED', 'AWAITING_PROCUREMENT'];
 
@@ -46,10 +47,15 @@ function getInitials(name: string | null | undefined, email: string): string {
 }
 
 function goToShop(router: ReturnType<typeof useRouter>, filter: FilterOption = 'All') {
-  router.navigate({
-    pathname: '/shop',
-    params: { filter },
-  });
+  const category = filterToCatalogCategory(filter);
+  if (category) {
+    router.navigate({
+      pathname: '/shop/items',
+      params: { category },
+    });
+    return;
+  }
+  router.navigate('/(tabs)/shop');
 }
 
 export default function HomeScreen() {
