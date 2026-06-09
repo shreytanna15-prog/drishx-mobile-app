@@ -23,9 +23,9 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
-import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
 import { uploadPhotoOrder } from '@/lib/photo-orders-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
+import { LensProductListCard } from '@/components/lens-product-list-card';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
 const SEARCH_DEBOUNCE_MS = 500;
@@ -34,6 +34,9 @@ const FILTER_PARAM_ALIASES: Record<string, FilterOption> = {
   singlevision: 'Single Vision',
   progressive: 'Progressive',
   kryptok: 'Kryptok',
+  sv: 'Single Vision',
+  kt: 'Kryptok',
+  v2: 'Progressive',
 };
 
 function parseFilterParam(raw: string | undefined): FilterOption | null {
@@ -63,37 +66,7 @@ function LensProductCard({
   item: LensItem;
   onPress: () => void;
 }) {
-  const styles = useThemedStyles(createStyles);
-  const colors = useBrandColors();
-  const lensType = item.lensType ?? 'Progressive';
-  const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
-  const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
-  const sphCyl = formatSphCylSlash(item);
-  const addAxis = formatAddAxisLabel(item);
-
-  return (
-    <Pressable style={styles.productCard} onPress={onPress}>
-      <View style={styles.compactTopRow}>
-        <View style={styles.compactTopLeft}>
-          <Text style={styles.compactTitle} numberOfLines={1}>
-            {brand} {sphCyl}
-          </Text>
-          <Text style={styles.powerMetaText} numberOfLines={1}>
-            {addAxis}
-          </Text>
-        </View>
-        <View style={styles.priceBlock}>
-          <Text style={styles.priceCurrency}>₹</Text>
-          <Text style={styles.priceAmount}>{item.price}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.categoryText}>{lensType}</Text>
-      <Text style={styles.itemText} numberOfLines={1}>
-        {itemName}
-      </Text>
-    </Pressable>
-  );
+  return <LensProductListCard item={item} onPress={onPress} showLensType />;
 }
 
 export default function ShopScreen() {
@@ -375,7 +348,7 @@ export default function ShopScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search SPH, CYL, price, brand, eye..."
+            placeholder="Search sv, kt, v2, BRC, power, brand..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoFocus

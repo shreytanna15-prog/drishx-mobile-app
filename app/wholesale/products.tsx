@@ -19,8 +19,8 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
-import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
 import type { LensItem } from '@/lib/types/lens';
+import { LensProductListCard } from '@/components/lens-product-list-card';
 import {
   parseWholesaleCategory,
   wholesaleCategoryToFilter,
@@ -28,33 +28,7 @@ import {
 } from '@/lib/wholesale-navigation';
 
 function LensRow({ item, onPress }: { item: LensItem; onPress: () => void }) {
-  const styles = useThemedStyles(createStyles);
-  const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
-  const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
-  const sphCyl = formatSphCylSlash(item);
-  const addAxis = formatAddAxisLabel(item);
-
-  return (
-    <Pressable style={styles.productCard} onPress={onPress}>
-      <View style={styles.compactTopRow}>
-        <View style={styles.compactTopLeft}>
-          <Text style={styles.compactTitle} numberOfLines={1}>
-            {brand} {sphCyl}
-          </Text>
-          <Text style={styles.powerMetaText} numberOfLines={1}>
-            {addAxis}
-          </Text>
-        </View>
-        <View style={styles.priceBlock}>
-          <Text style={styles.priceCurrency}>₹</Text>
-          <Text style={styles.priceAmount}>{item.price}</Text>
-        </View>
-      </View>
-      <Text style={styles.itemText} numberOfLines={2}>
-        {itemName}
-      </Text>
-    </Pressable>
-  );
+  return <LensProductListCard item={item} onPress={onPress} />;
 }
 
 export default function WholesaleProductsScreen() {
@@ -197,7 +171,7 @@ export default function WholesaleProductsScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search brand, coating, power..."
+            placeholder="Search sv, kt, v2, BRC, brand, power..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}

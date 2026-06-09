@@ -20,6 +20,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
+import { LensProductListCard } from '@/components/lens-product-list-card';
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
 const SEARCH_DEBOUNCE_MS = 500;
@@ -40,31 +41,11 @@ function quantityTone(
 function InventoryProductCard({ item }: { item: LensItem }) {
   const styles = useThemedStyles(createStyles);
   const colors = useBrandColors();
-  const lensType = item.lensType ?? 'Progressive';
-  const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
-  const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
-  const sphCyl = `${item.sph}/${item.cyl ?? '—'}`;
   const qtyStyle = quantityTone(item.quantity, colors);
 
   return (
-    <View style={styles.productCard}>
-      <View style={styles.compactTopRow}>
-        <View style={styles.compactTopLeft}>
-          <Text style={styles.compactTitle} numberOfLines={1}>
-            {brand} {sphCyl}
-          </Text>
-        </View>
-        <View style={styles.priceBlock}>
-          <Text style={styles.priceCurrency}>₹</Text>
-          <Text style={styles.priceAmount}>{item.price}</Text>
-        </View>
-      </View>
-
-      <Text style={styles.categoryText}>{lensType}</Text>
-      <Text style={styles.itemText} numberOfLines={1}>
-        {itemName}
-      </Text>
-
+    <View style={styles.productCardWrap}>
+      <LensProductListCard item={item} showLensType />
       <View style={styles.qtyRow}>
         <View style={styles.qtyLeft}>
           <MaterialIcons name="inventory-2" size={14} color={colors.textMuted} />
@@ -421,6 +402,9 @@ const createStyles = (c: BrandColorScheme) =>
   },
   filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
   filterChipTextActive: { fontWeight: '700', color: c.primaryText },
+  productCardWrap: {
+    gap: 8,
+  },
   productCard: {
     padding: 12,
     borderRadius: 16,
