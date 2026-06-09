@@ -22,6 +22,8 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
+import { useOrderMode } from '@/lib/order-mode';
+import { getCartBadgeCount } from '@/lib/order-quantity';
 import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
 import { uploadPhotoOrder } from '@/lib/photo-orders-api';
 import type { FilterOption, LensItem, LensType } from '@/lib/types/lens';
@@ -74,7 +76,12 @@ export default function ShopScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const { itemCount } = useCart();
+  const { items: cartItems } = useCart();
+  const { mode: orderMode } = useOrderMode();
+  const cartBadgeCount = getCartBadgeCount(
+    cartItems.reduce((sum, entry) => sum + entry.cartQuantity, 0),
+    orderMode
+  );
   const { getAuthHeaders } = useAuth();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -333,9 +340,11 @@ export default function ShopScreen() {
           </Pressable>
           <Pressable style={styles.iconButton} onPress={() => router.push('/(tabs)/cart')}>
             <MaterialIcons name="shopping-cart" size={22} color={colors.primary} />
-            {itemCount > 0 && (
+            {cartBadgeCount > 0 && (
               <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{itemCount > 99 ? '99+' : itemCount}</Text>
+                <Text style={styles.cartBadgeText}>
+                  {cartBadgeCount > 99 ? '99+' : cartBadgeCount}
+                </Text>
               </View>
             )}
           </Pressable>

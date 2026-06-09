@@ -13,6 +13,7 @@ import {
 
 import { clearServerCart, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
+import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { useAuth } from '@/lib/auth';
 import type { CartItem, LensItem } from '@/lib/types/lens';
 
@@ -289,7 +290,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   );
 
   const totalPrice = useMemo(
-    () => items.reduce((sum, entry) => sum + entry.price * entry.cartQuantity, 0),
+    () =>
+      items.reduce(
+        (sum, entry) => sum + lineTotalForPieceQuantity(entry.price, entry.cartQuantity),
+        0
+      ),
     [items]
   );
 

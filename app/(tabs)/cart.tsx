@@ -57,7 +57,7 @@ export default function CartTabScreen() {
     notes?: string;
   } | null>(null);
 
-  const summary = getCartSummary(items);
+  const summary = getCartSummary(items, orderMode);
 
   async function handleOrderModeChange(nextMode: OrderMode) {
     if (nextMode === orderMode || switchingOrderMode) {
@@ -240,6 +240,7 @@ export default function CartTabScreen() {
               <CustomerCartDetail
                 items={items}
                 companyName={user?.businessName ?? user?.name}
+                orderMode={orderMode}
                 onIncrease={(cartLineId) => {
                   void adjustQuantity(cartLineId, quantityStep);
                 }}
@@ -274,7 +275,8 @@ export default function CartTabScreen() {
               <View>
                 <Text style={styles.summaryLabel}>
                   {summary.productCount} product{summary.productCount === 1 ? '' : 's'} ·{' '}
-                  {summary.pairCount} pair{summary.pairCount === 1 ? '' : 's'}
+                  {summary.pairCount} {isWholesale ? 'pair' : 'pc'}
+                  {summary.pairCount === 1 ? '' : 's'}
                 </Text>
                 <Text style={styles.summaryTotal}>₹{totalPrice.toLocaleString('en-IN')}</Text>
               </View>

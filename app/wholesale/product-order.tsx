@@ -28,6 +28,7 @@ import {
 import { formatAxisValue, formatLensItemCoatingSummary } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
+import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import {
@@ -448,7 +449,10 @@ export default function WholesaleProductOrderScreen() {
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
-            <Text style={styles.summaryPrice}>₹{item.price} / pc</Text>
+            <Text style={styles.summaryPrice}>
+              ₹{item.price}
+              {LENS_PRICE_PER_PAIR_LABEL}
+            </Text>
             <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
           </View>
 

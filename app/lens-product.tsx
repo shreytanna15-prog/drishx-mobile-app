@@ -38,6 +38,7 @@ import {
   formatLensItemCoatingSummary,
   isSameLensPower,
 } from '@/lib/lens-display';
+import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { fetchRelatedLenses } from '@/lib/lenses-api';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
@@ -393,7 +394,10 @@ export default function LensProductScreen() {
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryType}>{lensType}</Text>
-            <Text style={styles.summaryPrice}>₹{item.price} / pc</Text>
+            <Text style={styles.summaryPrice}>
+              ₹{item.price}
+              {LENS_PRICE_PER_PAIR_LABEL}
+            </Text>
           </View>
 
           <Text style={styles.sectionTitle}>Details</Text>

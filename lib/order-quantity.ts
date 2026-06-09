@@ -3,6 +3,28 @@ export type QuantityUnit = 'piece' | 'pair';
 
 export const PIECES_PER_PAIR = 2;
 
+/** Cart/API store lens quantity in pieces; wholesale UI shows pairs. */
+export function pairsFromPieces(pieces: number): number {
+  if (!Number.isInteger(pieces) || pieces < 1) {
+    return 0;
+  }
+  return Math.floor(pieces / PIECES_PER_PAIR);
+}
+
+export function displayQuantityFromPieces(
+  pieces: number,
+  mode: OrderQuantityMode
+): number {
+  if (!Number.isInteger(pieces) || pieces < 1) {
+    return 0;
+  }
+  return mode === 'wholesale' ? pairsFromPieces(pieces) : pieces;
+}
+
+export function getCartBadgeCount(piecesTotal: number, mode: OrderQuantityMode): number {
+  return displayQuantityFromPieces(piecesTotal, mode);
+}
+
 export function getDefaultQuantityUnit(mode: OrderQuantityMode): QuantityUnit {
   return mode === 'wholesale' ? 'pair' : 'piece';
 }

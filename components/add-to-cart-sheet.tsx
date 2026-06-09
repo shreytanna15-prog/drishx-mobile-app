@@ -26,6 +26,7 @@ import {
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
 import { formatLensItemCoatingSummary } from '@/lib/lens-display';
+import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem, LensType } from '@/lib/types/lens';
 
 
@@ -198,7 +199,10 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
               <Text style={styles.summaryMeta} numberOfLines={2}>
                 {formatLensItemCoatingSummary(item)}
               </Text>
-              <Text style={styles.summaryPrice}>₹{item.price} each</Text>
+              <Text style={styles.summaryPrice}>
+                ₹{item.price}
+                {LENS_PRICE_PER_PAIR_LABEL}
+              </Text>
             </View>
 
             <Text style={styles.sectionTitle}>Prescription</Text>

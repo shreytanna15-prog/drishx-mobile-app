@@ -9,11 +9,13 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import type { CartPowerLine, CartProductSection } from '@/lib/cart-display';
 import { buildCartProductSections, getCartSummary } from '@/lib/cart-display';
+import type { OrderQuantityMode } from '@/lib/order-quantity';
 import type { CartItem } from '@/lib/types/lens';
 
 type CustomerCartDetailProps = {
   items: CartItem[];
   companyName?: string | null;
+  orderMode?: OrderQuantityMode;
   onIncrease: (cartLineId: string) => void;
   onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
@@ -72,11 +74,15 @@ function CartPowerRow({
 
 function CartProductSectionCard({
   section,
+  isWholesale,
+  qtyColumnLabel,
   onIncrease,
   onDecrease,
   onRemove,
 }: {
   section: CartProductSection;
+  isWholesale: boolean;
+  qtyColumnLabel: string;
   onIncrease: (cartLineId: string) => void;
   onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
@@ -102,7 +108,9 @@ function CartProductSectionCard({
           </View>
         </View>
         <View style={styles.productHeaderRight}>
-          <Text style={styles.productPairs}>{section.totalPairs} pr</Text>
+          <Text style={styles.productPairs}>
+            {section.totalPairs} {isWholesale ? 'pr' : 'pc'}
+          </Text>
           <MaterialIcons
             name={expanded ? 'expand-less' : 'expand-more'}
             size={20}
@@ -115,7 +123,7 @@ function CartProductSectionCard({
         <View style={styles.tableWrap}>
           <View style={styles.tableHead}>
             <Text style={[styles.tableHeadText, styles.colPowerHead]}>SPH / CYL</Text>
-            <Text style={[styles.tableHeadText, styles.colQtyHead]}>Qty</Text>
+            <Text style={[styles.tableHeadText, styles.colQtyHead]}>{qtyColumnLabel}</Text>
             <Text style={[styles.tableHeadText, styles.colAmountHead]}>Amt</Text>
           </View>
           {section.lines.map((line) => (
@@ -136,13 +144,16 @@ function CartProductSectionCard({
 export function CustomerCartDetail({
   items,
   companyName,
+  orderMode = 'retail',
   onIncrease,
   onDecrease,
   onRemove,
 }: CustomerCartDetailProps) {
   const styles = useThemedStyles(createStyles);
-  const sections = buildCartProductSections(items);
-  const { productCount, pairCount, totalAmount } = getCartSummary(items);
+  const isWholesale = orderMode === 'wholesale';
+  const sections = buildCartProductSections(items, orderMode);
+  const { productCount, pairCount, totalAmount } = getCartSummary(items, orderMode);
+  const qtyColumnLabel = isWholesale ? 'Pairs' : 'Qty';
 
   return (
     <View style={styles.wrap}>
@@ -160,7 +171,7 @@ export function CustomerCartDetail({
           <View style={styles.statDivider} />
           <View style={styles.statCell}>
             <Text style={styles.statValue}>{pairCount}</Text>
-            <Text style={styles.statLabel}>Pairs</Text>
+            <Text style={styles.statLabel}>{isWholesale ? 'Pairs' : 'Qty'}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCell}>
@@ -175,6 +186,8 @@ export function CustomerCartDetail({
         <CartProductSectionCard
           key={section.key}
           section={section}
+          isWholesale={isWholesale}
+          qtyColumnLabel={qtyColumnLabel}
           onIncrease={onIncrease}
           onDecrease={onDecrease}
           onRemove={onRemove}

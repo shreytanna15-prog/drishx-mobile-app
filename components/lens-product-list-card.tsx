@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
+import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem } from '@/lib/types/lens';
 
 type LensProductListCardProps = {
@@ -30,8 +31,11 @@ export function LensProductListCard({ item, onPress, showLensType = false }: Len
           <Text style={styles.powerMetaText}>{addAxis}</Text>
         </View>
         <View style={styles.priceBlock}>
-          <Text style={styles.priceCurrency}>₹</Text>
-          <Text style={styles.priceAmount}>{item.price}</Text>
+          <Text style={styles.priceAmount}>
+            <Text style={styles.priceCurrency}>₹</Text>
+            {item.price}
+            <Text style={styles.priceUnit}>{LENS_PRICE_PER_PAIR_LABEL}</Text>
+          </Text>
         </View>
       </View>
 
@@ -93,22 +97,26 @@ const createStyles = (c: BrandColorScheme) =>
       lineHeight: 16,
     },
     priceBlock: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'flex-end',
       flexShrink: 0,
+      maxWidth: 88,
+    },
+    priceAmount: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: c.primary,
+      lineHeight: 20,
+      textAlign: 'right',
     },
     priceCurrency: {
       fontSize: 13,
       fontWeight: '700',
       color: c.primary,
-      marginTop: 1,
-      marginRight: 1,
     },
-    priceAmount: {
-      fontSize: 17,
-      fontWeight: '800',
-      color: c.primary,
-      lineHeight: 21,
+    priceUnit: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: c.textMuted,
     },
     categoryText: {
       fontSize: 12,

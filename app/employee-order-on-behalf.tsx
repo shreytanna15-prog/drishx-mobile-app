@@ -20,6 +20,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { fetchCustomerCompanies, type CustomerCompany } from '@/lib/customers-api';
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
+import { LENS_PRICE_PER_PAIR_LABEL, lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { consumePendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import { createOrderFromLens, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -152,7 +153,11 @@ export default function EmployeeOrderOnBehalfScreen() {
   }, [step, activeFilter, debouncedProductSearch, loadProducts]);
 
   const totalAmount = useMemo(
-    () => selectedLines.reduce((sum, line) => sum + line.quantity * line.lens.price, 0),
+    () =>
+      selectedLines.reduce(
+        (sum, line) => sum + lineTotalForPieceQuantity(line.lens.price, line.quantity),
+        0
+      ),
     [selectedLines]
   );
 
@@ -372,7 +377,8 @@ export default function EmployeeOrderOnBehalfScreen() {
                       <View key={line.lens.id} style={styles.selectedCard}>
                         <Text style={styles.choiceTitle}>{formatLensLabel(line.lens)}</Text>
                         <Text style={styles.choiceMeta}>
-                          {line.lens.lensType ?? 'Lens'} · ₹{line.lens.price} each
+                          {line.lens.lensType ?? 'Lens'} · ₹{line.lens.price}
+                          {LENS_PRICE_PER_PAIR_LABEL}
                         </Text>
                         <View style={styles.qtyRow}>
                           <Pressable
@@ -386,7 +392,9 @@ export default function EmployeeOrderOnBehalfScreen() {
                             onPress={() => updateLineQuantity(line.lens.id, line.quantity + 1)}>
                             <MaterialIcons name="add" size={18} color={colors.primary} />
                           </Pressable>
-                          <Text style={styles.lineTotal}>₹{line.quantity * line.lens.price}</Text>
+                          <Text style={styles.lineTotal}>
+                            ₹{lineTotalForPieceQuantity(line.lens.price, line.quantity)}
+                          </Text>
                         </View>
                       </View>
                     ))}

@@ -1,5 +1,11 @@
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { formatAddValue, formatLensItemLabel } from '@/lib/lens-display';
+import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
+import {
+  displayQuantityFromPieces,
+  pairsFromPieces,
+  type OrderQuantityMode,
+} from '@/lib/order-quantity';
 import type { CartItem } from '@/lib/types/lens';
 
 export type CartPowerLine = {
@@ -52,7 +58,7 @@ function formatExpiresIn(expiresAt?: string): string | null {
   return `Reserved · ${Math.ceil(minutes / 60)}h left`;
 }
 
-function getBackorderNote(item: CartItem): string | null {
+function getBackorderNote(item: CartItem, mode: OrderQuantityMode): string | null {
   const backorder =
     item.isBackorder ||
     (item.reservedQuantity !== undefined && item.reservedQuantity < item.cartQuantity);
@@ -61,30 +67,36 @@ function getBackorderNote(item: CartItem): string | null {
   if (item.reservedQuantity === 0) {
     return 'Out of stock — will be placed for procurement';
   }
-  const toProcure = item.cartQuantity - (item.reservedQuantity ?? 0);
-  return `${item.reservedQuantity} reserved · ${toProcure} to procure`;
+  const toProcurePieces = item.cartQuantity - (item.reservedQuantity ?? 0);
+  const reservedLabel = displayQuantityFromPieces(item.reservedQuantity ?? 0, mode);
+  const toProcureLabel = displayQuantityFromPieces(toProcurePieces, mode);
+  return `${reservedLabel} reserved · ${toProcureLabel} to procure`;
 }
 
-export function buildCartProductSections(items: CartItem[]): CartProductSection[] {
+export function buildCartProductSections(
+  items: CartItem[],
+  mode: OrderQuantityMode = 'retail'
+): CartProductSection[] {
   const sections = new Map<string, CartProductSection>();
 
   for (const item of items) {
     const meta = getCartProductMeta(item);
+    const displayQty = displayQuantityFromPieces(item.cartQuantity, mode);
     const line: CartPowerLine = {
       cartLineId: item.cartLineId,
       sphCylLabel: formatSphCyl(item),
       eye: item.eye,
-      quantity: item.cartQuantity,
-      lineTotal: item.price * item.cartQuantity,
+      quantity: displayQty,
+      lineTotal: lineTotalForPieceQuantity(item.price, item.cartQuantity),
       reserveLabel: formatExpiresIn(item.expiresAt),
-      isBackorder: Boolean(getBackorderNote(item)),
-      backorderNote: getBackorderNote(item),
+      isBackorder: Boolean(getBackorderNote(item, mode)),
+      backorderNote: getBackorderNote(item, mode),
     };
 
     const existing = sections.get(meta.key);
     if (existing) {
       existing.lines.push(line);
-      existing.totalPairs += item.cartQuantity;
+      existing.totalPairs += displayQty;
       continue;
     }
 
@@ -92,7 +104,7 @@ export function buildCartProductSections(items: CartItem[]): CartProductSection[
       key: meta.key,
       title: meta.title,
       subtitle: meta.subtitle,
-      totalPairs: item.cartQuantity,
+      totalPairs: displayQty,
       lines: [line],
     });
   }
@@ -103,9 +115,16 @@ export function buildCartProductSections(items: CartItem[]): CartProductSection[
   }));
 }
 
-export function getCartSummary(items: CartItem[]) {
-  const productCount = buildCartProductSections(items).length;
-  const pairCount = items.reduce((sum, item) => sum + item.cartQuantity, 0);
-  const totalAmount = items.reduce((sum, item) => sum + item.price * item.cartQuantity, 0);
-  return { productCount, pairCount, totalAmount };
+export function getCartSummary(items: CartItem[], mode: OrderQuantityMode = 'retail') {
+  const productCount = buildCartProductSections(items, mode).length;
+  const pieceCount = items.reduce((sum, item) => sum + item.cartQuantity, 0);
+  const pairCount =
+    mode === 'wholesale'
+      ? items.reduce((sum, item) => sum + pairsFromPieces(item.cartQuantity), 0)
+      : pieceCount;
+  const totalAmount = items.reduce(
+    (sum, item) => sum + lineTotalForPieceQuantity(item.price, item.cartQuantity),
+    0
+  );
+  return { productCount, pairCount, pieceCount, totalAmount };
 }

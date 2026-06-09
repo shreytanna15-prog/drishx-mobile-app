@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
+import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem } from '@/lib/types/lens';
 
 export function RelatedLensCard({
@@ -37,7 +38,10 @@ export function RelatedLensCard({
           <Text style={styles.powerText}>{sphCyl}</Text>
           <Text style={styles.metaText}>{addAxis}</Text>
         </View>
-        <Text style={styles.price}>₹{item.price}</Text>
+        <Text style={styles.price}>
+          ₹{item.price}
+          {LENS_PRICE_PER_PAIR_LABEL}
+        </Text>
       </View>
     </Pressable>
   );
