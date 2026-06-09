@@ -48,7 +48,11 @@ import {
   yieldToUi,
   type BuildMatrixParams,
 } from '@/lib/wholesale-matrix';
-import { buildPowerList, type WholesaleGridMode } from '@/lib/wholesale-powers';
+import {
+  buildPowerList,
+  defaultWholesaleGridMode,
+  resolveWholesalePowerProfile,
+} from '@/lib/wholesale-powers';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -100,12 +104,17 @@ export default function WholesaleProductOrderScreen() {
     () => (item ? resolveWholesaleBoundOptions(item) : { sph: [], cyl: [], add: [] }),
     [item]
   );
+  const powerProfile = useMemo(
+    () => (item ? resolveWholesalePowerProfile(item) : 'compound'),
+    [item]
+  );
+  const gridMode = useMemo(() => defaultWholesaleGridMode(powerProfile), [powerProfile]);
+  const showSphRange = powerProfile !== 'cyl-only';
+  const showCylRange = powerProfile !== 'sph-only';
 
   useEffect(() => {
     setMode('wholesale');
   }, [setMode]);
-
-  const [mode, setModeState] = useState<WholesaleGridMode>('compound');
 
   const [sphFrom, setSphFrom] = useState(0);
   const [sphTo, setSphTo] = useState(0);
@@ -158,18 +167,21 @@ export default function WholesaleProductOrderScreen() {
     if (!selectableRange) {
       return null;
     }
-    const sphOpts = selectableRange.sph.options;
-    const sphStart = sphOpts[0] ?? selectableRange.sph.min;
-    const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
-    let hint = `SPH ${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)}`;
-    if (selectableRange.cyl?.options.length) {
+    const parts: string[] = [];
+    if (powerProfile !== 'cyl-only') {
+      const sphOpts = selectableRange.sph.options;
+      const sphStart = sphOpts[0] ?? selectableRange.sph.min;
+      const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
+      parts.push(`SPH ${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)}`);
+    }
+    if (powerProfile !== 'sph-only' && selectableRange.cyl?.options.length) {
       const cylOpts = selectableRange.cyl.options;
       const cylStart = cylOpts[0] ?? selectableRange.cyl.min;
       const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
-      hint += ` · CYL ${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)}`;
+      parts.push(`CYL ${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)}`);
     }
-    return hint;
-  }, [selectableRange]);
+    return parts.length > 0 ? parts.join(' · ') : null;
+  }, [powerProfile, selectableRange]);
 
   const sphList = useMemo(() => {
     if (!Number.isFinite(sphStep) || sphStep <= 0) return [];
@@ -194,7 +206,7 @@ export default function WholesaleProductOrderScreen() {
 
   const matrixParams = useMemo(
     (): BuildMatrixParams => ({
-      mode,
+      mode: gridMode,
       isBifocalLens,
       isSingleVision,
       sphList,
@@ -202,7 +214,7 @@ export default function WholesaleProductOrderScreen() {
       addList,
       selectedAxis,
     }),
-    [addList, cylList, isBifocalLens, isSingleVision, mode, selectedAxis, sphList]
+    [addList, cylList, gridMode, isBifocalLens, isSingleVision, selectedAxis, sphList]
   );
 
   const matrixSpec = useMemo(
@@ -241,7 +253,7 @@ export default function WholesaleProductOrderScreen() {
   useEffect(() => {
     setVisibleRowCount(MATRIX_INITIAL_ROWS);
     setVisibleColCount(MATRIX_INITIAL_COLS);
-  }, [mode]);
+  }, [powerProfile]);
 
   const title = item ? `${item.brand || 'Lens'} • Wholesale` : 'Wholesale';
 
@@ -261,39 +273,20 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
-    if (mode === 'sph-only') {
-      if (sphList.length === 0) {
-        setError('Enter a valid SPH range and step.');
-        setGenerating(false);
-        return;
-      }
-      if (isBifocalLens && addList.length === 0) {
-        setError('Enter a valid ADD range (+1 to +3) and step.');
-        setGenerating(false);
-        return;
-      }
-    } else if (mode === 'cyl-only') {
-      if (cylList.length === 0) {
-        setError('Enter a valid CYL range and step.');
-        setGenerating(false);
-        return;
-      }
-      if (isBifocalLens && addList.length === 0) {
-        setError('Enter a valid ADD range (+1 to +3) and step.');
-        setGenerating(false);
-        return;
-      }
-    } else {
-      if (sphList.length === 0 || cylList.length === 0) {
-        setError('Enter valid SPH and CYL ranges and steps.');
-        setGenerating(false);
-        return;
-      }
-      if (isBifocalLens && addList.length === 0) {
-        setError('Enter a valid ADD range (+1 to +3) and step.');
-        setGenerating(false);
-        return;
-      }
+    if (showSphRange && sphList.length === 0) {
+      setError('Enter a valid SPH range and step.');
+      setGenerating(false);
+      return;
+    }
+    if (showCylRange && cylList.length === 0) {
+      setError('Enter a valid CYL range and step.');
+      setGenerating(false);
+      return;
+    }
+    if (isBifocalLens && addList.length === 0) {
+      setError('Enter a valid ADD range (+1 to +3) and step.');
+      setGenerating(false);
+      return;
     }
 
     await yieldToUi();
@@ -456,25 +449,6 @@ export default function WholesaleProductOrderScreen() {
             <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
           </View>
 
-          <Text style={styles.sectionTitle}>Order type</Text>
-          <View style={styles.toggleRow}>
-            <Pressable
-              style={[styles.toggleBtn, mode === 'sph-only' && styles.toggleBtnActive]}
-              onPress={() => setModeState('sph-only')}>
-              <Text style={[styles.toggleText, mode === 'sph-only' && styles.toggleTextActive]}>SPH only</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.toggleBtn, mode === 'cyl-only' && styles.toggleBtnActive]}
-              onPress={() => setModeState('cyl-only')}>
-              <Text style={[styles.toggleText, mode === 'cyl-only' && styles.toggleTextActive]}>CYL only</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.toggleBtn, mode === 'compound' && styles.toggleBtnActive]}
-              onPress={() => setModeState('compound')}>
-              <Text style={[styles.toggleText, mode === 'compound' && styles.toggleTextActive]}>Compound</Text>
-            </Pressable>
-          </View>
-
           {isProgressive ? (
             <>
               <Text style={styles.sectionTitle}>Eye</Text>
@@ -499,7 +473,7 @@ export default function WholesaleProductOrderScreen() {
           <Text style={styles.sectionTitle}>Ranges</Text>
           {rangeHint ? <Text style={styles.rangeHint}>{rangeHint}</Text> : null}
 
-          {(mode === 'sph-only' || mode === 'compound') ? (
+          {showSphRange ? (
             <View style={styles.rangeCard}>
               <Text style={styles.rangeTitle}>SPH</Text>
               <WholesaleRangePicker
@@ -514,7 +488,7 @@ export default function WholesaleProductOrderScreen() {
             </View>
           ) : null}
 
-          {(mode === 'cyl-only' || mode === 'compound') ? (
+          {showCylRange ? (
             <View style={styles.rangeCard}>
               <Text style={styles.rangeTitle}>CYL</Text>
               <WholesaleRangePicker

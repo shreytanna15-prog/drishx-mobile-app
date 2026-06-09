@@ -101,3 +101,48 @@ export function countCompoundCombos(sphList: number[], cylList: number[]): numbe
 /** @deprecated Use countCompoundCombos */
 export const countSvCompoundCombos = countCompoundCombos;
 
+export type WholesalePowerProfile = 'sph-only' | 'cyl-only' | 'compound';
+
+function hasMeaningfulPower(value: number | null | undefined): boolean {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  return Math.abs(Number(value)) > 1e-9;
+}
+
+/**
+ * Catalog row shape: -5/— or -5/0 → SPH only; —/-2 or 0/-2 → CYL only; +2/-2 → compound.
+ */
+export function resolveWholesalePowerProfile(item: {
+  sph: number;
+  cyl?: number | null;
+}): WholesalePowerProfile {
+  const hasSph = hasMeaningfulPower(item.sph);
+  const hasCyl = hasMeaningfulPower(item.cyl);
+
+  if (hasSph && !hasCyl) {
+    return 'sph-only';
+  }
+  if (hasCyl && !hasSph) {
+    return 'cyl-only';
+  }
+  return 'compound';
+}
+
+export function getAvailableWholesaleGridModes(
+  profile: WholesalePowerProfile
+): WholesaleGridMode[] {
+  switch (profile) {
+    case 'sph-only':
+      return ['sph-only'];
+    case 'cyl-only':
+      return ['cyl-only'];
+    case 'compound':
+      return ['sph-only', 'cyl-only', 'compound'];
+  }
+}
+
+export function defaultWholesaleGridMode(profile: WholesalePowerProfile): WholesaleGridMode {
+  return profile === 'compound' ? 'compound' : profile;
+}
+
