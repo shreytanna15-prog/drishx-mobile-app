@@ -21,6 +21,8 @@ export type OrderRecord = {
   orderImageUrl?: string | null;
   lensType: ApiLensType;
   quantity: number;
+  reservedQuantity?: number;
+  pickedQuantity?: number;
   unitPrice: number | string;
   totalAmount: number | string;
   status: OrderTrackingStatus;
@@ -157,7 +159,6 @@ export async function createOrderFromLens(
     cartLineId: lens.id,
     cartLineKey: lens.id,
     cartQuantity: safeQuantity,
-    reservedQuantity: safeQuantity,
     isBackorder: false,
   };
 

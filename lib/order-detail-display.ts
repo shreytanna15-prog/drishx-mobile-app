@@ -100,9 +100,20 @@ function formatSphCyl(order: OrderRecord): string {
 export function getLinePickInfo(order: OrderRecord): { ordered: number; picked: number; pickState: PickState } {
   const status = normalizeOrderStatus(order.status);
   const ordered = Math.max(1, Number(order.quantity) || 1);
+  const pickedFromOrder =
+    typeof order.pickedQuantity === 'number' && Number.isFinite(order.pickedQuantity)
+      ? Math.max(0, Math.min(ordered, Math.floor(order.pickedQuantity)))
+      : null;
 
   if (status === 'CANCELLED') {
     return { ordered, picked: 0, pickState: 'cancelled' };
+  }
+
+  if (pickedFromOrder !== null && pickedFromOrder > 0) {
+    if (pickedFromOrder >= ordered) {
+      return { ordered, picked: ordered, pickState: 'full' };
+    }
+    return { ordered, picked: pickedFromOrder, pickState: 'partial' };
   }
 
   if (status === 'COMPLETED' || status === 'DISPATCHED' || status === 'PACKED') {

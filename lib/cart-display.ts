@@ -49,30 +49,6 @@ function formatSphCyl(item: CartItem): string {
   return item.add != null ? `${sphCyl} · ADD ${formatAddValue(item.add)}` : sphCyl;
 }
 
-function formatExpiresIn(expiresAt?: string): string | null {
-  if (!expiresAt) return null;
-  const ms = new Date(expiresAt).getTime() - Date.now();
-  if (ms <= 0) return 'Reservation expired';
-  const minutes = Math.ceil(ms / 60000);
-  if (minutes < 60) return `Reserved · ${minutes}m left`;
-  return `Reserved · ${Math.ceil(minutes / 60)}h left`;
-}
-
-function getBackorderNote(item: CartItem, mode: OrderQuantityMode): string | null {
-  const backorder =
-    item.isBackorder ||
-    (item.reservedQuantity !== undefined && item.reservedQuantity < item.cartQuantity);
-
-  if (!backorder) return null;
-  if (item.reservedQuantity === 0) {
-    return 'Out of stock — will be placed for procurement';
-  }
-  const toProcurePieces = item.cartQuantity - (item.reservedQuantity ?? 0);
-  const reservedLabel = displayQuantityFromPieces(item.reservedQuantity ?? 0, mode);
-  const toProcureLabel = displayQuantityFromPieces(toProcurePieces, mode);
-  return `${reservedLabel} reserved · ${toProcureLabel} to procure`;
-}
-
 export function buildCartProductSections(
   items: CartItem[],
   mode: OrderQuantityMode = 'retail'
@@ -88,9 +64,9 @@ export function buildCartProductSections(
       eye: item.eye,
       quantity: displayQty,
       lineTotal: lineTotalForPieceQuantity(item.price, item.cartQuantity),
-      reserveLabel: formatExpiresIn(item.expiresAt),
-      isBackorder: Boolean(getBackorderNote(item, mode)),
-      backorderNote: getBackorderNote(item, mode),
+      reserveLabel: null,
+      isBackorder: false,
+      backorderNote: null,
     };
 
     const existing = sections.get(meta.key);

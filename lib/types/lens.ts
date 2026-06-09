@@ -40,7 +40,7 @@ export type CartItem = LensItem & {
   cartLineId: string;
   cartLineKey: string;
   cartQuantity: number;
-  /** Units actually held from inventory (0 = full backorder). */
+  /** Legacy field — cart no longer holds stock; reservation happens at order placement. */
   reservedQuantity?: number;
   isBackorder?: boolean;
   expiresAt?: string;

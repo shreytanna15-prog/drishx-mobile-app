@@ -76,9 +76,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         cartLineId,
         cartLineKey: cartLineId,
         cartQuantity: nextQty,
-        reservedQuantity: existing?.reservedQuantity,
-        isBackorder: existing?.isBackorder,
-        expiresAt: existing?.expiresAt ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+        reservedQuantity: 0,
+        isBackorder: false,
       };
 
       setItems((current) => {
@@ -257,7 +256,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           );
         }
       } catch {
-        // If something fails (stock/reservation), resync from server.
+        // If something fails, resync from server.
         await refreshCart();
       } finally {
         // Allow UI to continue; syncing is only for optional indicators.
