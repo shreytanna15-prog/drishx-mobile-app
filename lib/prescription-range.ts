@@ -1,4 +1,5 @@
 import type { LensItem, PowerAxisRange, SelectableRange } from '@/lib/types/lens';
+import { resolveWholesalePowerProfile } from '@/lib/wholesale-powers';
 
 const POWER_STEP = 0.25;
 
@@ -77,6 +78,33 @@ function resolveProductCylRange(cylMax: number): PowerAxisRange {
   return { min: 0, max, options };
 }
 
+export function dropZeroFromPowerOptions(options: number[]): number[] {
+  const withoutZero = options.filter((value) => Math.abs(value) > 1e-9);
+  return withoutZero.length > 0 ? withoutZero : options;
+}
+
+/** Kryptok / Progressive CYL-only rows cannot use 0.00; Single Vision may include 0. */
+function applyCylPickerRules(item: LensItem, cylRange: PowerAxisRange): PowerAxisRange {
+  const isBifocalLens = item.lensType === 'Kryptok' || item.lensType === 'Progressive';
+  if (!isBifocalLens || resolveWholesalePowerProfile(item) !== 'cyl-only') {
+    return cylRange;
+  }
+
+  const options = dropZeroFromPowerOptions(cylRange.options);
+  return {
+    min: options[0] ?? cylRange.min,
+    max: options[options.length - 1] ?? cylRange.max,
+    options,
+  };
+}
+
+function withCylPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
+  if (!range.cyl) {
+    return range;
+  }
+  return { ...range, cyl: applyCylPickerRules(item, range.cyl) };
+}
+
 /** API range when present; otherwise 0 → product max in 0.25 steps. */
 export function resolveSelectableRange(item: LensItem): SelectableRange {
   if (item.selectableRange?.sph.options.length) {
@@ -85,10 +113,10 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
     // API tiers can narrow CYL to a single value for high SPH rows (e.g. -2 only).
     // Always expose the full product-card CYL range so users can scroll 0 → max CYL.
     if (item.cyl != null) {
-      return {
+      return withCylPickerRules(item, {
         ...normalized,
         cyl: resolveProductCylRange(item.cyl),
-      };
+      });
     }
 
     return normalized;
@@ -99,11 +127,10 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
   const sphOptions = generatePowerOptions(sphMin, sphMax);
 
   if (item.cyl != null) {
-    const cylRange = resolveProductCylRange(item.cyl);
-    return {
+    return withCylPickerRules(item, {
       sph: { min: sphMin, max: sphMax, options: sphOptions },
-      cyl: cylRange,
-    };
+      cyl: resolveProductCylRange(item.cyl),
+    });
   }
 
   return {

@@ -174,14 +174,14 @@ export default function WholesaleProductOrderScreen() {
       const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
       parts.push(`SPH ${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)}`);
     }
-    if (powerProfile !== 'sph-only' && selectableRange.cyl?.options.length) {
-      const cylOpts = selectableRange.cyl.options;
-      const cylStart = cylOpts[0] ?? selectableRange.cyl.min;
-      const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
+    if (powerProfile !== 'sph-only' && boundOptions.cyl.length > 0) {
+      const cylOpts = boundOptions.cyl;
+      const cylStart = cylOpts[0]!;
+      const cylEnd = cylOpts[cylOpts.length - 1]!;
       parts.push(`CYL ${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)}`);
     }
     return parts.length > 0 ? parts.join(' · ') : null;
-  }, [powerProfile, selectableRange]);
+  }, [boundOptions.cyl, powerProfile, selectableRange]);
 
   const sphList = useMemo(() => {
     if (!Number.isFinite(sphStep) || sphStep <= 0) return [];

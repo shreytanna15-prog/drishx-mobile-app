@@ -13,7 +13,7 @@ export type WholesaleBoundOptions = {
 /** Scroll bounds for wholesale range pickers, derived from the product card range. */
 export function resolveWholesaleBoundOptions(item: LensItem): WholesaleBoundOptions {
   const range = resolveSelectableRange(item);
-  const addMax = item.add != null && item.add > 0 ? item.add : 3;
+  const addMax = item.add != null && item.add > 0 ? Math.min(3, item.add) : 3;
 
   return {
     sph: range.sph.options,
