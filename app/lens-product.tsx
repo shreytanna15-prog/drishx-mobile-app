@@ -32,7 +32,12 @@ import {
   validateDisplayQuantityForMode,
   type QuantityUnit,
 } from '@/lib/order-quantity';
-import { formatAddValue, formatAxisValue, isSameLensPower } from '@/lib/lens-display';
+import {
+  formatAddValue,
+  formatAxisValue,
+  formatLensItemCoatingSummary,
+  isSameLensPower,
+} from '@/lib/lens-display';
 import { fetchRelatedLenses } from '@/lib/lenses-api';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
@@ -386,7 +391,7 @@ export default function LensProductScreen() {
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
-            <Text style={styles.summaryMeta}>{[item.item, item.coating].filter(Boolean).join(' · ') || 'Standard'}</Text>
+            <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryType}>{lensType}</Text>
             <Text style={styles.summaryPrice}>₹{item.price} / pc</Text>
           </View>

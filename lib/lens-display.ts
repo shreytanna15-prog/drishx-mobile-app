@@ -26,6 +26,42 @@ export function formatSphCylSlash(item: { sph: number; cyl?: number | null }): s
   return `${formatPowerLabel(item.sph)}/${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
 }
 
+function isSpecialColorsItem(item: string | null | undefined): boolean {
+  return item?.trim().replace(/\s+/g, ' ').toLowerCase() === 'special colors';
+}
+
+/** Card label — show actual color/coating instead of the generic SPECIAL COLORS item name. */
+export function formatLensItemLabel(item: {
+  item?: string | null;
+  coating?: string | null;
+}): string {
+  const itemText = item.item?.trim() ?? '';
+  const coatingText = item.coating?.trim() ?? '';
+
+  if (isSpecialColorsItem(itemText)) {
+    return coatingText || 'Standard Lens';
+  }
+
+  return itemText || coatingText || 'Standard Lens';
+}
+
+/** Summary line for product detail and cart — omits redundant SPECIAL COLORS. */
+export function formatLensItemCoatingSummary(item: {
+  item?: string | null;
+  coating?: string | null;
+}): string {
+  const itemText = item.item?.trim() ?? '';
+  const coatingText = item.coating?.trim() ?? '';
+
+  if (isSpecialColorsItem(itemText)) {
+    return coatingText || 'Standard';
+  }
+
+  const parts = [itemText, coatingText].filter(Boolean);
+  const unique = [...new Set(parts)];
+  return unique.join(' · ') || 'Standard';
+}
+
 export function isSameLensPower(
   a: { id?: string; sph: number; cyl?: number | null },
   b: { id?: string; sph: number; cyl?: number | null }

@@ -33,7 +33,7 @@ export function WholesaleQtyMatrix({
 }: WholesaleQtyMatrixProps) {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
-  const rowLabelWidth = 72;
+  const rowLabelWidth = 88;
   const colWidth = visibleCols.length > 4 ? 88 : 76;
 
   const rowItems = useMemo((): MatrixRowItem[] => {
@@ -96,8 +96,9 @@ export function WholesaleQtyMatrix({
         <View>
           <View style={styles.headerRow}>
             <View style={[styles.cornerCell, { width: rowLabelWidth }]}>
-              <Text style={styles.cornerTop}>{spec.rowHeader}</Text>
-              <Text style={styles.cornerBottom}>{spec.colHeader}</Text>
+              <Text style={styles.cornerColLabel}>{spec.colHeader}</Text>
+              <View style={styles.cornerSlashLine} />
+              <Text style={styles.cornerRowLabel}>{spec.rowHeader}</Text>
             </View>
             {visibleCols.map((col) => (
               <View key={`col-${col}`} style={[styles.colHeaderCell, { width: colWidth }]}>
@@ -177,26 +178,44 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.menuRowAlt,
     },
     cornerCell: {
-      paddingHorizontal: 6,
-      paddingVertical: 8,
-      justifyContent: 'center',
+      position: 'relative',
+      minHeight: 44,
+      overflow: 'hidden',
       borderRightWidth: StyleSheet.hairlineWidth,
       borderRightColor: c.cardBorder,
+      backgroundColor: c.menuRowAlt,
     },
-    cornerTop: {
-      fontSize: 9,
-      fontWeight: '700',
-      color: c.label,
+    cornerRowLabel: {
+      position: 'absolute',
+      left: 3,
+      bottom: 4,
+      fontSize: 8,
+      fontWeight: '800',
+      color: c.text,
       textTransform: 'uppercase',
-      letterSpacing: 0.8,
+      letterSpacing: 0.3,
+      maxWidth: '72%',
     },
-    cornerBottom: {
-      fontSize: 9,
-      fontWeight: '700',
-      color: c.textMuted,
+    cornerColLabel: {
+      position: 'absolute',
+      right: 3,
+      top: 4,
+      fontSize: 8,
+      fontWeight: '800',
+      color: c.text,
       textTransform: 'uppercase',
-      letterSpacing: 0.8,
-      marginTop: 2,
+      letterSpacing: 0.3,
+      textAlign: 'right',
+      maxWidth: '72%',
+    },
+    cornerSlashLine: {
+      position: 'absolute',
+      left: -8,
+      bottom: 16,
+      width: 108,
+      height: 2,
+      backgroundColor: c.cardBorder,
+      transform: [{ rotate: '-52deg' }],
     },
     colHeaderCell: {
       paddingHorizontal: 4,
@@ -230,10 +249,11 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.menuRowAlt,
     },
     rowHeaderText: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '800',
       color: c.text,
       textAlign: 'center',
+      lineHeight: 14,
     },
     rowSubLabel: {
       fontSize: 9,

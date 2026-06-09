@@ -25,7 +25,7 @@ import {
   sanitizePositiveIntegerInput,
   formatPowerLabel,
 } from '@/lib/cart-utils';
-import { formatAxisValue } from '@/lib/lens-display';
+import { formatAxisValue, formatLensItemCoatingSummary } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
@@ -447,7 +447,7 @@ export default function WholesaleProductOrderScreen() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
-            <Text style={styles.summaryMeta}>{[item.item, item.coating].filter(Boolean).join(' · ') || 'Standard'}</Text>
+            <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryPrice}>₹{item.price} / pc</Text>
             <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
           </View>

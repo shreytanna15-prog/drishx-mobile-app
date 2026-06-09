@@ -1,5 +1,5 @@
 import { formatPowerLabel } from '@/lib/cart-utils';
-import { formatAddValue } from '@/lib/lens-display';
+import { formatAddValue, formatLensItemLabel } from '@/lib/lens-display';
 import type { CartItem } from '@/lib/types/lens';
 
 export type CartPowerLine = {
@@ -31,7 +31,7 @@ function getCartProductMeta(item: CartItem): { key: string; title: string; subti
   return {
     key: `${lensType}-${item.brand ?? ''}-${item.item ?? ''}-${item.coating ?? ''}`,
     title: item.brand?.trim() || lensType,
-    subtitle: joinParts([lensType, item.item, item.coating]) || lensType,
+    subtitle: joinParts([lensType, formatLensItemLabel(item)]) || lensType,
   };
 }
 

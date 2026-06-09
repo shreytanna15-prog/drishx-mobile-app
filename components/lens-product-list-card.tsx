@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
+import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
 import type { LensItem } from '@/lib/types/lens';
 
 type LensProductListCardProps = {
@@ -15,7 +15,7 @@ export function LensProductListCard({ item, onPress, showLensType = false }: Len
   const styles = useThemedStyles(createStyles);
   const lensType = item.lensType ?? 'Progressive';
   const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
-  const itemName = item.item?.trim() ? item.item.trim() : item.coating?.trim() || 'Standard Lens';
+  const itemName = formatLensItemLabel(item);
   const sphCyl = formatSphCylSlash(item);
   const addAxis = formatAddAxisLabel(item);
 

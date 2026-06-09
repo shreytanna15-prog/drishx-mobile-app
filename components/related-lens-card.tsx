@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatAddAxisLabel, formatSphCylSlash } from '@/lib/lens-display';
+import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
 import type { LensItem } from '@/lib/types/lens';
 
 export function RelatedLensCard({
@@ -18,7 +18,7 @@ export function RelatedLensCard({
     item.index != null && item.lensType === 'Single Vision'
       ? `${Number(item.index)} `
       : '';
-  const itemLabel = item.item?.trim() ? `${item.item.trim()}` : '';
+  const itemLabel = formatLensItemLabel(item);
   const sphCyl = formatSphCylSlash(item);
   const addAxis = formatAddAxisLabel(item);
 

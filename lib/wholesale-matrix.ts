@@ -19,6 +19,7 @@ export type WholesaleMatrixRow = {
   subLabel?: string;
   power?: number;
   sph?: number;
+  cyl?: number;
   add?: number;
 };
 
@@ -96,16 +97,18 @@ function powerRow(value: number): WholesaleMatrixRow {
   return { id: powerKey(value), label: formatPowerLabel(value), power: value };
 }
 
-function compoundBifocalRows(sphList: number[], addList: number[]): WholesaleMatrixRow[] {
+function compoundSphCylPairRows(sphList: number[], cylList: number[]): WholesaleMatrixRow[] {
   const rows: WholesaleMatrixRow[] = [];
   for (const sph of sphList) {
-    for (const add of addList) {
+    for (const cyl of cylList) {
+      if (!isAllowedCompoundCombo(sph, cyl)) {
+        continue;
+      }
       rows.push({
-        id: `${powerKey(sph)}|add:${powerKey(add)}`,
-        label: formatPowerLabel(sph),
-        subLabel: addList.length > 1 ? formatPowerLabel(add) : undefined,
+        id: qtyKeyCompound(sph, cyl),
+        label: `${formatPowerLabel(sph)}/${formatPowerLabel(cyl)}`,
         sph,
-        add,
+        cyl,
       });
     }
   }
@@ -169,17 +172,18 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
     if (sphRows.length === 0) return null;
 
     if (isBifocalLens) {
+      const rows = compoundSphCylPairRows(sphList, cylList);
+      if (rows.length === 0 || addList.length === 0) return null;
       return {
-        rows: compoundBifocalRows(sphRows, addList),
-        cols: cylList,
-        rowHeader: 'SPH',
-        colHeader: 'CYL',
+        rows,
+        cols: addList,
+        rowHeader: 'SPH/CYL',
+        colHeader: 'ADD',
         formatCol: formatPowerLabel,
-        cellsAt: (row, cyl) => {
+        cellsAt: (row, add) => {
           const sph = row.sph;
-          const add = row.add;
-          if (sph == null || add == null) return [];
-          if (!isAllowedCompoundCombo(sph, cyl)) return [];
+          const cyl = row.cyl;
+          if (sph == null || cyl == null) return [];
           return [{ key: qtyKeyCompoundBifocal(sph, cyl, selectedAxis, add) }];
         },
       };

@@ -19,17 +19,40 @@ function roundPower(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * Build wholesale power steps between two bounds.
+ * Negative ranges: 0 toward more negative (e.g. 0, -0.25, …, -6).
+ * Positive ranges: low toward high (e.g. +1, +1.25, …, +3).
+ */
 export function buildPowerList(from: number, to: number, step: number): number[] {
   const safeStep = Math.abs(step);
-  const start = roundPower(Math.min(from, to));
-  const end = roundPower(Math.max(from, to));
+  const a = roundPower(from);
+  const b = roundPower(to);
+  const low = roundPower(Math.min(a, b));
+  const high = roundPower(Math.max(a, b));
 
-  // Guard against infinite loops / huge lists.
   const maxItems = 500;
   const out: number[] = [];
-  let current = start;
-  for (let i = 0; i < maxItems && current <= end + 1e-9; i += 1) {
+  const isNegativeRange = high <= 0 || (low < 0 && high > 0);
+
+  if (isNegativeRange) {
+    let current = high;
+    for (let i = 0; i < maxItems && current >= low - 1e-9; i += 1) {
+      out.push(roundPower(current));
+      if (current <= low + 1e-9) {
+        break;
+      }
+      current = roundPower(current - safeStep);
+    }
+    return out;
+  }
+
+  let current = low;
+  for (let i = 0; i < maxItems && current <= high + 1e-9; i += 1) {
     out.push(roundPower(current));
+    if (current >= high - 1e-9) {
+      break;
+    }
     current = roundPower(current + safeStep);
   }
   return out;

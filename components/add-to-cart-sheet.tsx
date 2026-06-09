@@ -25,6 +25,7 @@ import {
   sanitizeSignedNumericInput,
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
+import { formatLensItemCoatingSummary } from '@/lib/lens-display';
 import type { LensItem, LensType } from '@/lib/types/lens';
 
 
@@ -194,11 +195,9 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
               <Text style={styles.productName} numberOfLines={1}>
                 {item.brand || 'Lens'}
               </Text>
-              {(item.item || item.coating) && (
-                <Text style={styles.summaryMeta} numberOfLines={2}>
-                  {[item.item, item.coating].filter(Boolean).join(' · ')}
-                </Text>
-              )}
+              <Text style={styles.summaryMeta} numberOfLines={2}>
+                {formatLensItemCoatingSummary(item)}
+              </Text>
               <Text style={styles.summaryPrice}>₹{item.price} each</Text>
             </View>
 
