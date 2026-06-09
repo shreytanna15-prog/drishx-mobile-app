@@ -15,13 +15,9 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useCart } from '@/lib/cart';
 import {
   buildCartLineId,
-  canAcceptPrescriptionInput,
   formatPowerLabel,
-  parseNumericInput,
   sanitizePositiveIntegerInput,
-  sanitizeSignedNumericInput,
   validatePrescriptionInRange,
-  validatePrescriptionValue,
 } from '@/lib/cart-utils';
 import { useOrderMode } from '@/lib/order-mode';
 import {
@@ -40,7 +36,7 @@ import {
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { fetchRelatedLenses } from '@/lib/lenses-api';
-import { resolveSelectableRange } from '@/lib/prescription-range';
+import { resolveAddOptions, resolveSelectableRange } from '@/lib/prescription-range';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import type { LensItem } from '@/lib/types/lens';
 
@@ -64,16 +60,18 @@ export default function LensProductScreen() {
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
-  const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
+  const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
+  const addOptions = useMemo(() => (item && showAdd ? resolveAddOptions(item) : []), [item, showAdd]);
 
   const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
   const initialCyl = selectableRange?.cyl?.options[0] ?? item?.cyl ?? 0;
+  const initialAdd = addOptions[0] ?? 1;
 
   const [sph, setSph] = useState<number>(initialSph);
   const [cyl, setCyl] = useState<number>(initialCyl);
-  const [add, setAdd] = useState(item && item.add != null ? formatPowerLabel(item.add) : '');
+  const [add, setAdd] = useState<number>(initialAdd);
   const [qtyUnit, setQtyUnit] = useState<QuantityUnit>(() => getDefaultQuantityUnit(orderMode));
   const [quantity, setQuantity] = useState(() =>
     String(getDefaultDisplayQuantity(orderMode, getDefaultQuantityUnit(orderMode)))
@@ -96,7 +94,7 @@ export default function LensProductScreen() {
     const range = resolveSelectableRange(item);
     setSph(range?.sph.options[0] ?? item.sph);
     setCyl(range?.cyl?.options[0] ?? item.cyl ?? 0);
-    setAdd(item.add != null ? formatPowerLabel(item.add) : '');
+    setAdd(resolveAddOptions(item)[0] ?? 1);
     const unit = getDefaultQuantityUnit(orderMode);
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
@@ -172,13 +170,12 @@ export default function LensProductScreen() {
       return null;
     }
 
-    const parsedAdd = showAdd ? parseNumericInput(add) : null;
     const cylForLine = selectableRange?.cyl ? cyl : item.cyl ?? 0;
     const lineId = buildCartLineId({
       id: item.id,
       sph,
       cyl: cylForLine,
-      add: parsedAdd,
+      add: showAdd ? add : null,
     });
 
     return cartItems.find((entry) => entry.cartLineId === lineId) ?? null;
@@ -213,8 +210,6 @@ export default function LensProductScreen() {
     );
   }
 
-  const maxAdd = item.add ?? 0;
-
   const prescriptionHint = selectableRange
     ? (() => {
         const sphOpts = selectableRange.sph.options;
@@ -227,26 +222,18 @@ export default function LensProductScreen() {
           const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
           hint += ` and CYL (${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)})`;
         }
+        if (showAdd && addOptions.length > 0) {
+          const addStart = addOptions[0]!;
+          const addEnd = addOptions[addOptions.length - 1]!;
+          hint += ` and ADD (${formatPowerLabel(addStart)} to ${formatPowerLabel(addEnd)})`;
+        }
         return `${hint}.`;
       })()
     : `Select prescription values for this lens.`;
 
-  function handleAddChange(text: string) {
-    const sanitized = sanitizeSignedNumericInput(text);
-    if (!canAcceptPrescriptionInput(sanitized, maxAdd)) {
-      setError(`ADD cannot be greater than ${formatPowerLabel(maxAdd)}.`);
-      return;
-    }
-    setAdd(sanitized);
+  function handleAddChange(value: number) {
+    setAdd(value);
     setError(null);
-  }
-
-  function handleAddBlur() {
-    const parsed = parseNumericInput(add);
-    if (parsed === null) {
-      return;
-    }
-    setAdd(formatPowerLabel(parsed));
   }
 
   function handleQuantityChange(text: string) {
@@ -310,13 +297,15 @@ export default function LensProductScreen() {
     }
 
     let parsedAdd: number | null = null;
-    if (showAdd) {
-      const addError = validatePrescriptionValue('ADD', add, maxAdd);
+    if (showAdd && addOptions.length > 0) {
+      const addLow = addOptions[0]!;
+      const addHigh = addOptions[addOptions.length - 1]!;
+      const addError = validatePrescriptionInRange('ADD', String(add), addHigh, addLow);
       if (addError) {
         setError(addError);
         return;
       }
-      parsedAdd = parseNumericInput(add)!;
+      parsedAdd = add;
     }
 
     const parsedDisplayQty = Number(quantity);
@@ -461,6 +450,7 @@ export default function LensProductScreen() {
             <View style={styles.prescriptionHeader}>
               <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
               <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
+              {showAdd ? <Text style={styles.prescriptionHeaderLabel}>ADD</Text> : null}
               <Text
                 style={[
                   styles.prescriptionHeaderLabel,
@@ -468,12 +458,6 @@ export default function LensProductScreen() {
                 ]}>
                 QTY
               </Text>
-              {showAdd ? (
-                <View style={styles.addHeaderCell}>
-                  <Text style={styles.prescriptionHeaderLabelCompact}>ADD</Text>
-                  <Text style={styles.addMaxHint}>max {formatPowerLabel(maxAdd)}</Text>
-                </View>
-              ) : null}
             </View>
             <View style={styles.prescriptionRow}>
               <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
@@ -498,6 +482,15 @@ export default function LensProductScreen() {
                   </View>
                 )}
               </View>
+              {showAdd && addOptions.length > 0 ? (
+                <View style={[styles.pickerColumn, styles.pickerColumnCompact]}>
+                  <PrescriptionWheelPicker
+                    options={addOptions}
+                    value={add}
+                    onChange={handleAddChange}
+                  />
+                </View>
+              ) : null}
               <View style={[styles.compactFieldColumn, showAdd && styles.compactFieldColumnNarrow]}>
                 <TextInput
                   value={quantity}
@@ -508,19 +501,6 @@ export default function LensProductScreen() {
                   placeholderTextColor={colors.placeholder}
                 />
               </View>
-              {showAdd ? (
-                <View style={styles.compactFieldColumnNarrow}>
-                  <TextInput
-                    value={add}
-                    onChangeText={handleAddChange}
-                    onBlur={handleAddBlur}
-                    keyboardType="numbers-and-punctuation"
-                    style={styles.compactFieldInput}
-                    placeholder={formatPowerLabel(maxAdd)}
-                    placeholderTextColor={colors.placeholder}
-                  />
-                </View>
-              ) : null}
             </View>
           </View>
 
@@ -707,18 +687,6 @@ const createStyles = (c: BrandColorScheme) =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: c.cardBorder,
     },
-    addHeaderCell: {
-      flex: 0.85,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    addMaxHint: {
-      fontSize: 9,
-      fontWeight: '600',
-      color: c.primary,
-      marginTop: 2,
-      letterSpacing: 0.2,
-    },
     prescriptionHeaderLabel: {
       flex: 1,
       textAlign: 'center',
@@ -730,14 +698,6 @@ const createStyles = (c: BrandColorScheme) =>
     },
     prescriptionHeaderLabelNarrow: {
       flex: 0.82,
-    },
-    prescriptionHeaderLabelCompact: {
-      textAlign: 'center',
-      fontSize: 11,
-      fontWeight: '600',
-      color: c.label,
-      letterSpacing: 1.2,
-      textTransform: 'uppercase',
     },
     prescriptionRow: {
       flexDirection: 'row',
