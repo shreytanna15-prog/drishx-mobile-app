@@ -36,7 +36,11 @@ import {
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { fetchRelatedLenses } from '@/lib/lenses-api';
-import { resolveAddOptions, resolveSelectableRange } from '@/lib/prescription-range';
+import {
+  resolveAddOptions,
+  resolveSelectableRange,
+  restrictSelectableRangeForCheaperSiblings,
+} from '@/lib/prescription-range';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import type { LensItem } from '@/lib/types/lens';
 
@@ -62,7 +66,16 @@ export default function LensProductScreen() {
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
-  const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
+  const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
+
+  const selectableRange = useMemo(() => {
+    if (!item) {
+      return null;
+    }
+    const base = resolveSelectableRange(item);
+    return restrictSelectableRangeForCheaperSiblings(base, item, relatedLenses);
+  }, [item, relatedLenses]);
   const addOptions = useMemo(() => (item && showAdd ? resolveAddOptions(item) : []), [item, showAdd]);
 
   const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
@@ -78,8 +91,6 @@ export default function LensProductScreen() {
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
-  const [relatedLoading, setRelatedLoading] = useState(false);
 
   const formQuantityText = quantity.trim();
   const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
@@ -91,15 +102,19 @@ export default function LensProductScreen() {
       return;
     }
 
-    const range = resolveSelectableRange(item);
-    setSph(range?.sph.options[0] ?? item.sph);
-    setCyl(range?.cyl?.options[0] ?? item.cyl ?? 0);
+    const range = restrictSelectableRangeForCheaperSiblings(
+      resolveSelectableRange(item),
+      item,
+      relatedLenses
+    );
+    setSph(range.sph.options[0] ?? item.sph);
+    setCyl(range.cyl?.options[0] ?? item.cyl ?? 0);
     setAdd(resolveAddOptions(item)[0] ?? 1);
     const unit = getDefaultQuantityUnit(orderMode);
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
     setError(null);
-  }, [item?.id, orderMode]);
+  }, [item?.id, orderMode, relatedLenses]);
 
   useEffect(() => {
     const unit = getDefaultQuantityUnit(orderMode);

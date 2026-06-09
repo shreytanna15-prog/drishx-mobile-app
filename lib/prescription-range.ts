@@ -105,21 +105,163 @@ function withCylPickerRules(item: LensItem, range: SelectableRange): SelectableR
   return { ...range, cyl: applyCylPickerRules(item, range.cyl) };
 }
 
+function isSameProductLine(a: LensItem, b: LensItem): boolean {
+  return (
+    (a.brand ?? '') === (b.brand ?? '') &&
+    (a.item ?? '') === (b.item ?? '') &&
+    (a.coating ?? '') === (b.coating ?? '')
+  );
+}
+
+function cylEquals(a: number | null, b: number | null): boolean {
+  if (a === null && b === null) {
+    return true;
+  }
+  if (a === null || b === null) {
+    return false;
+  }
+  return roundQuarter(a) === roundQuarter(b);
+}
+
+function applySphTierFromSiblings(
+  range: SelectableRange,
+  item: LensItem,
+  siblings: LensItem[]
+): SelectableRange {
+  if (siblings.length === 0) {
+    return range;
+  }
+
+  const sphMax = roundQuarter(item.sph);
+  const lensCyl = item.cyl != null ? roundQuarter(item.cyl) : null;
+  let nextTierSph: number | null = null;
+
+  for (const row of siblings) {
+    if (row.id === item.id) {
+      continue;
+    }
+    if (!isSameProductLine(item, row)) {
+      continue;
+    }
+    const rowCyl = row.cyl != null ? roundQuarter(row.cyl) : null;
+    if (!cylEquals(rowCyl, lensCyl)) {
+      continue;
+    }
+
+    const rowSph = roundQuarter(row.sph);
+    if (rowSph <= sphMax) {
+      continue;
+    }
+
+    nextTierSph = nextTierSph === null ? rowSph : Math.min(nextTierSph, rowSph);
+  }
+
+  if (nextTierSph === null) {
+    return range;
+  }
+
+  const sphFloor = roundQuarter(nextTierSph - POWER_STEP);
+  if (sphFloor <= sphMax + 1e-9) {
+    return range;
+  }
+
+  const mergedFloor = range.sph.min === 0 ? sphFloor : Math.min(range.sph.min, sphFloor);
+  const options = generatePowerOptions(mergedFloor, sphMax);
+
+  if (options.length === 0) {
+    return range;
+  }
+
+  return {
+    ...range,
+    sph: {
+      min: options[0]!,
+      max: options[options.length - 1]!,
+      options,
+    },
+  };
+}
+
+function applyCylTierFromCheaperSiblings(
+  range: SelectableRange,
+  item: LensItem,
+  siblings: LensItem[]
+): SelectableRange {
+  const lensCyl = item.cyl;
+  if (lensCyl == null || !range.cyl || siblings.length === 0) {
+    return range;
+  }
+
+  const itemPrice = Number(item.price);
+  const lensSph = roundQuarter(item.sph);
+  const cylMax = roundQuarter(lensCyl);
+  let floor: number | null = null;
+
+  for (const row of siblings) {
+    if (row.id === item.id) {
+      continue;
+    }
+    if (!isSameProductLine(item, row)) {
+      continue;
+    }
+    if (Number(row.price) >= itemPrice) {
+      continue;
+    }
+    if (roundQuarter(row.sph) !== lensSph) {
+      continue;
+    }
+    if (row.cyl == null || row.cyl <= lensCyl) {
+      continue;
+    }
+
+    const rowFloor = roundQuarter(row.cyl - POWER_STEP);
+    floor = floor === null ? rowFloor : Math.max(floor, rowFloor);
+  }
+
+  if (floor === null || floor <= cylMax + 1e-9) {
+    return range;
+  }
+
+  const mergedFloor = range.cyl.min === 0 ? floor : Math.max(range.cyl.min, floor);
+  const options = generatePowerOptions(mergedFloor, cylMax);
+
+  if (options.length === 0) {
+    return range;
+  }
+
+  return {
+    ...range,
+    cyl: {
+      min: options[0]!,
+      max: options[options.length - 1]!,
+      options,
+    },
+  };
+}
+
+/**
+ * Tier sibling rules:
+ * - SPH: same CYL line with a smaller SPH card (e.g. -6/-2 vs -8/-2) blocks the high SPH band.
+ * - CYL (Single Vision): cheaper card with less CYL coverage blocks the low CYL band.
+ */
+export function restrictSelectableRangeForCheaperSiblings(
+  range: SelectableRange,
+  item: LensItem,
+  siblings: LensItem[]
+): SelectableRange {
+  let next = applySphTierFromSiblings(range, item, siblings);
+
+  if (item.lensType === 'Single Vision') {
+    next = applyCylTierFromCheaperSiblings(next, item, siblings);
+  }
+
+  return next;
+}
+
 /** API range when present; otherwise 0 → product max in 0.25 steps. */
 export function resolveSelectableRange(item: LensItem): SelectableRange {
   if (item.selectableRange?.sph.options.length) {
-    const normalized = normalizeSelectableRange(item.selectableRange);
-
-    // API tiers can narrow CYL to a single value for high SPH rows (e.g. -2 only).
-    // Always expose the full product-card CYL range so users can scroll 0 → max CYL.
-    if (item.cyl != null) {
-      return withCylPickerRules(item, {
-        ...normalized,
-        cyl: resolveProductCylRange(item.cyl),
-      });
-    }
-
-    return normalized;
+    return withCylPickerRules(item, normalizeSelectableRange(item.selectableRange));
   }
 
   const sphMin = 0;
