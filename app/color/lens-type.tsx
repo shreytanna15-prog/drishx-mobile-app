@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -80,8 +79,16 @@ export default function SelectLensTypeScreen() {
   const colorLabel = params.colorName?.trim() || 'your color';
   const colorHex = params.colorHex?.trim();
 
-  const showContinueComingSoon = () => {
-    Alert.alert('Coming soon', 'The next step in your color lens order will be available soon.');
+  const handleContinue = () => {
+    router.push({
+      pathname: '/color/enter-power',
+      params: {
+        colorId: params.colorId ?? '',
+        colorName: params.colorName ?? '',
+        colorHex: params.colorHex ?? '',
+        lensType: selectedTypeId,
+      },
+    } as never);
   };
 
   return (
@@ -136,7 +143,7 @@ export default function SelectLensTypeScreen() {
         </ScrollView>
 
         <View style={styles.bottomPanel}>
-          <Pressable style={styles.continueBtn} onPress={showContinueComingSoon}>
+          <Pressable style={styles.continueBtn} onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Continue</Text>
             <MaterialIcons name="arrow-forward" size={18} color={colors.primaryText} />
           </Pressable>
