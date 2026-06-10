@@ -2,8 +2,9 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
@@ -13,8 +14,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { OrderPlacedModal } from '@/components/order-placed-modal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { useAuth } from '@/lib/auth';
+import { placeColorLensOrder } from '@/lib/color-lens-orders-api';
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { COLOR_LENS_TYPE_OPTIONS, PREDEFINED_LENS_COLORS } from '@/lib/color-lens';
 import {
@@ -48,6 +52,9 @@ export default function ReviewConfirmScreen() {
   const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
+  const { getAuthHeaders } = useAuth();
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [orderPlacedMessage, setOrderPlacedMessage] = useState<string | null>(null);
   const rawParams = useLocalSearchParams<Record<string, string>>();
   const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
@@ -81,12 +88,52 @@ export default function ReviewConfirmScreen() {
     router.push('/color/predefined' as never);
   };
 
-  const handleAddToOrder = () => {
-    Alert.alert('Coming soon', 'Adding color lenses to your order will be available soon.');
+  const handlePlaceOrder = async () => {
+    if (placingOrder) return;
+
+    setPlacingOrder(true);
+    try {
+      const result = await placeColorLensOrder(
+        {
+          ...order,
+          colorName,
+          colorHex,
+          prescription,
+          materialId,
+        },
+        getAuthHeaders()
+      );
+
+      if (result.success) {
+        setOrderPlacedMessage(result.message);
+        return;
+      }
+
+      Alert.alert('Order failed', result.error);
+    } catch (err) {
+      Alert.alert(
+        'Order failed',
+        err instanceof Error ? err.message : 'Could not place your order. Please try again.'
+      );
+    } finally {
+      setPlacingOrder(false);
+    }
   };
 
   return (
     <View style={[styles.root, { backgroundColor: tintedBackground }]}>
+      <OrderPlacedModal
+        visible={orderPlacedMessage !== null}
+        message={orderPlacedMessage ?? ''}
+        onViewOrders={() => {
+          setOrderPlacedMessage(null);
+          router.replace('/(tabs)/my-orders' as never);
+        }}
+        onContinueShopping={() => {
+          setOrderPlacedMessage(null);
+          router.replace('/(tabs)/' as never);
+        }}
+      />
       <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} hitSlop={8} style={styles.backBtn}>
@@ -138,8 +185,15 @@ export default function ReviewConfirmScreen() {
         </ScrollView>
 
         <View style={styles.bottomPanel}>
-          <Pressable style={styles.addBtn} onPress={handleAddToOrder}>
-            <Text style={styles.addBtnText}>Add to Order</Text>
+          <Pressable
+            style={[styles.addBtn, placingOrder && styles.addBtnDisabled]}
+            disabled={placingOrder}
+            onPress={() => void handlePlaceOrder()}>
+            {placingOrder ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.addBtnText}>Order</Text>
+            )}
           </Pressable>
         </View>
       </SafeAreaView>
@@ -253,11 +307,13 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: '#4F46E5',
       borderRadius: 16,
       paddingVertical: 16,
+      minHeight: 52,
       shadowColor: '#4F46E5',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.35,
       shadowRadius: 10,
       elevation: 4,
     },
+    addBtnDisabled: { opacity: 0.65 },
     addBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   });

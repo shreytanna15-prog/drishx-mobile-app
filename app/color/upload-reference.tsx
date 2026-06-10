@@ -6,21 +6,21 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
-import { uploadColorReference } from '@/lib/color-reference-api';
 import { buildColorLensRouteParams } from '@/lib/color-lens-order';
+import { uploadColorReference } from '@/lib/color-reference-api';
 import { useBrandColors } from '@/lib/theme-provider';
 
 type PickedImage = {
@@ -108,7 +108,7 @@ export default function UploadReferenceScreen() {
         params: buildColorLensRouteParams({
           colorId: 'upload-reference',
           colorName: 'Color Reference',
-          referenceImageUrl: result.imageUrl || result.storedImageUrl,
+          referenceImageUrl: result.storedImageUrl || result.imageUrl,
         }),
       } as never);
     } catch (err) {
