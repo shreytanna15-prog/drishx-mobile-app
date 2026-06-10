@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -59,8 +58,16 @@ export default function PredefinedColorsScreen() {
     [selectedId],
   );
 
-  const showComingSoon = (action: string) => {
-    Alert.alert('Coming soon', `${action} will be available in a future update.`);
+  const handleContinue = () => {
+    if (!selectedColor) return;
+    router.push({
+      pathname: '/color/lens-type',
+      params: {
+        colorId: selectedColor.id,
+        colorName: selectedColor.name,
+        colorHex: selectedColor.hex,
+      },
+    } as never);
   };
 
   return (
@@ -103,12 +110,6 @@ export default function PredefinedColorsScreen() {
                 <Text style={styles.selectedName}>{selectedColor.name}</Text>
                 <Text style={styles.selectedCollection}>Classic Collection</Text>
               </View>
-              <Pressable
-                style={styles.previewBtn}
-                onPress={() => showComingSoon('Preview')}>
-                <Text style={styles.previewBtnText}>Preview</Text>
-                <MaterialIcons name="arrow-forward" size={14} color={colors.primary} />
-              </Pressable>
             </View>
           ) : (
             <View style={styles.selectedCardEmpty}>
@@ -119,7 +120,7 @@ export default function PredefinedColorsScreen() {
           <Pressable
             style={[styles.continueBtn, !selectedColor && styles.continueBtnDisabled]}
             disabled={!selectedColor}
-            onPress={() => showComingSoon('The next step')}>
+            onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Continue</Text>
             <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
           </Pressable>
@@ -238,17 +239,6 @@ const createStyles = (c: BrandColorScheme) =>
     selectedHint: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
     selectedName: { color: c.text, fontSize: 16, fontWeight: '800' },
     selectedCollection: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
-    previewBtn: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 2,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-    },
-    previewBtnText: { color: c.primary, fontSize: 12, fontWeight: '700' },
     continueBtn: {
       flexDirection: 'row',
       alignItems: 'center',

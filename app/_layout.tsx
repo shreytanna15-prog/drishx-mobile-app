@@ -1,7 +1,10 @@
+import 'react-native-gesture-handler';
+
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LogBox } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 LogBox.ignoreLogs(['Unable to activate keep awake']);
@@ -46,14 +49,16 @@ function RootNavigation() {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <OrderModeProvider>
-          <CartProvider>
-            <RootNavigation />
-          </CartProvider>
-        </OrderModeProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider>
+        <AuthProvider>
+          <OrderModeProvider>
+            <CartProvider>
+              <RootNavigation />
+            </CartProvider>
+          </OrderModeProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

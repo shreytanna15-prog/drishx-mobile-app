@@ -48,6 +48,43 @@ export type PredefinedLensColor = {
   shadow: string;
 };
 
+export type ColorLensTypeId = 'single-vision' | 'kryptok' | 'progressive';
+
+export type ColorLensTypeOption = {
+  id: ColorLensTypeId;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: 'remove-red-eye' | 'visibility' | 'center-focus-strong';
+};
+
+export const COLOR_LENS_TYPE_OPTIONS: ColorLensTypeOption[] = [
+  {
+    id: 'single-vision',
+    title: 'Single Vision',
+    subtitle: 'Clear vision at one distance',
+    description:
+      'Single Vision lenses correct vision for one focal point — ideal for everyday distance or reading use with your chosen tint.',
+    icon: 'remove-red-eye',
+  },
+  {
+    id: 'progressive',
+    title: 'Progressive',
+    subtitle: 'Smooth vision at all distances',
+    description:
+      'Progressive lenses provide a seamless power transition from distance to near, without visible lines on the lens.',
+    icon: 'center-focus-strong',
+  },
+  {
+    id: 'kryptok',
+    title: 'Kryptok',
+    subtitle: 'Reliable bifocal performance',
+    description:
+      'Kryptok lenses offer dependable near and far vision zones, a trusted choice for bifocal wearers with color tint options.',
+    icon: 'visibility',
+  },
+];
+
 export const PREDEFINED_LENS_COLORS: PredefinedLensColor[] = [
   { id: 'brown', name: 'Brown', hex: '#8B5A2B', highlight: '#C49A6C', shadow: '#5C3A1A' },
   { id: 'grey', name: 'Grey', hex: '#9CA3AF', highlight: '#D1D5DB', shadow: '#6B7280' },
