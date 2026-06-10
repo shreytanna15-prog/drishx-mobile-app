@@ -25,7 +25,7 @@ import {
   sanitizePositiveIntegerInput,
   formatPowerLabel,
 } from '@/lib/cart-utils';
-import { formatAxisValue, formatLensItemCoatingSummary } from '@/lib/lens-display';
+import { formatAddAxisLabel, formatAxisValue, formatLensItemCoatingSummary, formatSphCylSlash } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
@@ -66,8 +66,6 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 }
 
 type QtyMap = Record<string, string>;
-
-const BIFOCAL_AXIS_VALUES = [45, 90, 135, 180] as const;
 
 type WholesaleEyeOption = 'LEFT' | 'RIGHT' | 'BOTH';
 
@@ -127,7 +125,6 @@ export default function WholesaleProductOrderScreen() {
   const [addFrom, setAddFrom] = useState(1);
   const [addTo, setAddTo] = useState(3);
   const [addStep, setAddStep] = useState(0.25);
-  const [selectedAxis, setSelectedAxis] = useState<number>(BIFOCAL_AXIS_VALUES[0]);
   const [selectedEye, setSelectedEye] = useState<WholesaleEyeOption>('LEFT');
 
   const [pairsDefault, setPairsDefault] = useState('1');
@@ -197,6 +194,7 @@ export default function WholesaleProductOrderScreen() {
   const isProgressive = item?.lensType === 'Progressive';
   const isBifocalLens = isKryptok || isProgressive;
   const isSingleVision = item?.lensType === 'Single Vision';
+  const productAxis = item?.axis ?? null;
 
   const addList = useMemo(() => {
     if (!isBifocalLens) return [];
@@ -212,9 +210,9 @@ export default function WholesaleProductOrderScreen() {
       sphList,
       cylList,
       addList,
-      selectedAxis,
+      productAxis,
     }),
-    [addList, cylList, gridMode, isBifocalLens, isSingleVision, selectedAxis, sphList]
+    [addList, cylList, gridMode, isBifocalLens, isSingleVision, productAxis, sphList]
   );
 
   const matrixSpec = useMemo(
@@ -256,10 +254,6 @@ export default function WholesaleProductOrderScreen() {
   }, [powerProfile]);
 
   const title = item ? `${item.brand || 'Lens'} • Wholesale` : 'Wholesale';
-
-  function selectAxis(value: number) {
-    setSelectedAxis(value);
-  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -364,7 +358,7 @@ export default function WholesaleProductOrderScreen() {
           cyl: entry.cyl,
           add: entry.add,
           cylAdd: entry.cylAdd,
-          axis: entry.axis,
+          axis: productAxis,
           eye,
         };
 
@@ -382,7 +376,7 @@ export default function WholesaleProductOrderScreen() {
             eye ? `Eye ${eye}` : null,
             `SPH ${formatPowerLabel(entry.sph)}`,
             entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
-            entry.axis != null ? `AXIS ${formatAxisValue(entry.axis)}` : null,
+            entry.axis != null ? `AXIS ${formatAxisValue(productAxis)}` : null,
             entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
           ].filter(Boolean);
           failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
@@ -442,6 +436,10 @@ export default function WholesaleProductOrderScreen() {
           <View style={styles.summaryCard}>
             <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
+            <Text style={styles.summaryPower}>{formatSphCylSlash(item)}</Text>
+            {isBifocalLens ? (
+              <Text style={styles.summaryMeta}>{formatAddAxisLabel(item)}</Text>
+            ) : null}
             <Text style={styles.summaryPrice}>
               ₹{item.price}
               {LENS_PRICE_PER_PAIR_LABEL}
@@ -500,26 +498,6 @@ export default function WholesaleProductOrderScreen() {
                 onToChange={setCylTo}
                 onStepChange={setCylStep}
               />
-              {isBifocalLens ? (
-                <View style={styles.axisSection}>
-                  <Text style={styles.fieldLabel}>Axis</Text>
-                  <View style={styles.axisRow}>
-                    {BIFOCAL_AXIS_VALUES.map((axis) => {
-                      const active = selectedAxis === axis;
-                      return (
-                        <Pressable
-                          key={axis}
-                          style={[styles.axisChip, active && styles.axisChipActive]}
-                          onPress={() => selectAxis(axis)}>
-                          <Text style={[styles.axisChipText, active && styles.axisChipTextActive]}>
-                            {axis}°
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
             </View>
           ) : null}
 
@@ -655,6 +633,7 @@ const createStyles = (c: BrandColorScheme) =>
     },
     summaryBrand: { color: c.text, fontSize: 18, fontWeight: '800' },
     summaryMeta: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginTop: 4 },
+    summaryPower: { color: c.text, fontSize: 15, fontWeight: '800', marginTop: 6 },
     summaryPrice: { color: c.primary, fontSize: 16, fontWeight: '900', marginTop: 8 },
     pairsHint: { color: c.primary, fontSize: 12, fontWeight: '700', marginTop: 8 },
     sectionTitle: {
@@ -804,24 +783,6 @@ const createStyles = (c: BrandColorScheme) =>
     eyeChipActive: { backgroundColor: c.primary },
     eyeChipText: { color: c.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
     eyeChipTextActive: { color: c.primaryText },
-    axisSection: { gap: 8 },
-    axisRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    axisChip: {
-      minWidth: 58,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.inputBorder,
-      backgroundColor: c.inputBg,
-      alignItems: 'center',
-    },
-    axisChipActive: {
-      backgroundColor: c.primary,
-      borderColor: c.primary,
-    },
-    axisChipText: { color: c.textMuted, fontSize: 13, fontWeight: '800' },
-    axisChipTextActive: { color: c.primaryText },
     bottomBar: {
       position: 'absolute',
       left: 0,

@@ -51,7 +51,8 @@ export type BuildMatrixParams = {
   cylList: number[];
   /** Shared ADD range for Kryptok / Progressive (applies to both SPH and CYL). */
   addList: number[];
-  selectedAxis: number;
+  /** Fixed axis from the product card (not user-selectable). */
+  productAxis: number | null;
 };
 
 export function qtyKeyCompound(sph: number, cyl: number) {
@@ -123,8 +124,10 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
     sphList,
     cylList,
     addList,
-    selectedAxis,
+    productAxis,
   } = params;
+
+  const axisForKey = productAxis ?? 0;
 
   if (mode === 'sph-only') {
     const cols = isBifocalLens ? addList : [0];
@@ -159,7 +162,7 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
         const cyl = row.power;
         if (cyl == null) return [];
         if (isBifocalLens) {
-          return [{ key: qtyKeyCylAxisAdd(cyl, selectedAxis, col) }];
+          return [{ key: qtyKeyCylAxisAdd(cyl, axisForKey, col) }];
         }
         return [{ key: powerKey(cyl) }];
       },
@@ -184,7 +187,7 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
           const sph = row.sph;
           const cyl = row.cyl;
           if (sph == null || cyl == null) return [];
-          return [{ key: qtyKeyCompoundBifocal(sph, cyl, selectedAxis, add) }];
+          return [{ key: qtyKeyCompoundBifocal(sph, cyl, axisForKey, add) }];
         },
       };
     }
@@ -208,7 +211,7 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
 }
 
 export function resolveGridEntryFromKey(key: string, params: BuildMatrixParams): GridEntry | null {
-  const { mode, isBifocalLens, selectedAxis } = params;
+  const { mode, isBifocalLens } = params;
 
   if (mode === 'sph-only') {
     if (isBifocalLens) {
@@ -375,8 +378,10 @@ export async function buildWholesaleQtyMap(
     sphList,
     cylList,
     addList,
-    selectedAxis,
+    productAxis,
   } = params;
+
+  const axisForKey = productAxis ?? 0;
   const pairsText = String(defaultPairs);
   const next: Record<string, string> = {};
 
@@ -399,7 +404,7 @@ export async function buildWholesaleQtyMap(
     if (isBifocalLens) {
       for (const cyl of cylList) {
         for (const add of addList) {
-          next[qtyKeyCylAxisAdd(cyl, selectedAxis, add)] = pairsText;
+          next[qtyKeyCylAxisAdd(cyl, axisForKey, add)] = pairsText;
         }
       }
     } else {
@@ -419,7 +424,7 @@ export async function buildWholesaleQtyMap(
             continue;
           }
           for (const add of addList) {
-            next[qtyKeyCompoundBifocal(sph, cyl, selectedAxis, add)] = pairsText;
+            next[qtyKeyCompoundBifocal(sph, cyl, axisForKey, add)] = pairsText;
             pending += 1;
             if (pending >= QTY_MAP_CHUNK_SIZE) {
               pending = 0;
