@@ -123,17 +123,22 @@ function cylEquals(a: number | null, b: number | null): boolean {
   return roundQuarter(a) === roundQuarter(b);
 }
 
-function applySphTierFromSiblings(
-  range: SelectableRange,
-  item: LensItem,
-  siblings: LensItem[]
-): SelectableRange {
+function isMilderSphSibling(rowSph: number, lensSph: number): boolean {
+  if (rowSph <= lensSph) {
+    return false;
+  }
+  if (lensSph <= 0) {
+    return rowSph <= 0;
+  }
+  return rowSph >= 0;
+}
+
+function resolveSphFloorFromSiblings(item: LensItem, siblings: LensItem[]): number | null {
   if (siblings.length === 0) {
-    return range;
+    return null;
   }
 
   const sphMax = roundQuarter(item.sph);
-  const lensCyl = item.cyl != null ? roundQuarter(item.cyl) : null;
   let nextTierSph: number | null = null;
 
   for (const row of siblings) {
@@ -143,13 +148,9 @@ function applySphTierFromSiblings(
     if (!isSameProductLine(item, row)) {
       continue;
     }
-    const rowCyl = row.cyl != null ? roundQuarter(row.cyl) : null;
-    if (!cylEquals(rowCyl, lensCyl)) {
-      continue;
-    }
 
     const rowSph = roundQuarter(row.sph);
-    if (rowSph <= sphMax) {
+    if (!isMilderSphSibling(rowSph, sphMax)) {
       continue;
     }
 
@@ -157,14 +158,18 @@ function applySphTierFromSiblings(
   }
 
   if (nextTierSph === null) {
-    return range;
+    return null;
   }
 
   const sphFloor = roundQuarter(nextTierSph - POWER_STEP);
   if (sphFloor <= sphMax + 1e-9) {
-    return range;
+    return null;
   }
 
+  return sphFloor;
+}
+
+function applySphFloorToRange(range: SelectableRange, sphFloor: number, sphMax: number): SelectableRange {
   const mergedFloor = range.sph.min === 0 ? sphFloor : Math.min(range.sph.min, sphFloor);
   const options = generatePowerOptions(mergedFloor, sphMax);
 
@@ -180,6 +185,20 @@ function applySphTierFromSiblings(
       options,
     },
   };
+}
+
+function applySphTierFromSiblings(
+  range: SelectableRange,
+  item: LensItem,
+  siblings: LensItem[]
+): SelectableRange {
+  const sphMax = roundQuarter(item.sph);
+  const sphFloor = resolveSphFloorFromSiblings(item, siblings);
+  if (sphFloor === null) {
+    return range;
+  }
+
+  return applySphFloorToRange(range, sphFloor, sphMax);
 }
 
 function applyCylTierFromCheaperSiblings(
@@ -241,7 +260,8 @@ function applyCylTierFromCheaperSiblings(
 
 /**
  * Tier sibling rules:
- * - SPH: same CYL line with a smaller SPH card (e.g. -6/-2 vs -8/-2) blocks the high SPH band.
+ * - SPH: any milder sibling card blocks the high SPH band for the same sign
+ *   (e.g. PROTECTOR -2/-3, -3/-2, -4/-1 → -4 card starts at -3.25 SPH).
  * - CYL (Single Vision): cheaper card with less CYL coverage blocks the low CYL band.
  */
 export function restrictSelectableRangeForCheaperSiblings(

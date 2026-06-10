@@ -143,3 +143,21 @@ export async function fetchRelatedLenses(
   const data = (await response.json()) as { items: LensesPageResponse['items'] };
   return (data.items ?? []).map(mapApiLens);
 }
+
+export async function fetchProductSiblings(
+  lensId: string,
+  lensType: LensType
+): Promise<LensItem[]> {
+  const params = new URLSearchParams({
+    id: lensId,
+    lensType: filterToApiType(lensType),
+  });
+
+  const response = await fetch(`${BACKEND_BASE_URL}/api/lenses/siblings?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error('Failed to load product siblings');
+  }
+
+  const data = (await response.json()) as { items: LensesPageResponse['items'] };
+  return (data.items ?? []).map(mapApiLens);
+}

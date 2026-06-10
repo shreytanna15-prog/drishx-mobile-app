@@ -35,7 +35,7 @@ import {
   isSameLensPower,
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
-import { fetchRelatedLenses } from '@/lib/lenses-api';
+import { fetchProductSiblings, fetchRelatedLenses } from '@/lib/lenses-api';
 import {
   resolveAddOptions,
   resolveSelectableRange,
@@ -67,6 +67,7 @@ export default function LensProductScreen() {
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
   const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
+  const [productSiblings, setProductSiblings] = useState<LensItem[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
 
   const selectableRange = useMemo(() => {
@@ -74,8 +75,8 @@ export default function LensProductScreen() {
       return null;
     }
     const base = resolveSelectableRange(item);
-    return restrictSelectableRangeForCheaperSiblings(base, item, relatedLenses);
-  }, [item, relatedLenses]);
+    return restrictSelectableRangeForCheaperSiblings(base, item, productSiblings);
+  }, [item, productSiblings]);
   const addOptions = useMemo(() => (item && showAdd ? resolveAddOptions(item) : []), [item, showAdd]);
 
   const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
@@ -105,7 +106,7 @@ export default function LensProductScreen() {
     const range = restrictSelectableRangeForCheaperSiblings(
       resolveSelectableRange(item),
       item,
-      relatedLenses
+      productSiblings
     );
     setSph(range.sph.options[0] ?? item.sph);
     setCyl(range.cyl?.options[0] ?? item.cyl ?? 0);
@@ -114,7 +115,7 @@ export default function LensProductScreen() {
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
     setError(null);
-  }, [item?.id, orderMode, relatedLenses]);
+  }, [item?.id, orderMode, productSiblings]);
 
   useEffect(() => {
     const unit = getDefaultQuantityUnit(orderMode);
@@ -134,6 +135,7 @@ export default function LensProductScreen() {
   useEffect(() => {
     if (!item?.id || !item.lensType) {
       setRelatedLenses([]);
+      setProductSiblings([]);
       return;
     }
 
@@ -145,16 +147,21 @@ export default function LensProductScreen() {
     async function loadRelated() {
       setRelatedLoading(true);
       try {
-        const items = await fetchRelatedLenses(lensId, lensType);
-        const filtered = items.filter(
+        const [relatedItems, siblingItems] = await Promise.all([
+          fetchRelatedLenses(lensId, lensType),
+          fetchProductSiblings(lensId, lensType),
+        ]);
+        const filtered = relatedItems.filter(
           (related) => !isSameLensPower(related, currentLens)
         );
         if (!cancelled) {
           setRelatedLenses(filtered);
+          setProductSiblings(siblingItems);
         }
       } catch {
         if (!cancelled) {
           setRelatedLenses([]);
+          setProductSiblings([]);
         }
       } finally {
         if (!cancelled) {
