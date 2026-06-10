@@ -58,6 +58,18 @@ function goToShop(router: ReturnType<typeof useRouter>, filter: FilterOption = '
   router.navigate('/(tabs)/shop');
 }
 
+function goToCategory(
+  router: ReturnType<typeof useRouter>,
+  categoryId: string,
+  filter: FilterOption = 'All',
+) {
+  if (categoryId === 'color') {
+    router.push('/color' as never);
+    return;
+  }
+  goToShop(router, filter);
+}
+
 export default function HomeScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
@@ -393,7 +405,7 @@ export default function HomeScreen() {
               <Pressable
                 key={cat.id}
                 style={styles.categoryCard}
-                onPress={() => goToShop(router, cat.filter)}>
+                onPress={() => goToCategory(router, cat.id, cat.filter)}>
                 <Text style={styles.categoryCardText} numberOfLines={3}>
                   {cat.label}
                 </Text>
