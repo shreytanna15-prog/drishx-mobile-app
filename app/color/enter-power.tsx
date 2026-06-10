@@ -16,7 +16,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { COLOR_LENS_TYPE_OPTIONS, type ColorLensTypeId } from '@/lib/color-lens';
-import { buildColorLensRouteParams } from '@/lib/color-lens-order';
+import { buildColorLensRouteParams, parseColorLensOrderParams } from '@/lib/color-lens-order';
 import {
   createDefaultPrescription,
   lensTypeShowsAdd,
@@ -126,14 +126,10 @@ export default function EnterPowerScreen() {
   const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
-  const params = useLocalSearchParams<{
-    colorId?: string;
-    colorName?: string;
-    colorHex?: string;
-    lensType?: string;
-  }>();
+  const rawParams = useLocalSearchParams<Record<string, string>>();
+  const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
-  const lensType = (params.lensType as ColorLensTypeId | undefined) ?? 'single-vision';
+  const lensType = (order.lensType as ColorLensTypeId | undefined) ?? 'single-vision';
   const showAdd = lensTypeShowsAdd(lensType);
 
   const lensTypeLabel = useMemo(
@@ -184,10 +180,7 @@ export default function EnterPowerScreen() {
     router.push({
       pathname: '/color/lens-specifications',
       params: buildColorLensRouteParams({
-        colorId: params.colorId,
-        colorName: params.colorName,
-        colorHex: params.colorHex,
-        lensType: params.lensType,
+        ...order,
         prescription,
       }),
     } as never);
@@ -202,7 +195,7 @@ export default function EnterPowerScreen() {
           </Pressable>
           <View style={styles.headerCenter}>
             <Text style={styles.title}>Enter Power</Text>
-            <Text style={styles.subtitle}>{lensTypeLabel} · {params.colorName ?? 'Tinted lens'}</Text>
+            <Text style={styles.subtitle}>{lensTypeLabel} · {order.colorName ?? 'Tinted lens'}</Text>
           </View>
           <View style={styles.backBtn} />
         </View>

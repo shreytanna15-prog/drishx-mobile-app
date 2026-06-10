@@ -16,6 +16,7 @@ export type ColorLensOrderParams = {
   lensType?: ColorLensTypeId | string;
   materialId?: ColorLensMaterialId | string;
   tintStrength?: number;
+  referenceImageUrl?: string;
   prescription?: ColorLensPrescription;
 };
 
@@ -61,6 +62,7 @@ export function buildColorLensRouteParams(
   if (order.lensType) params.lensType = order.lensType;
   if (order.materialId) params.materialId = order.materialId;
   if (order.tintStrength != null) params.tintStrength = String(order.tintStrength);
+  if (order.referenceImageUrl) params.referenceImageUrl = order.referenceImageUrl;
   if (order.prescription) params.prescription = serializePrescription(order.prescription);
 
   return params;
@@ -86,6 +88,7 @@ export function parseColorLensOrderParams(
     lensType: read('lensType'),
     materialId: read('materialId') as ColorLensMaterialId | undefined,
     tintStrength: Number.isFinite(tintStrength) ? tintStrength : undefined,
+    referenceImageUrl: read('referenceImageUrl'),
     prescription: parsePrescription(read('prescription')) ?? undefined,
   };
 }

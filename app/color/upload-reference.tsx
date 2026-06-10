@@ -20,6 +20,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { uploadColorReference } from '@/lib/color-reference-api';
+import { buildColorLensRouteParams } from '@/lib/color-lens-order';
 import { useBrandColors } from '@/lib/theme-provider';
 
 type PickedImage = {
@@ -37,7 +38,6 @@ export default function UploadReferenceScreen() {
   const { getAuthHeaders } = useAuth();
   const [pickedImage, setPickedImage] = useState<PickedImage | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
 
   const applyPickedAsset = useCallback((asset: ImagePicker.ImagePickerAsset) => {
     if (!asset.uri) {
@@ -54,7 +54,6 @@ export default function UploadReferenceScreen() {
     const fileName =
       asset.fileName ?? `color-reference-${Date.now()}.${mimeType.includes('png') ? 'png' : 'jpg'}`;
 
-    setUploadedUrl(null);
     setPickedImage({ uri: asset.uri, mimeType, fileName });
   }, []);
 
@@ -92,7 +91,7 @@ export default function UploadReferenceScreen() {
     }
   }, [applyPickedAsset]);
 
-  const handleAnalyzeColor = useCallback(async () => {
+  const handleContinue = useCallback(async () => {
     if (!pickedImage || uploading) return;
 
     setUploading(true);
@@ -103,17 +102,21 @@ export default function UploadReferenceScreen() {
         pickedImage.fileName,
         getAuthHeaders()
       );
-      setUploadedUrl(result.imageUrl);
-      Alert.alert(
-        'Image uploaded',
-        'Your color reference has been saved. Color analysis will be available soon.'
-      );
+
+      router.push({
+        pathname: '/color/lens-type',
+        params: buildColorLensRouteParams({
+          colorId: 'upload-reference',
+          colorName: 'Color Reference',
+          referenceImageUrl: result.imageUrl || result.storedImageUrl,
+        }),
+      } as never);
     } catch (err) {
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setUploading(false);
     }
-  }, [getAuthHeaders, pickedImage, uploading]);
+  }, [getAuthHeaders, pickedImage, router, uploading]);
 
   return (
     <View style={styles.root}>
@@ -153,24 +156,18 @@ export default function UploadReferenceScreen() {
             </View>
           </View>
 
-          {uploadedUrl ? (
-            <View style={styles.successCard}>
-              <MaterialIcons name="check-circle" size={20} color={colors.success} />
-              <Text style={styles.successText}>Reference image saved to cloud storage.</Text>
-            </View>
-          ) : null}
         </ScrollView>
 
         <View style={styles.bottomPanel}>
           <Pressable
             style={[styles.analyzeBtn, (!pickedImage || uploading) && styles.analyzeBtnDisabled]}
             disabled={!pickedImage || uploading}
-            onPress={() => void handleAnalyzeColor()}>
+            onPress={() => void handleContinue()}>
             {uploading ? (
               <ActivityIndicator color="#FFFFFF" />
             ) : (
               <>
-                <Text style={styles.analyzeBtnText}>Analyze Color</Text>
+                <Text style={styles.analyzeBtnText}>{pickedImage ? 'Next' : 'Analyze Color'}</Text>
                 <MaterialIcons name="arrow-forward" size={18} color="#FFFFFF" />
               </>
             )}
@@ -236,19 +233,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.menuRow,
     },
     pickBtnText: { color: c.text, fontSize: 14, fontWeight: '700' },
-    successCard: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginTop: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderRadius: 12,
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-    },
-    successText: { color: c.textMuted, fontSize: 13, fontWeight: '600', flex: 1 },
     bottomPanel: {
       paddingHorizontal: 16,
       paddingTop: 8,

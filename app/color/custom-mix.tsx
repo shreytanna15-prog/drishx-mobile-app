@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -21,6 +20,7 @@ import {
 } from '@/components/color-wheel-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { buildColorLensRouteParams } from '@/lib/color-lens-order';
 import { hslToHex, mixHslColors, type HslColor } from '@/lib/color-utils';
 import { useBrandColors } from '@/lib/theme-provider';
 
@@ -86,8 +86,16 @@ export default function CustomMixScreen() {
     }
   };
 
-  const showPreviewComingSoon = () => {
-    Alert.alert('Coming soon', 'Mix preview will be available in a future update.');
+  const handlePreviewMix = () => {
+    router.push({
+      pathname: '/color/lens-type',
+      params: buildColorLensRouteParams({
+        colorId: 'custom-mix',
+        colorName: 'Custom Mix',
+        colorHex: mixedPreview,
+        tintStrength,
+      }),
+    } as never);
   };
 
   return (
@@ -198,8 +206,8 @@ export default function CustomMixScreen() {
         </ScrollView>
 
         <View style={styles.bottomPanel}>
-          <Pressable style={styles.previewBtn} onPress={showPreviewComingSoon}>
-            <Text style={styles.previewBtnText}>Preview Mix</Text>
+          <Pressable style={styles.previewBtn} onPress={handlePreviewMix}>
+            <Text style={styles.previewBtnText}>Next</Text>
             <MaterialIcons name="arrow-forward" size={18} color={colors.primaryText} />
           </Pressable>
         </View>

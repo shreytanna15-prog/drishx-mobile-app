@@ -19,6 +19,7 @@ import {
   type ColorLensTypeId,
   type ColorLensTypeOption,
 } from '@/lib/color-lens';
+import { buildColorLensRouteParams, parseColorLensOrderParams } from '@/lib/color-lens-order';
 import { useBrandColors } from '@/lib/theme-provider';
 
 function LensTypeCard({
@@ -59,11 +60,8 @@ export default function SelectLensTypeScreen() {
   const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
-  const params = useLocalSearchParams<{
-    colorId?: string;
-    colorName?: string;
-    colorHex?: string;
-  }>();
+  const rawParams = useLocalSearchParams<Record<string, string>>();
+  const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
   const [selectedTypeId, setSelectedTypeId] = useState<ColorLensTypeId>('single-vision');
 
@@ -74,18 +72,16 @@ export default function SelectLensTypeScreen() {
     [selectedTypeId]
   );
 
-  const colorLabel = params.colorName?.trim() || 'your color';
-  const colorHex = params.colorHex?.trim();
+  const colorLabel = order.colorName?.trim() || 'your color';
+  const colorHex = order.colorHex?.trim();
 
   const handleContinue = () => {
     router.push({
       pathname: '/color/enter-power',
-      params: {
-        colorId: params.colorId ?? '',
-        colorName: params.colorName ?? '',
-        colorHex: params.colorHex ?? '',
+      params: buildColorLensRouteParams({
+        ...order,
         lensType: selectedTypeId,
-      },
+      }),
     } as never);
   };
 
