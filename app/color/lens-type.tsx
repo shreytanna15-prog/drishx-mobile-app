@@ -34,23 +34,21 @@ function LensTypeCard({
   const styles = useThemedStyles(createStyles);
 
   return (
-    <Pressable
-      style={[styles.typeCard, selected && styles.typeCardSelected]}
-      onPress={onPress}>
-      <View style={[styles.typeIconWrap, selected && styles.typeIconWrapSelected]}>
+    <Pressable style={styles.typeCard} onPress={onPress}>
+      <View style={styles.typeIconWrap}>
         <MaterialIcons name={option.icon} size={28} color={colors.primary} />
       </View>
 
       <View style={styles.typeMeta}>
-        <Text style={[styles.typeTitle, selected && styles.typeTitleSelected]}>{option.title}</Text>
+        <Text style={styles.typeTitle}>{option.title}</Text>
         <Text style={styles.typeSubtitle} numberOfLines={2}>
           {option.subtitle}
         </Text>
       </View>
 
-      <View style={[styles.typeCheck, selected && styles.typeCheckSelected]}>
+      <View style={styles.typeCheckSlot}>
         {selected ? (
-          <MaterialIcons name="check" size={16} color={colors.primaryText} />
+          <MaterialIcons name="check-circle" size={24} color={colors.primary} />
         ) : null}
       </View>
     </Pressable>
@@ -232,13 +230,6 @@ const createStyles = (c: BrandColorScheme) =>
       shadowRadius: 8,
       elevation: 2,
     },
-    typeCardSelected: {
-      borderColor: c.primary,
-      borderWidth: 1.5,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
-      shadowColor: c.primary,
-      shadowOpacity: 0.12,
-    },
     typeIconWrap: {
       width: 56,
       height: 56,
@@ -249,27 +240,14 @@ const createStyles = (c: BrandColorScheme) =>
       borderWidth: 1,
       borderColor: c.cardBorder,
     },
-    typeIconWrapSelected: {
-      borderColor: c.primary,
-      backgroundColor: 'rgba(240, 161, 50, 0.22)',
-    },
     typeMeta: { flex: 1, gap: 4 },
-    typeTitle: { color: c.textMuted, fontSize: 16, fontWeight: '800' },
-    typeTitleSelected: { color: c.text },
+    typeTitle: { color: c.text, fontSize: 16, fontWeight: '800' },
     typeSubtitle: { color: c.textMuted, fontSize: 12, fontWeight: '500', lineHeight: 16 },
-    typeCheck: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      borderWidth: 1.5,
-      borderColor: c.cardBorder,
+    typeCheckSlot: {
+      width: 24,
+      height: 24,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: c.menuRow,
-    },
-    typeCheckSelected: {
-      backgroundColor: c.primary,
-      borderColor: c.primary,
     },
     aboutCard: {
       backgroundColor: c.card,

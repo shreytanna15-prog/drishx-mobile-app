@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -180,8 +179,16 @@ export default function EnterPowerScreen() {
     });
   };
 
-  const showContinueComingSoon = () => {
-    Alert.alert('Coming soon', 'The next step in your color lens order will be available soon.');
+  const handleContinue = () => {
+    router.push({
+      pathname: '/color/lens-specifications',
+      params: {
+        colorId: params.colorId ?? '',
+        colorName: params.colorName ?? '',
+        colorHex: params.colorHex ?? '',
+        lensType: params.lensType ?? '',
+      },
+    } as never);
   };
 
   return (
@@ -228,7 +235,7 @@ export default function EnterPowerScreen() {
         </ScrollView>
 
         <View style={styles.bottomPanel}>
-          <Pressable style={styles.continueBtn} onPress={showContinueComingSoon}>
+          <Pressable style={styles.continueBtn} onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Continue</Text>
             <MaterialIcons name="arrow-forward" size={18} color={colors.primaryText} />
           </Pressable>
