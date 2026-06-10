@@ -16,6 +16,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { COLOR_LENS_TYPE_OPTIONS, type ColorLensTypeId } from '@/lib/color-lens';
+import { buildColorLensRouteParams } from '@/lib/color-lens-order';
 import {
   createDefaultPrescription,
   lensTypeShowsAdd,
@@ -182,12 +183,13 @@ export default function EnterPowerScreen() {
   const handleContinue = () => {
     router.push({
       pathname: '/color/lens-specifications',
-      params: {
-        colorId: params.colorId ?? '',
-        colorName: params.colorName ?? '',
-        colorHex: params.colorHex ?? '',
-        lensType: params.lensType ?? '',
-      },
+      params: buildColorLensRouteParams({
+        colorId: params.colorId,
+        colorName: params.colorName,
+        colorHex: params.colorHex,
+        lensType: params.lensType,
+        prescription,
+      }),
     } as never);
   };
 

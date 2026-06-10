@@ -175,3 +175,24 @@ export function hueSatToPosition(
     y: cy + radius * Math.sin(angle),
   };
 }
+
+export function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace('#', '').trim();
+  const value =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized;
+
+  if (value.length !== 6) {
+    return `rgba(0, 0, 0, ${clamp(alpha, 0, 1)})`;
+  }
+
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${clamp(alpha, 0, 1)})`;
+}

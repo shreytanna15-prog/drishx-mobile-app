@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { buildColorLensRouteParams, parseColorLensOrderParams } from '@/lib/color-lens-order';
 import {
   COLOR_LENS_DIAMETER_MM,
   COLOR_LENS_MATERIAL_OPTIONS,
@@ -72,10 +72,12 @@ export default function LensSpecificationsScreen() {
   const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
-  const params = useLocalSearchParams<{ colorName?: string }>();
+  const rawParams = useLocalSearchParams<Record<string, string>>();
+  const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
-  const [selectedMaterialId, setSelectedMaterialId] =
-    useState<ColorLensMaterialId>('tintable-brc');
+  const [selectedMaterialId, setSelectedMaterialId] = useState<ColorLensMaterialId>(
+    (order.materialId as ColorLensMaterialId | undefined) ?? 'tintable-brc'
+  );
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
 
   const selectedMaterial = useMemo(
@@ -86,7 +88,7 @@ export default function LensSpecificationsScreen() {
   );
 
   const lensIndex = getLensIndexForMaterial(selectedMaterialId);
-  const colorLabel = params.colorName?.trim() || 'Tinted lens';
+  const colorLabel = order.colorName?.trim() || 'Tinted lens';
 
   const toggleMaterialPicker = () => {
     setMaterialPickerOpen((open) => !open);
@@ -97,8 +99,14 @@ export default function LensSpecificationsScreen() {
     setMaterialPickerOpen(false);
   };
 
-  const showContinueComingSoon = () => {
-    Alert.alert('Coming soon', 'The next step in your color lens order will be available soon.');
+  const handleContinue = () => {
+    router.push({
+      pathname: '/color/review-confirm',
+      params: buildColorLensRouteParams({
+        ...order,
+        materialId: selectedMaterialId,
+      }),
+    } as never);
   };
 
   return (
@@ -162,7 +170,7 @@ export default function LensSpecificationsScreen() {
         </View>
 
         <View style={styles.bottomPanel}>
-          <Pressable style={styles.continueBtn} onPress={showContinueComingSoon}>
+          <Pressable style={styles.continueBtn} onPress={handleContinue}>
             <Text style={styles.continueBtnText}>Continue</Text>
             <MaterialIcons name="arrow-forward" size={18} color={colors.primaryText} />
           </Pressable>
