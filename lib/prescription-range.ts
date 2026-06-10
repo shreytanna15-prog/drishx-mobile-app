@@ -83,6 +83,15 @@ export function dropZeroFromPowerOptions(options: number[]): number[] {
   return withoutZero.length > 0 ? withoutZero : options;
 }
 
+function applyPowerAxisNoPlano(axis: PowerAxisRange): PowerAxisRange {
+  const options = dropZeroFromPowerOptions(axis.options);
+  return {
+    min: options[0] ?? axis.min,
+    max: options[options.length - 1] ?? axis.max,
+    options,
+  };
+}
+
 /** Kryptok / Progressive CYL-only rows cannot use 0.00; Single Vision may include 0. */
 function applyCylPickerRules(item: LensItem, cylRange: PowerAxisRange): PowerAxisRange {
   const isBifocalLens = item.lensType === 'Kryptok' || item.lensType === 'Progressive';
@@ -90,19 +99,33 @@ function applyCylPickerRules(item: LensItem, cylRange: PowerAxisRange): PowerAxi
     return cylRange;
   }
 
-  const options = dropZeroFromPowerOptions(cylRange.options);
-  return {
-    min: options[0] ?? cylRange.min,
-    max: options[options.length - 1] ?? cylRange.max,
-    options,
-  };
+  return applyPowerAxisNoPlano(cylRange);
 }
 
-function withCylPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
-  if (!range.cyl) {
+/** Kryptok compound rows (both SPH and CYL) cannot use 0.00 on either axis. */
+function applyKryptokCompoundPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
+  if (item.lensType !== 'Kryptok' || resolveWholesalePowerProfile(item) !== 'compound') {
     return range;
   }
-  return { ...range, cyl: applyCylPickerRules(item, range.cyl) };
+
+  const next: SelectableRange = {
+    ...range,
+    sph: applyPowerAxisNoPlano(range.sph),
+  };
+
+  if (range.cyl) {
+    next.cyl = applyPowerAxisNoPlano(range.cyl);
+  }
+
+  return next;
+}
+
+function withPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
+  let next = range;
+  if (range.cyl) {
+    next = { ...next, cyl: applyCylPickerRules(item, range.cyl) };
+  }
+  return applyKryptokCompoundPickerRules(item, next);
 }
 
 function isSameProductLine(a: LensItem, b: LensItem): boolean {
@@ -281,7 +304,7 @@ export function restrictSelectableRangeForCheaperSiblings(
 /** API range when present; otherwise 0 → product max in 0.25 steps. */
 export function resolveSelectableRange(item: LensItem): SelectableRange {
   if (item.selectableRange?.sph.options.length) {
-    return withCylPickerRules(item, normalizeSelectableRange(item.selectableRange));
+    return withPickerRules(item, normalizeSelectableRange(item.selectableRange));
   }
 
   const sphMin = 0;
@@ -289,16 +312,16 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
   const sphOptions = generatePowerOptions(sphMin, sphMax);
 
   if (item.cyl != null) {
-    return withCylPickerRules(item, {
+    return withPickerRules(item, {
       sph: { min: sphMin, max: sphMax, options: sphOptions },
       cyl: resolveProductCylRange(item.cyl),
     });
   }
 
-  return {
+  return withPickerRules(item, {
     sph: { min: sphMin, max: sphMax, options: sphOptions },
     cyl: null,
-  };
+  });
 }
 
 /** Kryptok / Progressive ADD scroll options (+1.00 → +3.00 in 0.25 steps). */
