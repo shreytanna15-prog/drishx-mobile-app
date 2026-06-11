@@ -25,6 +25,7 @@ type PrescriptionWheelPickerProps = {
   options: number[];
   value: number | null;
   onChange: (value: number) => void;
+  formatLabel?: (value: number) => string;
 };
 
 function findOptionIndex(options: number[], value: number | null): number {
@@ -61,7 +62,12 @@ function PickerRow({ index, label, scrollY, onPress, textColor }: PickerRowProps
   );
 }
 
-export function PrescriptionWheelPicker({ options, value, onChange }: PrescriptionWheelPickerProps) {
+export function PrescriptionWheelPicker({
+  options,
+  value,
+  onChange,
+  formatLabel = formatPowerLabel,
+}: PrescriptionWheelPickerProps) {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
@@ -139,7 +145,7 @@ export function PrescriptionWheelPicker({ options, value, onChange }: Prescripti
     return (
       <View style={styles.pickerShell}>
         <View style={rowStyles.optionRow}>
-          <Text style={styles.singleValue}>{formatPowerLabel(only)}</Text>
+          <Text style={styles.singleValue}>{formatLabel(only)}</Text>
         </View>
         <View style={styles.focusRail} pointerEvents="none" />
       </View>
@@ -166,7 +172,7 @@ export function PrescriptionWheelPicker({ options, value, onChange }: Prescripti
           <PickerRow
             key={`${option}-${index}`}
             index={index}
-            label={formatPowerLabel(option)}
+            label={formatLabel(option)}
             scrollY={scrollY}
             textColor={colors.text}
             onPress={() => {

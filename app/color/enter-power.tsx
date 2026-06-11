@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -12,15 +12,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PRESCRIPTION_PICKER_HEIGHT, PrescriptionWheelPicker } from '@/components/prescription-wheel-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatPowerLabel } from '@/lib/cart-utils';
 import { COLOR_LENS_TYPE_OPTIONS, type ColorLensTypeId } from '@/lib/color-lens';
 import { buildColorLensRouteParams, parseColorLensOrderParams } from '@/lib/color-lens-order';
 import {
+  buildAddOptions,
+  buildCylOptions,
+  buildSphOptions,
   createDefaultPrescription,
+  formatAxisPickerLabel,
+  getAxisOptionsForLensType,
   lensTypeShowsAdd,
-  stepEyePower,
+  snapPrescriptionToLensType,
   type ColorLensPrescription,
   type EyePowerValues,
 } from '@/lib/color-lens-prescription';
@@ -28,52 +33,28 @@ import { useBrandColors } from '@/lib/theme-provider';
 
 type EyeSide = 'right' | 'left';
 
-function PowerStepper({
-  label,
-  displayValue,
-  onDecrease,
-  onIncrease,
-}: {
-  label: string;
-  displayValue: string;
-  onDecrease: () => void;
-  onIncrease: () => void;
-}) {
-  const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
-
-  return (
-    <View style={styles.powerField}>
-      <Text style={styles.powerLabel}>{label}</Text>
-      <View style={styles.stepper}>
-        <Pressable style={styles.stepperBtn} onPress={onDecrease} hitSlop={6}>
-          <MaterialIcons name="remove" size={16} color={colors.primary} />
-        </Pressable>
-        <Text style={styles.stepperValue} numberOfLines={1}>
-          {displayValue}
-        </Text>
-        <Pressable style={styles.stepperBtn} onPress={onIncrease} hitSlop={6}>
-          <MaterialIcons name="add" size={16} color={colors.primary} />
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
 function EyePowerCard({
   side,
   title,
   badge,
   values,
   showAdd,
-  onStep,
+  sphOptions,
+  cylOptions,
+  axisOptions,
+  addOptions,
+  onFieldChange,
 }: {
   side: EyeSide;
   title: string;
   badge: string;
   values: EyePowerValues;
   showAdd: boolean;
-  onStep: (field: keyof EyePowerValues, direction: 1 | -1) => void;
+  sphOptions: number[];
+  cylOptions: number[];
+  axisOptions: number[];
+  addOptions: number[];
+  onFieldChange: (field: keyof EyePowerValues, value: number) => void;
 }) {
   const styles = useThemedStyles(createStyles);
 
@@ -86,33 +67,51 @@ function EyePowerCard({
         <Text style={styles.eyeTitle}>{title}</Text>
       </View>
 
-      <View style={styles.powerRow}>
-        <PowerStepper
-          label="SPH"
-          displayValue={formatPowerLabel(values.sph)}
-          onDecrease={() => onStep('sph', -1)}
-          onIncrease={() => onStep('sph', 1)}
-        />
-        <PowerStepper
-          label="CYL"
-          displayValue={formatPowerLabel(values.cyl)}
-          onDecrease={() => onStep('cyl', -1)}
-          onIncrease={() => onStep('cyl', 1)}
-        />
-        <PowerStepper
-          label="AXIS"
-          displayValue={String(Math.round(values.axis))}
-          onDecrease={() => onStep('axis', -1)}
-          onIncrease={() => onStep('axis', 1)}
-        />
-        {showAdd ? (
-          <PowerStepper
-            label="ADD"
-            displayValue={formatPowerLabel(values.add)}
-            onDecrease={() => onStep('add', -1)}
-            onIncrease={() => onStep('add', 1)}
-          />
-        ) : null}
+      <View style={styles.prescriptionCard}>
+        <View style={styles.prescriptionHeader}>
+          <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
+          <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
+          <Text style={[styles.prescriptionHeaderLabel, showAdd && styles.prescriptionHeaderLabelCompact]}>
+            AXIS
+          </Text>
+          {showAdd ? (
+            <Text style={[styles.prescriptionHeaderLabel, styles.prescriptionHeaderLabelCompact]}>ADD</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.prescriptionRow}>
+          <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
+            <PrescriptionWheelPicker
+              options={sphOptions}
+              value={values.sph}
+              onChange={(value) => onFieldChange('sph', value)}
+            />
+          </View>
+          <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
+            <PrescriptionWheelPicker
+              options={cylOptions}
+              value={values.cyl}
+              onChange={(value) => onFieldChange('cyl', value)}
+            />
+          </View>
+          <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
+            <PrescriptionWheelPicker
+              options={axisOptions}
+              value={values.axis}
+              formatLabel={formatAxisPickerLabel}
+              onChange={(value) => onFieldChange('axis', value)}
+            />
+          </View>
+          {showAdd ? (
+            <View style={[styles.pickerColumn, styles.pickerColumnCompact]}>
+              <PrescriptionWheelPicker
+                options={addOptions}
+                value={values.add}
+                onChange={(value) => onFieldChange('add', value)}
+              />
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <Text style={styles.eyeHint}>
@@ -137,15 +136,24 @@ export default function EnterPowerScreen() {
     [lensType]
   );
 
-  const [prescription, setPrescription] = useState<ColorLensPrescription>(createDefaultPrescription);
+  const sphOptions = useMemo(() => buildSphOptions(), []);
+  const cylOptions = useMemo(() => buildCylOptions(), []);
+  const addOptions = useMemo(() => buildAddOptions(), []);
+  const axisOptions = useMemo(() => getAxisOptionsForLensType(lensType), [lensType]);
+
+  const [prescription, setPrescription] = useState<ColorLensPrescription>(() =>
+    createDefaultPrescription(lensType)
+  );
   const [sameForBothEyes, setSameForBothEyes] = useState(true);
 
-  const stepField = useCallback(
-    (eye: EyeSide, field: keyof EyePowerValues, direction: 1 | -1) => {
+  useEffect(() => {
+    setPrescription((current) => snapPrescriptionToLensType(current, lensType));
+  }, [lensType, axisOptions]);
+
+  const updateField = useCallback(
+    (eye: EyeSide, field: keyof EyePowerValues, value: number) => {
       setPrescription((current) => {
-        const source = current[eye];
-        const nextValue = stepEyePower(field, source[field], direction);
-        const updatedEye = { ...source, [field]: nextValue };
+        const updatedEye = { ...current[eye], [field]: value };
 
         if (sameForBothEyes) {
           return {
@@ -195,7 +203,9 @@ export default function EnterPowerScreen() {
           </Pressable>
           <View style={styles.headerCenter}>
             <Text style={styles.title}>Enter Power</Text>
-            <Text style={styles.subtitle}>{lensTypeLabel} · {order.colorName ?? 'Tinted lens'}</Text>
+            <Text style={styles.subtitle}>
+              {lensTypeLabel} · {order.colorName ?? 'Tinted lens'}
+            </Text>
           </View>
           <View style={styles.backBtn} />
         </View>
@@ -207,7 +217,11 @@ export default function EnterPowerScreen() {
             badge="R"
             values={prescription.right}
             showAdd={showAdd}
-            onStep={(field, direction) => stepField('right', field, direction)}
+            sphOptions={sphOptions}
+            cylOptions={cylOptions}
+            axisOptions={axisOptions}
+            addOptions={addOptions}
+            onFieldChange={(field, value) => updateField('right', field, value)}
           />
 
           <EyePowerCard
@@ -216,7 +230,11 @@ export default function EnterPowerScreen() {
             badge="L"
             values={prescription.left}
             showAdd={showAdd}
-            onStep={(field, direction) => stepField('left', field, direction)}
+            sphOptions={sphOptions}
+            cylOptions={cylOptions}
+            axisOptions={axisOptions}
+            addOptions={addOptions}
+            onFieldChange={(field, value) => updateField('left', field, value)}
           />
 
           <Pressable style={styles.samePowerRow} onPress={toggleSameForBoth}>
@@ -281,39 +299,43 @@ const createStyles = (c: BrandColorScheme) =>
     },
     eyeBadgeText: { color: c.primaryText, fontSize: 13, fontWeight: '900' },
     eyeTitle: { color: c.text, fontSize: 16, fontWeight: '800' },
-    powerRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    powerField: { width: '47%', flexGrow: 1, gap: 6 },
-    powerLabel: {
-      color: c.textMuted,
-      fontSize: 11,
-      fontWeight: '700',
-      letterSpacing: 0.5,
-    },
-    stepper: {
-      flexDirection: 'row',
-      alignItems: 'center',
+    prescriptionCard: {
       backgroundColor: c.menuRow,
-      borderRadius: 12,
+      borderRadius: 14,
       borderWidth: 1,
       borderColor: c.cardBorder,
-      paddingHorizontal: 4,
-      paddingVertical: 6,
-      gap: 2,
+      paddingTop: 10,
+      paddingBottom: 6,
+      paddingHorizontal: 6,
+      gap: 4,
     },
-    stepperBtn: {
-      width: 28,
-      height: 28,
-      borderRadius: 8,
+    prescriptionHeader: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(240, 161, 50, 0.12)',
+      paddingHorizontal: 4,
     },
-    stepperValue: {
+    prescriptionHeaderLabel: {
       flex: 1,
-      color: c.text,
-      fontSize: 13,
+      color: c.textMuted,
+      fontSize: 10,
       fontWeight: '800',
+      letterSpacing: 0.6,
       textAlign: 'center',
+    },
+    prescriptionHeaderLabelCompact: {
+      flex: 0.85,
+    },
+    prescriptionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minHeight: PRESCRIPTION_PICKER_HEIGHT,
+    },
+    pickerColumn: {
+      flex: 1,
+      minWidth: 0,
+    },
+    pickerColumnCompact: {
+      flex: 0.85,
     },
     eyeHint: { color: c.textMuted, fontSize: 11, fontWeight: '500' },
     samePowerRow: {

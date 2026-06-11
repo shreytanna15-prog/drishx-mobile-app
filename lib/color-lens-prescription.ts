@@ -14,13 +14,6 @@ export type ColorLensPrescription = {
 
 const POWER_STEP = 0.25;
 
-export const DEFAULT_EYE_POWER: EyePowerValues = {
-  sph: -2,
-  cyl: -0.75,
-  axis: 180,
-  add: 1,
-};
-
 export const PRESCRIPTION_LIMITS = {
   sph: { min: -10, max: 6, step: POWER_STEP },
   cyl: { min: -6, max: 0, step: POWER_STEP },
@@ -28,10 +21,102 @@ export const PRESCRIPTION_LIMITS = {
   add: { min: 0.75, max: 3.5, step: POWER_STEP },
 };
 
-export function createDefaultPrescription(): ColorLensPrescription {
+function roundStep(value: number, step: number): number {
+  return Math.round(value / step) * step;
+}
+
+function buildSteppedOptions(min: number, max: number, step: number): number[] {
+  const out: number[] = [];
+  const safeStep = Math.abs(step);
+  let current = min;
+
+  while (current <= max + 1e-9) {
+    out.push(roundStep(current, step));
+    current = roundStep(current + safeStep, step);
+  }
+
+  return out;
+}
+
+export function buildSphOptions(): number[] {
+  return buildSteppedOptions(
+    PRESCRIPTION_LIMITS.sph.min,
+    PRESCRIPTION_LIMITS.sph.max,
+    PRESCRIPTION_LIMITS.sph.step
+  );
+}
+
+export function buildCylOptions(): number[] {
+  return buildSteppedOptions(
+    PRESCRIPTION_LIMITS.cyl.min,
+    PRESCRIPTION_LIMITS.cyl.max,
+    PRESCRIPTION_LIMITS.cyl.step
+  );
+}
+
+export function buildAddOptions(): number[] {
+  return buildSteppedOptions(
+    PRESCRIPTION_LIMITS.add.min,
+    PRESCRIPTION_LIMITS.add.max,
+    PRESCRIPTION_LIMITS.add.step
+  );
+}
+
+/** Axis choices vary by color-lens type. */
+export function getAxisOptionsForLensType(
+  lensType: ColorLensTypeId | string | undefined
+): number[] {
+  switch (lensType) {
+    case 'kryptok':
+      return [45, 90, 135, 180];
+    case 'progressive':
+      return [-180, -90, 90, 180];
+    case 'single-vision':
+    default:
+      return Array.from({ length: 18 }, (_, index) => (index + 1) * 10);
+  }
+}
+
+export function formatAxisPickerLabel(value: number): string {
+  if (value > 0) {
+    return `+${value}`;
+  }
+  return String(value);
+}
+
+export function snapToOption(value: number, options: number[]): number {
+  if (options.length === 0) {
+    return value;
+  }
+
+  let best = options[0]!;
+  let bestDistance = Math.abs(value - best);
+
+  for (const option of options) {
+    const distance = Math.abs(value - option);
+    if (distance < bestDistance) {
+      best = option;
+      bestDistance = distance;
+    }
+  }
+
+  return best;
+}
+
+export function createDefaultPrescription(
+  lensType: ColorLensTypeId | string | undefined = 'single-vision'
+): ColorLensPrescription {
+  const axisOptions = getAxisOptionsForLensType(lensType);
+  const eye: EyePowerValues = {
+    sph: -2,
+    cyl: -0.75,
+    axis: axisOptions[axisOptions.length - 1] ?? 180,
+    add: 1,
+  };
+
   return {
-    right: { ...DEFAULT_EYE_POWER },
-    left: { ...DEFAULT_EYE_POWER },
+    right: { ...eye },
+    left: { ...eye },
   };
 }
 
@@ -39,14 +124,11 @@ export function lensTypeShowsAdd(lensType: ColorLensTypeId | string | undefined)
   return lensType === 'progressive' || lensType === 'kryptok';
 }
 
-function roundStep(value: number, step: number): number {
-  return Math.round(value / step) * step;
-}
-
 function clampValue(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** @deprecated Use scroll pickers with option lists instead. */
 export function stepEyePower(
   field: keyof EyePowerValues,
   current: number,
@@ -55,4 +137,23 @@ export function stepEyePower(
   const limits = PRESCRIPTION_LIMITS[field];
   const next = roundStep(current + direction * limits.step, limits.step);
   return clampValue(next, limits.min, limits.max);
+}
+
+export function snapPrescriptionToLensType(
+  prescription: ColorLensPrescription,
+  lensType: ColorLensTypeId | string | undefined
+): ColorLensPrescription {
+  const axisOptions = getAxisOptionsForLensType(lensType);
+
+  const snapEye = (eye: EyePowerValues): EyePowerValues => ({
+    sph: snapToOption(eye.sph, buildSphOptions()),
+    cyl: snapToOption(eye.cyl, buildCylOptions()),
+    axis: snapToOption(eye.axis, axisOptions),
+    add: snapToOption(eye.add, buildAddOptions()),
+  });
+
+  return {
+    right: snapEye(prescription.right),
+    left: snapEye(prescription.left),
+  };
 }

@@ -21,7 +21,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { placeColorLensOrder } from '@/lib/color-lens-orders-api';
 import { formatPowerLabel } from '@/lib/cart-utils';
-import { COLOR_LENS_TYPE_OPTIONS, PREDEFINED_LENS_COLORS } from '@/lib/color-lens';
+import { COLOR_LENS_TYPE_OPTIONS, PREDEFINED_LENS_COLORS, type ColorLensTypeId } from '@/lib/color-lens';
 import {
   COLOR_LENS_COLLECTION_LABEL,
   COLOR_LENS_DEFAULT_COATING,
@@ -79,7 +79,8 @@ export default function ReviewConfirmScreen() {
   const materialId = (order.materialId as ColorLensMaterialId | undefined) ?? 'tintable-brc';
   const lensIndex = formatLensIndex(getLensIndexForMaterial(materialId));
 
-  const prescription = order.prescription ?? createDefaultPrescription();
+  const prescription =
+    order.prescription ?? createDefaultPrescription(order.lensType as ColorLensTypeId | undefined);
   const powerSummary = `${formatPowerLabel(prescription.right.sph)} / ${formatPowerLabel(prescription.left.sph)}`;
 
   const tintStrength = order.tintStrength ?? COLOR_LENS_DEFAULT_TINT_STRENGTH;
