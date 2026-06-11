@@ -7,9 +7,11 @@ export type PickState = 'full' | 'partial' | 'none' | 'cancelled';
 
 export type PowerLineRow = {
   orderId: string;
-  /** All order ids merged into this row (same SPH/CYL within a product). */
+  /** All order ids merged into this row (same power combo within a product). */
   orderIds?: string[];
   sphCylLabel: string;
+  addLabel: string;
+  axisLabel: string;
   ordered: number;
   picked: number;
   pickState: PickState;
@@ -87,14 +89,62 @@ function normalizePowerValue(value: number | string | null | undefined): string 
   return fixed;
 }
 
-function formatSphCyl(order: OrderRecord): string {
+function formatAxisDisplay(axis: number | null | undefined): string {
+  if (axis === null || axis === undefined) {
+    return '—';
+  }
+  const rounded = Math.round(axis);
+  return rounded > 0 ? `+${rounded}` : String(rounded);
+}
+
+function formatSphCylOnly(order: OrderRecord): string {
   const details = getOrderLensDetails(order);
   if (!details) {
     return '—';
   }
-  const sph = normalizePowerValue(details.sph);
-  const cyl = normalizePowerValue(details.cyl);
-  return `${sph} / ${cyl}`;
+  return `${normalizePowerValue(details.sph)} / ${normalizePowerValue(details.cyl)}`;
+}
+
+function formatAddLabel(order: OrderRecord): string {
+  const showAdd = order.lensType === 'KRYPTOK' || order.lensType === 'PROGRESSIVE';
+  if (!showAdd) {
+    return '—';
+  }
+
+  const details = getOrderLensDetails(order);
+  if (!details || details.add === null || details.add === undefined || details.add === '') {
+    return '—';
+  }
+
+  return normalizePowerValue(details.add);
+}
+
+function formatAxisLabel(order: OrderRecord): string {
+  const details = getOrderLensDetails(order);
+  if (!details || details.axis === null || details.axis === undefined) {
+    return '—';
+  }
+
+  return formatAxisDisplay(details.axis);
+}
+
+function powerLineMergeKey(line: Pick<PowerLineRow, 'sphCylLabel' | 'addLabel' | 'axisLabel'>): string {
+  return `${line.sphCylLabel}|${line.addLabel}|${line.axisLabel}`;
+}
+
+function buildPowerLineRow(
+  order: OrderRecord,
+  pick: { ordered: number; picked: number; pickState: PickState }
+): PowerLineRow {
+  return {
+    orderId: order.id,
+    sphCylLabel: formatSphCylOnly(order),
+    addLabel: formatAddLabel(order),
+    axisLabel: formatAxisLabel(order),
+    ordered: pick.ordered,
+    picked: pick.picked,
+    pickState: pick.pickState,
+  };
 }
 
 export function getLinePickInfo(order: OrderRecord): { ordered: number; picked: number; pickState: PickState } {
@@ -152,9 +202,10 @@ function mergePowerLines(lines: PowerLineRow[]): PowerLineRow[] {
   >();
 
   for (const line of lines) {
-    const existing = merged.get(line.sphCylLabel);
+    const mergeKey = powerLineMergeKey(line);
+    const existing = merged.get(mergeKey);
     if (!existing) {
-      merged.set(line.sphCylLabel, {
+      merged.set(mergeKey, {
         ...line,
         orderIds: [line.orderId],
         cancelledLines: line.pickState === 'cancelled' ? 1 : 0,
@@ -180,7 +231,7 @@ function mergePowerLines(lines: PowerLineRow[]): PowerLineRow[] {
       ...line,
       orderIds,
     }))
-    .sort((a, b) => a.sphCylLabel.localeCompare(b.sphCylLabel));
+    .sort((a, b) => powerLineMergeKey(a).localeCompare(powerLineMergeKey(b)));
 }
 
 export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSection[] {
@@ -189,13 +240,7 @@ export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSe
   for (const order of orders) {
     const meta = getProductMeta(order);
     const pick = getLinePickInfo(order);
-    const line: PowerLineRow = {
-      orderId: order.id,
-      sphCylLabel: formatSphCyl(order),
-      ordered: pick.ordered,
-      picked: pick.picked,
-      pickState: pick.pickState,
-    };
+    const line = buildPowerLineRow(order, pick);
 
     const existing = sections.get(meta.key);
     if (existing) {

@@ -166,8 +166,14 @@ function PowerTableRow({
 
   return (
     <View style={styles.tableRow}>
-      <Text style={[styles.tableCell, styles.colPower]} numberOfLines={1}>
+      <Text style={[styles.tableCell, styles.colPower]} numberOfLines={2}>
         {line.sphCylLabel}
+      </Text>
+      <Text style={[styles.tableCell, styles.colAdd]} numberOfLines={1}>
+        {line.addLabel}
+      </Text>
+      <Text style={[styles.tableCell, styles.colAxis]} numberOfLines={1}>
+        {line.axisLabel}
       </Text>
       <Text style={[styles.tableCell, styles.colOrdered]}>{line.ordered}</Text>
       <View style={styles.colPacked}>
@@ -244,6 +250,12 @@ function ProductSectionCard({
           <View style={styles.tableHead}>
             <View style={styles.colPowerHead}>
               <Text style={styles.tableHeadText}>SPH / CYL</Text>
+            </View>
+            <View style={styles.colAddHead}>
+              <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>ADD</Text>
+            </View>
+            <View style={styles.colAxisHead}>
+              <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>AXIS</Text>
             </View>
             <View style={styles.colOrderedHead}>
               <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>Ordered</Text>
@@ -610,7 +622,7 @@ const createStyles = (c: BrandColorScheme) =>
   tableHead: { flexDirection: 'row', paddingBottom: 6 },
   tableHeadText: {
     color: c.textMuted,
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -623,13 +635,17 @@ const createStyles = (c: BrandColorScheme) =>
     borderBottomWidth: 1,
     borderBottomColor: c.cardBorder,
   },
-  tableCell: { color: c.text, fontSize: 13, fontWeight: '600' },
-  colPowerHead: { flex: 2 },
-  colOrderedHead: { flex: 1, alignItems: 'center' },
-  colPackedHead: { flex: 1.4, alignItems: 'flex-end' },
-  colPower: { flex: 2 },
-  colOrdered: { flex: 1, textAlign: 'center' },
-  colPacked: { flex: 1.4, alignItems: 'flex-end', justifyContent: 'center' },
+  tableCell: { color: c.text, fontSize: 11, fontWeight: '600' },
+  colPowerHead: { flex: 1.5 },
+  colAddHead: { flex: 0.7, alignItems: 'center' },
+  colAxisHead: { flex: 0.75, alignItems: 'center' },
+  colOrderedHead: { flex: 0.75, alignItems: 'center' },
+  colPackedHead: { flex: 1.1, alignItems: 'flex-end' },
+  colPower: { flex: 1.5 },
+  colAdd: { flex: 0.7, textAlign: 'center' },
+  colAxis: { flex: 0.75, textAlign: 'center' },
+  colOrdered: { flex: 0.75, textAlign: 'center' },
+  colPacked: { flex: 1.1, alignItems: 'flex-end', justifyContent: 'center' },
   packedCell: {
     flexDirection: 'row',
     alignItems: 'center',

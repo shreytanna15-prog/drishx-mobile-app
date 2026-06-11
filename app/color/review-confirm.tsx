@@ -20,7 +20,6 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { placeColorLensOrder } from '@/lib/color-lens-orders-api';
-import { formatPowerLabel } from '@/lib/cart-utils';
 import { COLOR_LENS_TYPE_OPTIONS, PREDEFINED_LENS_COLORS, type ColorLensTypeId } from '@/lib/color-lens';
 import {
   COLOR_LENS_COLLECTION_LABEL,
@@ -29,7 +28,13 @@ import {
   COLOR_LENS_EST_DELIVERY,
   parseColorLensOrderParams,
 } from '@/lib/color-lens-order';
-import { createDefaultPrescription } from '@/lib/color-lens-prescription';
+import {
+  createDefaultPrescription,
+  formatOdOsAddSummary,
+  formatOdOsAxisSummary,
+  formatOdOsPowerSummary,
+  lensTypeShowsAdd,
+} from '@/lib/color-lens-prescription';
 import {
   formatLensIndex,
   getLensIndexForMaterial,
@@ -81,7 +86,10 @@ export default function ReviewConfirmScreen() {
 
   const prescription =
     order.prescription ?? createDefaultPrescription(order.lensType as ColorLensTypeId | undefined);
-  const powerSummary = `${formatPowerLabel(prescription.right.sph)} / ${formatPowerLabel(prescription.left.sph)}`;
+  const showAdd = lensTypeShowsAdd(order.lensType);
+  const powerSummary = formatOdOsPowerSummary(prescription);
+  const axisSummary = formatOdOsAxisSummary(prescription);
+  const addSummary = formatOdOsAddSummary(prescription);
 
   const tintStrength = order.tintStrength ?? COLOR_LENS_DEFAULT_TINT_STRENGTH;
   const tintedBackground = hexToRgba(colorHex, 0.1);
@@ -175,6 +183,14 @@ export default function ReviewConfirmScreen() {
             <ReviewRow label="Lens Type" value={lensTypeLabel} />
             <View style={styles.specDivider} />
             <ReviewRow label="Power (OD/OS)" value={powerSummary} />
+            <View style={styles.specDivider} />
+            <ReviewRow label="AXIS (OD/OS)" value={axisSummary} />
+            {showAdd ? (
+              <>
+                <View style={styles.specDivider} />
+                <ReviewRow label="ADD (OD/OS)" value={addSummary} />
+              </>
+            ) : null}
             <View style={styles.specDivider} />
             <ReviewRow label="Index" value={lensIndex} />
             <View style={styles.specDivider} />

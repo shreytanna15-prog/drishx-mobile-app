@@ -91,8 +91,14 @@ function PowerTableRow({ line }: { line: PowerLineRow }) {
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.tableRow}>
-      <Text style={[styles.tableCell, styles.colPower]} numberOfLines={1}>
+      <Text style={[styles.tableCell, styles.colPower]} numberOfLines={2}>
         {line.sphCylLabel}
+      </Text>
+      <Text style={[styles.tableCell, styles.colAdd]} numberOfLines={1}>
+        {line.addLabel}
+      </Text>
+      <Text style={[styles.tableCell, styles.colAxis]} numberOfLines={1}>
+        {line.axisLabel}
       </Text>
       <Text style={[styles.tableCell, styles.colOrdered]}>{line.ordered}</Text>
       <View style={styles.colPacked}>
@@ -152,6 +158,12 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
           <View style={styles.tableHead}>
             <View style={styles.colPowerHead}>
               <Text style={styles.tableHeadText}>SPH / CYL</Text>
+            </View>
+            <View style={styles.colAddHead}>
+              <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>ADD</Text>
+            </View>
+            <View style={styles.colAxisHead}>
+              <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>AXIS</Text>
             </View>
             <View style={styles.colOrderedHead}>
               <Text style={[styles.tableHeadText, styles.tableHeadTextCenter]}>Ordered</Text>
@@ -503,7 +515,7 @@ const createStyles = (c: BrandColorScheme) =>
   },
   tableHeadText: {
     color: c.textMuted,
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '700',
     textTransform: 'uppercase',
   },
@@ -516,18 +528,26 @@ const createStyles = (c: BrandColorScheme) =>
   },
   tableCell: {
     color: c.text,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '600',
   },
   colPowerHead: {
-    flex: 2,
+    flex: 1.5,
+  },
+  colAddHead: {
+    flex: 0.7,
+    alignItems: 'center',
+  },
+  colAxisHead: {
+    flex: 0.75,
+    alignItems: 'center',
   },
   colOrderedHead: {
-    flex: 1,
+    flex: 0.75,
     alignItems: 'center',
   },
   colPackedHead: {
-    flex: 1.4,
+    flex: 1.1,
     alignItems: 'flex-end',
   },
   tableHeadTextCenter: {
@@ -538,14 +558,22 @@ const createStyles = (c: BrandColorScheme) =>
     textAlign: 'right',
   },
   colPower: {
-    flex: 2,
+    flex: 1.5,
+  },
+  colAdd: {
+    flex: 0.7,
+    textAlign: 'center',
+  },
+  colAxis: {
+    flex: 0.75,
+    textAlign: 'center',
   },
   colOrdered: {
-    flex: 1,
+    flex: 0.75,
     textAlign: 'center',
   },
   colPacked: {
-    flex: 1.4,
+    flex: 1.1,
     alignItems: 'flex-end',
     justifyContent: 'center',
   },

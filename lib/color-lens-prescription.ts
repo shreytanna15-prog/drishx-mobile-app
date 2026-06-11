@@ -1,3 +1,4 @@
+import { formatPowerLabel } from '@/lib/cart-utils';
 import type { ColorLensTypeId } from '@/lib/color-lens';
 
 export type EyePowerValues = {
@@ -122,6 +123,20 @@ export function createDefaultPrescription(
 
 export function lensTypeShowsAdd(lensType: ColorLensTypeId | string | undefined): boolean {
   return lensType === 'progressive' || lensType === 'kryptok';
+}
+
+export function formatOdOsPowerSummary(prescription: ColorLensPrescription): string {
+  const od = `${formatPowerLabel(prescription.right.sph)} / ${formatPowerLabel(prescription.right.cyl)}`;
+  const os = `${formatPowerLabel(prescription.left.sph)} / ${formatPowerLabel(prescription.left.cyl)}`;
+  return `${od} · ${os}`;
+}
+
+export function formatOdOsAxisSummary(prescription: ColorLensPrescription): string {
+  return `${formatAxisPickerLabel(prescription.right.axis)} / ${formatAxisPickerLabel(prescription.left.axis)}`;
+}
+
+export function formatOdOsAddSummary(prescription: ColorLensPrescription): string {
+  return `${formatPowerLabel(prescription.right.add)} / ${formatPowerLabel(prescription.left.add)}`;
 }
 
 function clampValue(value: number, min: number, max: number): number {
