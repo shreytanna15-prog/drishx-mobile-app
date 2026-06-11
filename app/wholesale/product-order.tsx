@@ -1,11 +1,12 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { appAlert } from '@/lib/app-alert';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -322,7 +323,7 @@ export default function WholesaleProductOrderScreen() {
 
   async function handleAddAllToCart() {
     if (!item) {
-      Alert.alert('Unable to load product', 'Please go back and select a product again.');
+      appAlert('Unable to load product', 'Please go back and select a product again.');
       return;
     }
 
@@ -385,17 +386,17 @@ export default function WholesaleProductOrderScreen() {
     }
 
     if (success > 0 && failures.length === 0) {
-      Alert.alert('Added to cart', `Added ${success} item(s) to cart.`);
+      appAlert('Added to cart', `Added ${success} item(s) to cart.`);
       router.push('/(tabs)/cart');
       return;
     }
 
     if (success > 0) {
-      Alert.alert('Partially added', `${success} item(s) added. Some failed:\n\n${failures.slice(0, 8).join('\n')}`);
+      appAlert('Partially added', `${success} item(s) added. Some failed:\n\n${failures.slice(0, 8).join('\n')}`);
       return;
     }
 
-    Alert.alert('Failed', failures.join('\n\n'));
+    appAlert('Failed', failures.join('\n\n'));
   }
 
   if (!item) {

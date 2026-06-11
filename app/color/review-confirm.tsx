@@ -5,7 +5,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
 
 import { OrderPlacedModal } from '@/components/order-placed-modal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -109,9 +110,9 @@ export default function ReviewConfirmScreen() {
         return;
       }
 
-      Alert.alert('Order failed', result.error);
+      appAlert('Order failed', result.error);
     } catch (err) {
-      Alert.alert(
+      appAlert(
         'Order failed',
         err instanceof Error ? err.message : 'Could not place your order. Please try again.'
       );

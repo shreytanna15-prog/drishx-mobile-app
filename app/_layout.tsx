@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 
 LogBox.ignoreLogs(['Unable to activate keep awake']);
 
+import { AppAlertProvider } from '@/lib/app-alert';
 import { AuthProvider } from '@/lib/auth';
 import { CartProvider } from '@/lib/cart';
 import { OrderModeProvider } from '@/lib/order-mode';
@@ -51,13 +52,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <AuthProvider>
-          <OrderModeProvider>
-            <CartProvider>
-              <RootNavigation />
-            </CartProvider>
-          </OrderModeProvider>
-        </AuthProvider>
+        <AppAlertProvider>
+          <AuthProvider>
+            <OrderModeProvider>
+              <CartProvider>
+                <RootNavigation />
+              </CartProvider>
+            </OrderModeProvider>
+          </AuthProvider>
+        </AppAlertProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

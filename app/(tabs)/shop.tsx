@@ -4,8 +4,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -41,7 +43,7 @@ export default function ShopScreen() {
     async (asset: ImagePicker.ImagePickerAsset) => {
       const uri = asset.uri;
       if (!uri) {
-        Alert.alert('Upload failed', 'Could not read the selected image.');
+        appAlert('Upload failed', 'Could not read the selected image.');
         return;
       }
 
@@ -52,12 +54,12 @@ export default function ShopScreen() {
       setUploadingPhoto(true);
       try {
         const result = await uploadPhotoOrder(uri, mimeType, fileName, getAuthHeaders());
-        Alert.alert(
+        appAlert(
           'Order received',
           result.message || 'Your order will be placed soon. Our team will process your prescription photo.'
         );
       } catch (err) {
-        Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
+        appAlert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
       } finally {
         setUploadingPhoto(false);
       }
@@ -68,14 +70,14 @@ export default function ShopScreen() {
   const handlePhotoOrderPress = useCallback(() => {
     if (uploadingPhoto) return;
 
-    Alert.alert('Order with photo', 'Upload a prescription photo for our team to place your order.', [
+    appAlert('Order with photo', 'Upload a prescription photo for our team to place your order.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Take photo',
         onPress: async () => {
           const permission = await ImagePicker.requestCameraPermissionsAsync();
           if (!permission.granted) {
-            Alert.alert('Permission needed', 'Camera access is required to take a photo.');
+            appAlert('Permission needed', 'Camera access is required to take a photo.');
             return;
           }
           const result = await ImagePicker.launchCameraAsync({
@@ -92,7 +94,7 @@ export default function ShopScreen() {
         onPress: async () => {
           const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!permission.granted) {
-            Alert.alert('Permission needed', 'Photo library access is required.');
+            appAlert('Permission needed', 'Photo library access is required.');
             return;
           }
           const result = await ImagePicker.launchImageLibraryAsync({

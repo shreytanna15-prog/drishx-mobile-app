@@ -3,10 +3,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
+import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { fetchCurrentUser, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
@@ -52,7 +53,7 @@ export default function PendingApprovalScreen() {
 
       if (mapped.approvalStatus === 'REJECTED') {
         stopPolling();
-        Alert.alert(
+        appAlert(
           'Account rejected',
           mapped.rejectionReason || 'Your account was rejected by admin.'
         );

@@ -5,7 +5,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -191,7 +192,7 @@ export default function HomeScreen() {
 
   const clientId = useMemo(() => (user ? user.id : ''), [user]);
   const comingSoon = () => {
-    Alert.alert('Coming soon', 'This feature will be available in a future update.');
+    appAlert('Coming soon', 'This feature will be available in a future update.');
   };
 
   if (isStaff) {

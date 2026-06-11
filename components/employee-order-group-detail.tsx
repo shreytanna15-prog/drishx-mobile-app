@@ -2,10 +2,11 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
+import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
@@ -154,7 +155,7 @@ function PowerTableRow({
       return;
     }
 
-    Alert.alert('Mark as packed', 'Mark this power line as packed?', [
+    appAlert('Mark as packed', 'Mark this power line as packed?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Mark packed',
@@ -295,7 +296,7 @@ function StaffLineStatusPanel({
         ? 'Cancel this order line? Stock will be restored.'
         : `Mark this line as "${formatOrderStatusLabel(nextStatus)}"?`;
 
-    Alert.alert('Update order status', message, [
+    appAlert('Update order status', message, [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, update',
@@ -426,7 +427,7 @@ export function EmployeeOrderGroupDetail({
           ? `Set this order to "${stepLabel}"?`
           : `Set all ${lineCount} active lines in this order to "${stepLabel}"?`;
 
-      Alert.alert('Update order tracking', message, [
+      appAlert('Update order tracking', message, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Update',

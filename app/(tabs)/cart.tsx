@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CustomerCartDetail } from '@/components/customer-cart-detail';
+import { appAlert } from '@/lib/app-alert';
 import { OrderPlacedModal } from '@/components/order-placed-modal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -44,6 +44,7 @@ export default function CartTabScreen() {
     adjustQuantity,
     updateQuantity,
     removeFromCart,
+    removeLinesFromCart,
     clearCart,
     refreshCart,
   } = useCart();
@@ -92,7 +93,7 @@ export default function CartTabScreen() {
 
     const trimmedNotes = orderNotes.trim();
     if (trimmedNotes.length > ORDER_NOTES_MAX_LENGTH) {
-      Alert.alert(
+      appAlert(
         'Notes too long',
         `Order notes must be at most ${ORDER_NOTES_MAX_LENGTH} characters.`
       );
@@ -143,14 +144,14 @@ export default function CartTabScreen() {
     }
 
     if (successCount > 0) {
-      Alert.alert(
+      appAlert(
         'Partial success',
         `${successCount} order(s) placed. Some items failed:\n\n${failures.join('\n')}`
       );
       return;
     }
 
-    Alert.alert('Order failed', failures.join('\n\n'));
+    appAlert('Order failed', failures.join('\n\n'));
   }
 
   return (
@@ -249,6 +250,25 @@ export default function CartTabScreen() {
                 }}
                 onRemove={(cartLineId) => {
                   void removeFromCart(cartLineId);
+                }}
+                onRemoveSection={(cartLineIds) => {
+                  void removeLinesFromCart(cartLineIds);
+                }}
+                onClearCart={() => {
+                  appAlert(
+                    'Clear cart',
+                    'Remove all products from your cart?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Clear cart',
+                        style: 'destructive',
+                        onPress: () => {
+                          void clearCart();
+                        },
+                      },
+                    ]
+                  );
                 }}
               />
 

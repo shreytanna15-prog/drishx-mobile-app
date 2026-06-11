@@ -3,10 +3,11 @@
 import { Link, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
@@ -34,12 +35,12 @@ export default function SignupScreen() {
     setMessage('');
 
     if (!name.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('Missing fields', 'Name, email, and password are required.');
+      appAlert('Missing fields', 'Name, email, and password are required.');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Password mismatch', 'Please make sure both passwords match.');
+      appAlert('Password mismatch', 'Please make sure both passwords match.');
       return;
     }
 
@@ -56,13 +57,13 @@ export default function SignupScreen() {
 
       if (!response.ok) {
         const errorMessage = result?.error || 'Signup failed. Please try again.';
-        Alert.alert('Signup failed', errorMessage);
+        appAlert('Signup failed', errorMessage);
         return;
       }
 
       const userId = result?.user?.id;
       if (!userId) {
-        Alert.alert('Signup failed', 'Account was created but user id was missing.');
+        appAlert('Signup failed', 'Account was created but user id was missing.');
         return;
       }
 
@@ -77,7 +78,7 @@ export default function SignupScreen() {
         params: { userId, email: normalizedEmail },
       });
     } catch {
-      Alert.alert(
+      appAlert(
         'Network error',
         `Unable to connect to the signup backend at ${SIGNUP_URL}. Make sure the Drishx-admin-and-backend server is running and reachable from this device.`
       );

@@ -4,10 +4,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
+
+import { appAlert } from '@/lib/app-alert';
 import { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -41,12 +42,12 @@ export default function UploadReferenceScreen() {
 
   const applyPickedAsset = useCallback((asset: ImagePicker.ImagePickerAsset) => {
     if (!asset.uri) {
-      Alert.alert('Upload failed', 'Could not read the selected image.');
+      appAlert('Upload failed', 'Could not read the selected image.');
       return;
     }
 
     if (asset.fileSize && asset.fileSize > MAX_BYTES) {
-      Alert.alert('File too large', 'Please choose an image that is 10 MB or smaller.');
+      appAlert('File too large', 'Please choose an image that is 10 MB or smaller.');
       return;
     }
 
@@ -60,7 +61,7 @@ export default function UploadReferenceScreen() {
   const openCamera = useCallback(async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Camera access is required to capture a reference photo.');
+      appAlert('Permission needed', 'Camera access is required to capture a reference photo.');
       return;
     }
 
@@ -77,7 +78,7 @@ export default function UploadReferenceScreen() {
   const openGallery = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Photo library access is required to choose a reference image.');
+      appAlert('Permission needed', 'Photo library access is required to choose a reference image.');
       return;
     }
 
@@ -112,7 +113,7 @@ export default function UploadReferenceScreen() {
         }),
       } as never);
     } catch (err) {
-      Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
+      appAlert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setUploading(false);
     }

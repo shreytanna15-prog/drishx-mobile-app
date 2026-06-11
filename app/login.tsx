@@ -3,10 +3,11 @@
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
@@ -42,7 +43,7 @@ export default function LoginScreen() {
     setMessage('');
 
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Missing fields', 'Email and password are required.');
+      appAlert('Missing fields', 'Email and password are required.');
       return;
     }
 
@@ -59,7 +60,7 @@ export default function LoginScreen() {
 
       if (!response.ok) {
         if (response.status === 403 && result?.user) {
-          Alert.alert(
+          appAlert(
             'Account rejected',
             result?.rejectionReason || result?.error || 'Your account was rejected by admin.'
           );
@@ -74,7 +75,7 @@ export default function LoginScreen() {
           return;
         }
         const errorMessage = result?.error || 'Login failed. Please try again.';
-        Alert.alert('Login failed', errorMessage);
+        appAlert('Login failed', errorMessage);
         return;
       }
 
@@ -93,7 +94,7 @@ export default function LoginScreen() {
         router.replace(nextRoute);
       }
     } catch {
-      Alert.alert(
+      appAlert(
         'Network error',
         `Unable to connect to the login backend at ${LOGIN_URL}. Make sure the Drishx-admin-and-backend server is running and reachable from this device.`
       );

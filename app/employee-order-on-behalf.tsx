@@ -1,11 +1,12 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
+import { appAlert } from '@/lib/app-alert';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   SafeAreaView,
@@ -193,15 +194,15 @@ export default function EmployeeOrderOnBehalfScreen() {
 
   async function placeOrderOnBehalf() {
     if (!selectedCustomerId) {
-      Alert.alert('Select customer', 'Please select a customer first.');
+      appAlert('Select customer', 'Please select a customer first.');
       return;
     }
     if (selectedLines.length === 0) {
-      Alert.alert('Select products', 'Please add at least one product.');
+      appAlert('Select products', 'Please add at least one product.');
       return;
     }
     if (orderNotes.trim().length > ORDER_NOTES_MAX_LENGTH) {
-      Alert.alert('Notes too long', `Notes must be at most ${ORDER_NOTES_MAX_LENGTH} characters.`);
+      appAlert('Notes too long', `Notes must be at most ${ORDER_NOTES_MAX_LENGTH} characters.`);
       return;
     }
 
@@ -226,15 +227,15 @@ export default function EmployeeOrderOnBehalfScreen() {
     setPlacingOrder(false);
 
     if (failures.length > 0 && successCount === 0) {
-      Alert.alert('Order failed', failures.join('\n\n'));
+      appAlert('Order failed', failures.join('\n\n'));
       return;
     }
     if (failures.length > 0) {
-      Alert.alert('Partial success', `${successCount} order(s) placed.\n\n${failures.join('\n\n')}`);
+      appAlert('Partial success', `${successCount} order(s) placed.\n\n${failures.join('\n\n')}`);
       return;
     }
 
-    Alert.alert('Order placed', `Successfully placed ${successCount} order(s).`);
+    appAlert('Order placed', `Successfully placed ${successCount} order(s).`);
     setSelectedLines([]);
     setOrderNotes('');
   }

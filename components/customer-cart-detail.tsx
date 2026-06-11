@@ -3,6 +3,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -19,6 +20,8 @@ type CustomerCartDetailProps = {
   onIncrease: (cartLineId: string) => void;
   onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
+  onRemoveSection: (cartLineIds: string[]) => void;
+  onClearCart: () => void;
 };
 
 function CartPowerRow({
@@ -37,7 +40,10 @@ function CartPowerRow({
   const statusParts = [line.reserveLabel, line.backorderNote].filter(Boolean);
 
   return (
-    <View style={styles.lineBlock}>
+    <Animated.View
+      style={styles.lineBlock}
+      layout={LinearTransition.duration(220)}
+      exiting={FadeOutLeft.duration(260)}>
       <View style={styles.tableRow}>
         <View style={styles.colPower}>
           <Text style={styles.tableCell} numberOfLines={2}>
@@ -68,7 +74,7 @@ function CartPowerRow({
           {statusParts.join(' · ')}
         </Text>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -79,6 +85,7 @@ function CartProductSectionCard({
   onIncrease,
   onDecrease,
   onRemove,
+  onRemoveSection,
 }: {
   section: CartProductSection;
   isWholesale: boolean;
@@ -86,28 +93,45 @@ function CartProductSectionCard({
   onIncrease: (cartLineId: string) => void;
   onDecrease: (cartLineId: string) => void;
   onRemove: (cartLineId: string) => void;
+  onRemoveSection: (cartLineIds: string[]) => void;
 }) {
   const styles = useThemedStyles(createStyles);
   const colors = useBrandColors();
   const [expanded, setExpanded] = useState(true);
 
+  const sectionLineIds = section.lines.map((line) => line.cartLineId);
+
   return (
-    <View style={styles.productCard}>
-      <Pressable style={styles.productHeader} onPress={() => setExpanded((value) => !value)}>
+    <Animated.View
+      style={styles.productCard}
+      layout={LinearTransition.duration(260)}
+      exiting={FadeOutLeft.duration(300)}>
+      <View style={styles.productHeader}>
         <View style={styles.productHeaderLeft}>
           <View style={styles.productThumb}>
             <MaterialIcons name="visibility" size={16} color={colors.primary} />
           </View>
           <View style={styles.productHeaderText}>
-            <Text style={styles.productTitle} numberOfLines={1}>
-              {section.title}
-            </Text>
+            <View style={styles.productTitleRow}>
+              <Text style={styles.productTitle} numberOfLines={1}>
+                {section.title}
+              </Text>
+              <Pressable
+                onPress={() => onRemoveSection(sectionLineIds)}
+                hitSlop={8}
+                style={styles.sectionRemoveBtn}>
+                <MaterialIcons name="delete-outline" size={17} color={colors.danger} />
+              </Pressable>
+            </View>
             <Text style={styles.productSubtitle} numberOfLines={1}>
               {section.subtitle}
             </Text>
           </View>
         </View>
-        <View style={styles.productHeaderRight}>
+        <Pressable
+          style={styles.productHeaderRight}
+          onPress={() => setExpanded((value) => !value)}
+          hitSlop={4}>
           <Text style={styles.productPairs}>
             {section.totalPairs} {isWholesale ? 'pr' : 'pc'}
           </Text>
@@ -116,8 +140,8 @@ function CartProductSectionCard({
             size={20}
             color={colors.textMuted}
           />
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
 
       {expanded ? (
         <View style={styles.tableWrap}>
@@ -137,7 +161,7 @@ function CartProductSectionCard({
           ))}
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -148,8 +172,11 @@ export function CustomerCartDetail({
   onIncrease,
   onDecrease,
   onRemove,
+  onRemoveSection,
+  onClearCart,
 }: CustomerCartDetailProps) {
   const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
   const isWholesale = orderMode === 'wholesale';
   const sections = buildCartProductSections(items, orderMode);
   const { productCount, pairCount, totalAmount } = getCartSummary(items, orderMode);
@@ -181,7 +208,14 @@ export function CustomerCartDetail({
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Products & power</Text>
+      <View style={styles.sectionTitleRow}>
+        <Text style={styles.sectionTitle}>Products & power</Text>
+        <Pressable onPress={onClearCart} hitSlop={8} style={styles.clearCartBtn}>
+          <MaterialIcons name="delete-sweep" size={16} color={colors.danger} />
+          <Text style={styles.clearCartText}>Clear cart</Text>
+        </Pressable>
+      </View>
+
       {sections.map((section) => (
         <CartProductSectionCard
           key={section.key}
@@ -191,6 +225,7 @@ export function CustomerCartDetail({
           onIncrease={onIncrease}
           onDecrease={onDecrease}
           onRemove={onRemove}
+          onRemoveSection={onRemoveSection}
         />
       ))}
     </View>
@@ -235,9 +270,27 @@ const createStyles = (c: BrandColorScheme) =>
       marginTop: 2,
       fontWeight: '600',
     },
+    sectionTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
     sectionTitle: {
       color: c.text,
       fontSize: 13,
+      fontWeight: '700',
+    },
+    clearCartBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
+    },
+    clearCartText: {
+      color: c.danger,
+      fontSize: 12,
       fontWeight: '700',
     },
     productCard: {
@@ -271,10 +324,20 @@ const createStyles = (c: BrandColorScheme) =>
       justifyContent: 'center',
     },
     productHeaderText: { flex: 1, minWidth: 0 },
+    productTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      minWidth: 0,
+    },
     productTitle: {
       color: c.text,
       fontSize: 14,
       fontWeight: '800',
+      flexShrink: 1,
+    },
+    sectionRemoveBtn: {
+      padding: 0,
     },
     productSubtitle: {
       color: c.textMuted,
@@ -284,6 +347,7 @@ const createStyles = (c: BrandColorScheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 2,
+      flexShrink: 0,
     },
     productPairs: {
       color: c.primary,

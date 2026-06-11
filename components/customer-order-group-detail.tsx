@@ -3,10 +3,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
+import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
@@ -310,7 +311,7 @@ export function CustomerOrderGroupDetail({
               key={order.id}
               style={[styles.cancelButton, cancellingId === order.id && styles.buttonDisabled]}
               onPress={() => {
-                Alert.alert('Cancel order line', 'Cancel this product line from your order?', [
+                appAlert('Cancel order line', 'Cancel this product line from your order?', [
                   { text: 'No', style: 'cancel' },
                   {
                     text: 'Yes, cancel',

@@ -3,10 +3,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
+import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
@@ -32,13 +33,13 @@ export default function GstDetailsScreen() {
 
   async function handleSubmit() {
     if (!userId) {
-      Alert.alert('Missing account', 'Please sign up again to continue.');
+      appAlert('Missing account', 'Please sign up again to continue.');
       router.replace('/signup');
       return;
     }
 
     if (!gstNumber.trim() || !businessName.trim() || !businessAddress.trim()) {
-      Alert.alert('Missing fields', 'GST number, business name, and address are required.');
+      appAlert('Missing fields', 'GST number, business name, and address are required.');
       return;
     }
 
@@ -61,7 +62,7 @@ export default function GstDetailsScreen() {
         params: { email, userId },
       });
     } catch (error) {
-      Alert.alert('Submission failed', error instanceof Error ? error.message : 'Try again.');
+      appAlert('Submission failed', error instanceof Error ? error.message : 'Try again.');
     } finally {
       setLoading(false);
     }

@@ -2,11 +2,12 @@
 
 import { Image } from 'expo-image';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
+import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { getBatchTrackingStatus } from '@/lib/order-detail-display';
@@ -53,7 +54,7 @@ export function EmployeePhotoOrderDetail({
       if (isUpdating || updatingTracking) return;
 
       const stepLabel = MAIN_TRACKING_STEPS.find((item) => item.key === step)?.label ?? step;
-      Alert.alert('Update order tracking', `Set this photo order to "${stepLabel}"?`, [
+      appAlert('Update order tracking', `Set this photo order to "${stepLabel}"?`, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Update',

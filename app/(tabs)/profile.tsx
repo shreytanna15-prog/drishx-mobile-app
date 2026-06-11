@@ -2,10 +2,11 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemeSelector } from '@/components/theme-selector';
+import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
@@ -84,7 +85,7 @@ export default function ProfileScreen() {
   if (!user) return null;
 
   function handleStaffLogout() {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    appAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',
@@ -153,7 +154,7 @@ export default function ProfileScreen() {
   const initials = getInitials(user.name, user.email);
 
   function handleLogout() {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    appAlert('Logout', 'Are you sure you want to logout?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Logout',

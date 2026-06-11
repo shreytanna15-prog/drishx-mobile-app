@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -14,6 +13,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
 
 import { CustomerOrderGroupDetail } from '@/components/customer-order-group-detail';
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -181,7 +182,7 @@ export default function MyOrdersScreen() {
   );
 
   function handleCancel(orderId: string) {
-    Alert.alert('Cancel order', 'Are you sure you want to cancel this order?', [
+    appAlert('Cancel order', 'Are you sure you want to cancel this order?', [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, cancel',
@@ -192,7 +193,7 @@ export default function MyOrdersScreen() {
             await cancelOrder(orderId, getAuthHeaders());
             await loadOrders();
           } catch (err) {
-            Alert.alert('Error', err instanceof Error ? err.message : 'Failed to cancel order.');
+            appAlert('Error', err instanceof Error ? err.message : 'Failed to cancel order.');
           } finally {
             setCancellingId(null);
           }

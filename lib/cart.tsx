@@ -26,6 +26,7 @@ type CartContextValue = {
   refreshCart: () => Promise<void>;
   addToCart: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
   removeFromCart: (cartLineId: string) => Promise<void>;
+  removeLinesFromCart: (cartLineIds: string[]) => Promise<void>;
   updateQuantity: (cartLineId: string, quantity: number) => Promise<void>;
   /** Apply a delta (+/-1, etc). Safer for rapid taps than setting an absolute quantity. */
   adjustQuantity: (cartLineId: string, delta: number) => Promise<void>;
@@ -120,6 +121,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       try {
         await removeCartLine(cartLineId, getAuthHeaders());
+      } catch {
+        setItems(snapshot);
+      }
+    },
+    [getAuthHeaders, items, useServerCart]
+  );
+
+  const removeLinesFromCart = useCallback(
+    async (cartLineIds: string[]) => {
+      const uniqueIds = [...new Set(cartLineIds.filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        return;
+      }
+
+      const idSet = new Set(uniqueIds);
+      const snapshot = items;
+      setItems((current) => current.filter((entry) => !idSet.has(entry.cartLineId)));
+
+      if (!useServerCart) {
+        return;
+      }
+
+      try {
+        await Promise.all(uniqueIds.map((cartLineId) => removeCartLine(cartLineId, getAuthHeaders())));
       } catch {
         setItems(snapshot);
       }
@@ -307,6 +332,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       refreshCart,
       addToCart,
       removeFromCart,
+      removeLinesFromCart,
       updateQuantity,
       adjustQuantity,
       clearCart,
@@ -321,6 +347,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       refreshCart,
       addToCart,
       removeFromCart,
+      removeLinesFromCart,
       updateQuantity,
       adjustQuantity,
       clearCart,

@@ -4,7 +4,6 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -18,6 +17,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -180,7 +181,7 @@ export default function PurchaseStockScreen() {
       const data = await fetchProcurementHistory(getAuthHeaders());
       setHistory(data);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load history.');
+      appAlert('Error', err instanceof Error ? err.message : 'Failed to load history.');
     }
   }, [getAuthHeaders]);
 
@@ -190,7 +191,7 @@ export default function PurchaseStockScreen() {
       const data = await fetchManualExpenses(getAuthHeaders());
       setManualHistory(data);
     } catch (err) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to load manual expenses.');
+      appAlert('Error', err instanceof Error ? err.message : 'Failed to load manual expenses.');
     }
   }, [getAuthHeaders, isAdmin]);
 
@@ -314,7 +315,7 @@ export default function PurchaseStockScreen() {
 
   function handleAddLineToBatch() {
     if (!selectedLens) {
-      Alert.alert('Select a lens', 'Choose the product you are adding to inventory.');
+      appAlert('Select a lens', 'Choose the product you are adding to inventory.');
       return;
     }
 
@@ -324,25 +325,25 @@ export default function PurchaseStockScreen() {
     const sellPrice = parseNumericInput(sellingPrice);
 
     if (!Number.isInteger(qty) || qty <= 0) {
-      Alert.alert('Invalid quantity', 'Enter a whole number greater than 0.');
+      appAlert('Invalid quantity', 'Enter a whole number greater than 0.');
       return;
     }
     if (perUnit === null || perUnit <= 0) {
-      Alert.alert('Invalid price', 'Enter the purchase price per unit.');
+      appAlert('Invalid price', 'Enter the purchase price per unit.');
       return;
     }
     if (purchaseTotal === null || purchaseTotal <= 0) {
-      Alert.alert('Invalid total price', 'Enter the total purchase amount for this line.');
+      appAlert('Invalid total price', 'Enter the total purchase amount for this line.');
       return;
     }
     if (sellPrice === null || sellPrice <= 0) {
-      Alert.alert('Invalid selling price', 'Enter the customer selling price for this product.');
+      appAlert('Invalid selling price', 'Enter the customer selling price for this product.');
       return;
     }
 
     const expectedTotal = roundMoney(perUnit * qty);
     if (Math.abs(expectedTotal - roundMoney(purchaseTotal)) > 0.05) {
-      Alert.alert(
+      appAlert(
         'Price mismatch',
         `Price per unit × quantity should equal total (expected ₹${expectedTotal}).`
       );
@@ -392,7 +393,7 @@ export default function PurchaseStockScreen() {
   }
 
   function handleClearBatch() {
-    Alert.alert('Clear list', 'Remove all products from this purchase?', [
+    appAlert('Clear list', 'Remove all products from this purchase?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Clear',
@@ -404,11 +405,11 @@ export default function PurchaseStockScreen() {
 
   async function handleSubmitBatch() {
     if (pendingLines.length === 0) {
-      Alert.alert('Add products', 'Add at least one product to the list before submitting.');
+      appAlert('Add products', 'Add at least one product to the list before submitting.');
       return;
     }
 
-    Alert.alert(
+    appAlert(
       'Confirm purchase',
       `Add stock for ${pendingLines.length} product(s)?\nTotal: ₹${batchTotal} (${batchUnits} units)`,
       [
@@ -437,13 +438,13 @@ export default function PurchaseStockScreen() {
               setNotes('');
               resetDraftForm();
 
-              Alert.alert(
+              appAlert(
                 'Stock added',
                 `Successfully added ${result.itemCount} product(s).\nTotal: ₹${result.totalAmount}\nRef: ${result.batchReference}`
               );
               await loadHistory();
             } catch (err) {
-              Alert.alert('Failed', err instanceof Error ? err.message : 'Could not add stock.');
+              appAlert('Failed', err instanceof Error ? err.message : 'Could not add stock.');
             } finally {
               setSubmitting(false);
             }
@@ -456,11 +457,11 @@ export default function PurchaseStockScreen() {
   async function handleSubmitManual() {
     const purchaseAmount = Number(manualAmount);
     if (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0) {
-      Alert.alert('Invalid amount', 'Enter a valid expense amount.');
+      appAlert('Invalid amount', 'Enter a valid expense amount.');
       return;
     }
     if (!manualDescription.trim()) {
-      Alert.alert('Description required', 'Describe this business expense.');
+      appAlert('Description required', 'Describe this business expense.');
       return;
     }
 
@@ -472,10 +473,10 @@ export default function PurchaseStockScreen() {
       );
       setManualAmount('');
       setManualDescription('');
-      Alert.alert('Recorded', 'Manual expense saved.');
+      appAlert('Recorded', 'Manual expense saved.');
       await loadManualHistory();
     } catch (err) {
-      Alert.alert('Failed', err instanceof Error ? err.message : 'Could not save expense.');
+      appAlert('Failed', err instanceof Error ? err.message : 'Could not save expense.');
     } finally {
       setSubmittingManual(false);
     }
