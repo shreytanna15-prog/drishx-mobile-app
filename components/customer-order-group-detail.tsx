@@ -20,6 +20,7 @@ import {
 import {
   formatOrderDateTime,
   getStatusPillStyle,
+  isColorLensOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
@@ -108,6 +109,33 @@ function PowerTableRow({ line }: { line: PowerLineRow }) {
   );
 }
 
+function ReferenceImageCard({
+  imageUrl,
+  onLoadError,
+}: {
+  imageUrl: string | null;
+  onLoadError: () => void;
+}) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
+
+  if (!imageUrl) {
+    return null;
+  }
+
+  return (
+    <View style={styles.referenceCard}>
+      <Text style={styles.referenceTitle}>Uploaded reference</Text>
+      <Image
+        source={{ uri: imageUrl }}
+        style={styles.photoImage}
+        contentFit="contain"
+        onError={onLoadError}
+      />
+    </View>
+  );
+}
+
 function ProductSectionCard({ section }: { section: OrderProductSection }) {
   const styles = useThemedStyles(createStyles);
   const colors = useBrandColors();
@@ -192,10 +220,20 @@ export function CustomerOrderGroupDetail({
   const productSections = useMemo(() => buildOrderProductSections(group.orders), [group.orders]);
   const trackingStatus = useMemo(() => getBatchTrackingStatus(group.orders), [group.orders]);
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
+  const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
+
+  const colorLensReferenceUrl = useMemo(() => {
+    const orderWithImage = group.orders.find(
+      (order) => isColorLensOrder(order) && order.orderImageUrl?.trim()
+    );
+    const raw = orderWithImage?.orderImageUrl?.trim() ?? null;
+    return raw ? resolvePhotoOrderImageUrl(raw) : null;
+  }, [group.orders]);
 
   useEffect(() => {
     setPhotoLoadFailed(false);
-  }, [group.key, group.photoUrl]);
+    setReferenceLoadFailed(false);
+  }, [group.key, group.photoUrl, colorLensReferenceUrl]);
 
   const cancellableOrders = group.orders.filter((order) => {
     const status = normalizeOrderStatus(order.status);
@@ -282,6 +320,21 @@ export function CustomerOrderGroupDetail({
         <Text style={styles.companyName}>{group.companyName}</Text>
         <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
       </View>
+
+      {colorLensReferenceUrl && !referenceLoadFailed ? (
+        <ReferenceImageCard
+          imageUrl={colorLensReferenceUrl}
+          onLoadError={() => setReferenceLoadFailed(true)}
+        />
+      ) : colorLensReferenceUrl && referenceLoadFailed ? (
+        <View style={styles.referenceCard}>
+          <Text style={styles.referenceTitle}>Uploaded reference</Text>
+          <View style={styles.photoMissing}>
+            <MaterialIcons name="image-not-supported" size={40} color={colors.textMuted} />
+            <Text style={styles.photoMissingText}>Could not load reference image</Text>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.statsRow}>
         <View style={styles.statCell}>
@@ -673,6 +726,21 @@ const createStyles = (c: BrandColorScheme) =>
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  referenceCard: {
+    backgroundColor: c.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
+    padding: 14,
+    gap: 10,
+  },
+  referenceTitle: {
+    color: c.text,
+    fontSize: 13,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   photoHint: {
     color: c.primary,

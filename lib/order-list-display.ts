@@ -55,8 +55,13 @@ function isProcurementLine(status: OrderTrackingStatus): boolean {
   return status === 'AWAITING_PROCUREMENT' || status === 'PARTIALLY_FULFILLED';
 }
 
+export function isColorLensOrder(order: OrderRecord): boolean {
+  return order.notes?.includes('[Color Lens]') ?? false;
+}
+
+/** Shop prescription photo upload — not a completed color-lens configuration. */
 function isPhotoOrder(order: OrderRecord): boolean {
-  return Boolean(order.orderImageUrl?.trim());
+  return Boolean(order.orderImageUrl?.trim()) && !isColorLensOrder(order);
 }
 
 export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDisplay {
