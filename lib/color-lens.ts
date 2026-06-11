@@ -29,7 +29,6 @@ export const COLOR_LENS_MODES: ColorLensMode[] = [
 ];
 
 export const COLOR_LENS_FEATURES = [
-  { id: 'ai-match', label: 'AI Color Matching', icon: 'center-focus-strong' as const },
   { id: 'preview', label: 'Real-time Preview', icon: 'visibility' as const },
   { id: 'accuracy', label: 'Exact Accuracy', icon: 'verified' as const },
   { id: 'quality', label: 'Premium Quality', icon: 'workspace-premium' as const },
