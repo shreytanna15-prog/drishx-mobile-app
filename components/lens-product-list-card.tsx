@@ -2,23 +2,21 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
+import { formatLensProductCardDetail } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem } from '@/lib/types/lens';
 
 type LensProductListCardProps = {
   item: LensItem;
   onPress?: () => void;
+  /** @deprecated Lens type is included in the card detail line. */
   showLensType?: boolean;
 };
 
-export function LensProductListCard({ item, onPress, showLensType = false }: LensProductListCardProps) {
+export function LensProductListCard({ item, onPress }: LensProductListCardProps) {
   const styles = useThemedStyles(createStyles);
-  const lensType = item.lensType ?? 'Progressive';
   const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
-  const itemName = formatLensItemLabel(item);
-  const sphCyl = formatSphCylSlash(item);
-  const addAxis = formatAddAxisLabel(item);
+  const detailLine = formatLensProductCardDetail(item);
 
   const content = (
     <>
@@ -27,8 +25,9 @@ export function LensProductListCard({ item, onPress, showLensType = false }: Len
           <Text style={styles.brandText} numberOfLines={2}>
             {brand}
           </Text>
-          <Text style={styles.powerText}>{sphCyl}</Text>
-          <Text style={styles.powerMetaText}>{addAxis}</Text>
+          <Text style={styles.powerText} numberOfLines={2}>
+            {detailLine}
+          </Text>
         </View>
         <View style={styles.priceBlock}>
           <Text style={styles.priceAmount}>
@@ -38,11 +37,6 @@ export function LensProductListCard({ item, onPress, showLensType = false }: Len
           </Text>
         </View>
       </View>
-
-      {showLensType ? <Text style={styles.categoryText}>{lensType}</Text> : null}
-      <Text style={styles.itemText} numberOfLines={2}>
-        {itemName}
-      </Text>
     </>
   );
 
@@ -90,12 +84,6 @@ const createStyles = (c: BrandColorScheme) =>
       fontWeight: '800',
       lineHeight: 20,
     },
-    powerMetaText: {
-      fontSize: 12,
-      color: c.textMuted,
-      fontWeight: '600',
-      lineHeight: 16,
-    },
     priceBlock: {
       alignItems: 'flex-end',
       flexShrink: 0,
@@ -117,17 +105,5 @@ const createStyles = (c: BrandColorScheme) =>
       fontSize: 10,
       fontWeight: '700',
       color: c.textMuted,
-    },
-    categoryText: {
-      fontSize: 12,
-      color: c.text,
-      fontWeight: '700',
-      marginBottom: 2,
-    },
-    itemText: {
-      fontSize: 11,
-      color: c.textMuted,
-      fontWeight: '600',
-      lineHeight: 15,
     },
   });
