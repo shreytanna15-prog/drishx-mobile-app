@@ -23,6 +23,19 @@ export const COLOR_LENS_MATERIAL_OPTIONS: ColorLensMaterialOption[] = [
   { id: 'tintable', title: 'Tintable' },
 ];
 
+/** Kryptok / Progressive omit BRC materials; Single Vision keeps the full list. */
+export function getMaterialOptionsForLensType(
+  lensType: string | undefined
+): ColorLensMaterialOption[] {
+  if (lensType === 'kryptok' || lensType === 'progressive') {
+    return COLOR_LENS_MATERIAL_OPTIONS.filter(
+      (option) => option.id !== 'tintable-brc' && option.id !== 'poly-tintable-brc'
+    );
+  }
+
+  return COLOR_LENS_MATERIAL_OPTIONS;
+}
+
 export function getLensIndexForMaterial(materialId: ColorLensMaterialId): number {
   return materialId === 'poly-tintable-brc' ? COLOR_LENS_INDEX_POLY : COLOR_LENS_INDEX_DEFAULT;
 }

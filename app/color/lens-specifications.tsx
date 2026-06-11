@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -16,9 +16,9 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { buildColorLensRouteParams, parseColorLensOrderParams } from '@/lib/color-lens-order';
 import {
   COLOR_LENS_DIAMETER_MM,
-  COLOR_LENS_MATERIAL_OPTIONS,
   formatLensIndex,
   getLensIndexForMaterial,
+  getMaterialOptionsForLensType,
   type ColorLensMaterialId,
 } from '@/lib/color-lens-specifications';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -75,16 +75,26 @@ export default function LensSpecificationsScreen() {
   const rawParams = useLocalSearchParams<Record<string, string>>();
   const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
+  const materialOptions = useMemo(
+    () => getMaterialOptionsForLensType(order.lensType),
+    [order.lensType]
+  );
+
   const [selectedMaterialId, setSelectedMaterialId] = useState<ColorLensMaterialId>(
     (order.materialId as ColorLensMaterialId | undefined) ?? 'tintable-brc'
   );
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
 
+  useEffect(() => {
+    if (!materialOptions.some((option) => option.id === selectedMaterialId)) {
+      setSelectedMaterialId(materialOptions[0]?.id ?? 'tintable-brc');
+    }
+  }, [materialOptions, selectedMaterialId]);
+
   const selectedMaterial = useMemo(
     () =>
-      COLOR_LENS_MATERIAL_OPTIONS.find((entry) => entry.id === selectedMaterialId) ??
-      COLOR_LENS_MATERIAL_OPTIONS[0],
-    [selectedMaterialId]
+      materialOptions.find((entry) => entry.id === selectedMaterialId) ?? materialOptions[0],
+    [materialOptions, selectedMaterialId]
   );
 
   const lensIndex = getLensIndexForMaterial(selectedMaterialId);
@@ -136,9 +146,9 @@ export default function LensSpecificationsScreen() {
 
             {materialPickerOpen ? (
               <View style={styles.materialDropdown}>
-                {COLOR_LENS_MATERIAL_OPTIONS.map((option, index) => {
+                {materialOptions.map((option, index) => {
                   const selected = selectedMaterialId === option.id;
-                  const isLast = index === COLOR_LENS_MATERIAL_OPTIONS.length - 1;
+                  const isLast = index === materialOptions.length - 1;
                   return (
                     <Pressable
                       key={option.id}
