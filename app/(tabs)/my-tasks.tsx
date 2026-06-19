@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
+import { isOfflineQueuedError } from '@/lib/api-request';
 import { fetchMyTasks, updateTaskStatus, type TaskRecord } from '@/lib/tasks-api';
 import { useBrandColors } from '@/lib/theme-provider';
 
@@ -116,6 +117,10 @@ export default function MyTasksScreen() {
       const updated = await updateTaskStatus(task.id, next, getAuthHeaders());
       setTasks((prev) => prev.map((current) => (current.id === updated.id ? { ...current, ...updated } : current)));
     } catch (err) {
+      if (isOfflineQueuedError(err)) {
+        setError(err.message);
+        return;
+      }
       setTasks((prev) => prev.map((current) => (current.id === task.id ? task : current)));
       setError(err instanceof Error ? err.message : 'Failed to update task.');
     } finally {

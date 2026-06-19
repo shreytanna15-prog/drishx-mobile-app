@@ -10,7 +10,9 @@ import 'react-native-reanimated';
 LogBox.ignoreLogs(['Unable to activate keep awake']);
 
 import { AppAlertProvider } from '@/lib/app-alert';
+import { OfflineSyncProvider } from '@/lib/offline-sync';
 import { AuthProvider } from '@/lib/auth';
+import { OfflineStatusBanner } from '@/components/offline-status-banner';
 import { CartProvider } from '@/lib/cart';
 import { OrderModeProvider } from '@/lib/order-mode';
 import { ThemeProvider } from '@/lib/theme-provider';
@@ -25,6 +27,7 @@ function RootNavigation() {
 
   return (
     <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <OfflineStatusBanner />
       <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -54,11 +57,13 @@ export default function RootLayout() {
       <ThemeProvider>
         <AppAlertProvider>
           <AuthProvider>
-            <OrderModeProvider>
-              <CartProvider>
-                <RootNavigation />
-              </CartProvider>
-            </OrderModeProvider>
+            <OfflineSyncProvider>
+              <OrderModeProvider>
+                <CartProvider>
+                  <RootNavigation />
+                </CartProvider>
+              </OrderModeProvider>
+            </OfflineSyncProvider>
           </AuthProvider>
         </AppAlertProvider>
       </ThemeProvider>

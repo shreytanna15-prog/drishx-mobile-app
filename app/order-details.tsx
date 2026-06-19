@@ -20,6 +20,8 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
+import { appAlert } from '@/lib/app-alert';
+import { isOfflineQueuedError } from '@/lib/api-request';
 import { groupOrdersForList } from '@/lib/order-list-display';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
@@ -97,6 +99,12 @@ export default function OrderDetailsScreen() {
       try {
         await updateOrderStatus(orderId, payload.status, getAuthHeaders(), payload.pickedQuantity);
         await loadOrders();
+      } catch (error) {
+        if (isOfflineQueuedError(error)) {
+          appAlert('Saved offline', error.message);
+          return;
+        }
+        throw error;
       } finally {
         setUpdatingOrderId(null);
       }

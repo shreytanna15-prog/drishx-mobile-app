@@ -19,6 +19,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { appAlert } from '@/lib/app-alert';
+import { isOfflineQueuedError } from '@/lib/api-request';
 
 import { EmployeeOrderListRow } from '@/components/employee-order-list-row';
 import { EmployeeProcurementProductSheet } from '@/components/employee-procurement-product-sheet';
@@ -476,6 +477,13 @@ export default function PurchaseStockScreen() {
               );
               await loadHistory();
             } catch (err) {
+              if (isOfflineQueuedError(err)) {
+                setPendingLines([]);
+                setNotes('');
+                resetDraftForm();
+                appAlert('Saved offline', err.message);
+                return;
+              }
               appAlert('Failed', err instanceof Error ? err.message : 'Could not add stock.');
             } finally {
               setSubmitting(false);
@@ -508,6 +516,12 @@ export default function PurchaseStockScreen() {
       appAlert('Recorded', 'Manual expense saved.');
       await loadManualHistory();
     } catch (err) {
+      if (isOfflineQueuedError(err)) {
+        setManualAmount('');
+        setManualDescription('');
+        appAlert('Saved offline', err.message);
+        return;
+      }
       appAlert('Failed', err instanceof Error ? err.message : 'Could not save expense.');
     } finally {
       setSubmittingManual(false);

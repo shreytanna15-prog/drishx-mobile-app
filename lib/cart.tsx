@@ -13,8 +13,11 @@ import {
 
 import { clearServerCart, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
-import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
+import { isOfflineQueuedError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
+import { loadOfflineCache, OFFLINE_CACHE_KEYS, saveOfflineCache } from '@/lib/offline-cache';
+import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
+import { onOfflineSyncComplete } from '@/lib/offline-sync';
 import type { CartItem, LensItem } from '@/lib/types/lens';
 
 type CartContextValue = {
@@ -45,6 +48,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const useServerCart = isSignedIn && !isStaff;
   const mutationIdRef = useRef(0);
 
+  const persistLocalCart = useCallback(async (nextItems: CartItem[]) => {
+    if (!useServerCart) {
+      return;
+    }
+    await saveOfflineCache(OFFLINE_CACHE_KEYS.cart, nextItems);
+  }, [useServerCart]);
+
   const refreshCart = useCallback(async () => {
     if (!useServerCart) {
       setItems([]);
@@ -54,8 +64,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       const serverItems = await fetchCart(getAuthHeaders());
       setItems(serverItems);
+      await saveOfflineCache(OFFLINE_CACHE_KEYS.cart, serverItems);
     } catch {
-      setItems([]);
+      const cached = await loadOfflineCache<CartItem[]>(OFFLINE_CACHE_KEYS.cart);
+      setItems(cached ?? []);
     } finally {
       setLoading(false);
     }
@@ -63,6 +75,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshCart();
+  }, [refreshCart]);
+
+  useEffect(() => {
+    return onOfflineSyncComplete(() => {
+      void refreshCart();
+    });
   }, [refreshCart]);
 
   const addToCart = useCallback(
@@ -96,8 +114,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const without = current.filter((entry) => entry.cartLineId !== cartLineId);
           return [...without, saved];
         });
+        await persistLocalCart(
+          items
+            .filter((entry) => entry.cartLineId !== cartLineId)
+            .concat(saved)
+        );
         return {};
       } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(
+            items
+              .filter((entry) => entry.cartLineId !== cartLineId)
+              .concat(optimisticItem)
+          );
+          return { message: err.message };
+        }
         setItems((current) => {
           if (existing) {
             return current.map((entry) => (entry.cartLineId === cartLineId ? existing : entry));
@@ -107,7 +138,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         throw err;
       }
     },
-    [getAuthHeaders, items, useServerCart]
+    [getAuthHeaders, items, persistLocalCart, useServerCart]
   );
 
   const removeFromCart = useCallback(
@@ -121,11 +152,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       try {
         await removeCartLine(cartLineId, getAuthHeaders());
-      } catch {
+        await persistLocalCart(snapshot.filter((entry) => entry.cartLineId !== cartLineId));
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(snapshot.filter((entry) => entry.cartLineId !== cartLineId));
+          return;
+        }
         setItems(snapshot);
       }
     },
-    [getAuthHeaders, items, useServerCart]
+    [getAuthHeaders, items, persistLocalCart, useServerCart]
   );
 
   const removeLinesFromCart = useCallback(
@@ -145,11 +181,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       try {
         await Promise.all(uniqueIds.map((cartLineId) => removeCartLine(cartLineId, getAuthHeaders())));
-      } catch {
+        await persistLocalCart(snapshot.filter((entry) => !idSet.has(entry.cartLineId)));
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(snapshot.filter((entry) => !idSet.has(entry.cartLineId)));
+          return;
+        }
         setItems(snapshot);
       }
     },
-    [getAuthHeaders, items, useServerCart]
+    [getAuthHeaders, items, persistLocalCart, useServerCart]
   );
 
   const updateQuantity = useCallback(
@@ -194,11 +235,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems((current) =>
           current.map((entry) => (entry.cartLineId === cartLineId ? saved : entry))
         );
-      } catch {
+        await persistLocalCart(
+          snapshot.map((entry) => (entry.cartLineId === cartLineId ? saved : entry))
+        );
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(
+            snapshot.map((entry) =>
+              entry.cartLineId === cartLineId ? { ...entry, cartQuantity: quantity } : entry
+            )
+          );
+          return;
+        }
         setItems(snapshot);
       }
     },
-    [getAuthHeaders, items, removeFromCart, useServerCart]
+    [getAuthHeaders, items, persistLocalCart, removeFromCart, useServerCart]
   );
 
   const adjustQuantity = useCallback(
@@ -266,12 +318,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         if (nextQty <= 0) {
           await removeCartLine(cartLineId, getAuthHeaders());
-        } else {
-          const { item: saved } = await upsertCartLine(
-            lensItemToSave as LensItem,
-            nextQty,
-            getAuthHeaders()
-          );
+        } else if (lensItemToSave) {
+          const { item: saved } = await upsertCartLine(lensItemToSave, nextQty, getAuthHeaders());
 
           // Ignore out-of-order responses.
           if (mutationId !== mutationIdRef.current) return;
@@ -280,7 +328,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
             current.map((e) => (e.cartLineId === cartLineId ? saved : e))
           );
         }
-      } catch {
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          return;
+        }
         // If something fails, resync from server.
         await refreshCart();
       } finally {
@@ -296,6 +347,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setSyncing(true);
       try {
         await clearServerCart(getAuthHeaders());
+        await saveOfflineCache(OFFLINE_CACHE_KEYS.cart, []);
+      } catch (err) {
+        if (!isOfflineQueuedError(err)) {
+          throw err;
+        }
       } finally {
         setSyncing(false);
       }

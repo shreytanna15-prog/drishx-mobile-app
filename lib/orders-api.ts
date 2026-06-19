@@ -1,4 +1,7 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch, isOfflineQueuedError } from '@/lib/api-request';
+import { loadOfflineCache, OFFLINE_CACHE_KEYS, saveOfflineCache } from '@/lib/offline-cache';
+import { getIsOnline } from '@/lib/network';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import type { ApiLensType, CartItem, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
@@ -114,31 +117,44 @@ export async function createOrder(
   checkoutBatchId?: string,
   userId?: string
 ): Promise<
-  { success: true; orderId: string; status?: string } | { success: false; error: string }
+  | { success: true; orderId: string; status?: string; queued?: boolean }
+  | { success: false; error: string }
 > {
-  const body = buildOrderPayload(item);
-  const payload = {
-    ...body,
-    ...(notes?.trim() ? { notes: notes.trim() } : {}),
-    ...(checkoutBatchId?.trim() ? { checkoutBatchId: checkoutBatchId.trim() } : {}),
-    ...(userId?.trim() ? { userId: userId.trim() } : {}),
-  };
+  try {
+    const body = buildOrderPayload(item);
+    const payload = {
+      ...body,
+      ...(notes?.trim() ? { notes: notes.trim() } : {}),
+      ...(checkoutBatchId?.trim() ? { checkoutBatchId: checkoutBatchId.trim() } : {}),
+      ...(userId?.trim() ? { userId: userId.trim() } : {}),
+    };
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
+    const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      queueWhenOffline: true,
+      queueLabel: 'Place order',
+    });
 
-  const result = await response.json();
+    const result = await response.json();
 
-  if (!response.ok) {
-    return { success: false, error: result?.error || 'Failed to place order.' };
+    if (!response.ok) {
+      return { success: false, error: result?.error || 'Failed to place order.' };
+    }
+
+    const order = result.order ?? result;
+    const status = typeof order?.status === 'string' ? order.status : 'PENDING';
+    return { success: true, orderId: order?.id ?? result.id, status };
+  } catch (error) {
+    if (isOfflineQueuedError(error)) {
+      return { success: true, orderId: error.queueId, status: 'PENDING', queued: true };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to place order.',
+    };
   }
-
-  const order = result.order ?? result;
-  const status = typeof order?.status === 'string' ? order.status : 'PENDING';
-  return { success: true, orderId: order?.id ?? result.id, status };
 }
 
 export async function createOrderFromLens(
@@ -151,7 +167,8 @@ export async function createOrderFromLens(
     userId?: string;
   }
 ): Promise<
-  { success: true; orderId: string; status?: string } | { success: false; error: string }
+  | { success: true; orderId: string; status?: string; queued?: boolean }
+  | { success: false; error: string }
 > {
   const safeQuantity = Number.isFinite(quantity) ? Math.max(1, Math.floor(quantity)) : 1;
   const cartLikeItem: CartItem = {
@@ -172,12 +189,26 @@ export async function createOrderFromLens(
 }
 
 export async function fetchOrders(headers: Record<string, string>): Promise<OrderRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, { headers });
-  if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
-    throw new Error(result?.error || 'Failed to load orders.');
+  try {
+    const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, { headers });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result?.error || 'Failed to load orders.');
+    }
+    const orders = (await response.json()) as OrderRecord[];
+    await saveOfflineCache(OFFLINE_CACHE_KEYS.orders, orders);
+    return orders;
+  } catch (error) {
+    const cached = await loadOfflineCache<OrderRecord[]>(OFFLINE_CACHE_KEYS.orders);
+    if (cached) {
+      return cached;
+    }
+    const online = await getIsOnline();
+    if (!online) {
+      return [];
+    }
+    throw error;
   }
-  return response.json();
 }
 
 export async function fetchOrderById(orderId: string, headers: Record<string, string>): Promise<OrderRecord> {
@@ -204,10 +235,12 @@ export async function updateOrderStatus(
     payload.pickedQuantity = pickedQuantity;
   }
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
     method: 'PUT',
     headers,
     body: JSON.stringify(payload),
+    queueWhenOffline: true,
+    queueLabel: 'Update order',
   });
 
   const result = await response.json().catch(() => ({}));

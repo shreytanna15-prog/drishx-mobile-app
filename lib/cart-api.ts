@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 import { buildCartLineId } from '@/lib/cart-utils';
 import type { CartItem, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
@@ -86,7 +87,7 @@ export async function upsertCartLine(
   const cartLineKey = buildCartLineId(item);
   const lensType = item.lensType ?? 'Progressive';
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/cart`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -106,6 +107,8 @@ export async function upsertCartLine(
       lensTypeLabel: lensType,
       ...(customerId?.trim() ? { userId: customerId.trim() } : {}),
     }),
+    queueWhenOffline: true,
+    queueLabel: 'Update cart',
   });
 
   const result = await response.json().catch(() => ({}));
@@ -127,9 +130,14 @@ export async function removeCartLine(
   const userParam = customerId?.trim()
     ? `&userId=${encodeURIComponent(customerId.trim())}`
     : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${BACKEND_BASE_URL}/api/cart?cartLineKey=${encodeURIComponent(cartLineKey)}${userParam}`,
-    { method: 'DELETE', headers }
+    {
+      method: 'DELETE',
+      headers,
+      queueWhenOffline: true,
+      queueLabel: 'Remove cart item',
+    }
   );
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
@@ -144,7 +152,12 @@ export async function clearServerCart(
   const userParam = customerId?.trim()
     ? `?userId=${encodeURIComponent(customerId.trim())}`
     : '';
-  const response = await fetch(`${BACKEND_BASE_URL}/api/cart${userParam}`, { method: 'DELETE', headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart${userParam}`, {
+    method: 'DELETE',
+    headers,
+    queueWhenOffline: true,
+    queueLabel: 'Clear cart',
+  });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result?.error || 'Failed to clear cart.');

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { appAlert } from '@/lib/app-alert';
+import { isOfflineQueuedError } from '@/lib/api-request';
 
 import { CustomerOrderGroupDetail } from '@/components/customer-order-group-detail';
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -24,6 +25,7 @@ import { useAuth } from '@/lib/auth';
 import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
 import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
 import { cancelOrder, fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { onOfflineSyncComplete } from '@/lib/offline-sync';
 
 
 type FilterKey = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -164,6 +166,12 @@ export default function MyOrdersScreen() {
     loadOrders();
   }, [loadOrders]);
 
+  useEffect(() => {
+    return onOfflineSyncComplete(() => {
+      void loadOrders();
+    });
+  }, [loadOrders]);
+
   const selectedGroup = useMemo(
     () =>
       selectedGroupKey ? orderGroups.find((entry) => entry.key === selectedGroupKey) ?? null : null,
@@ -193,6 +201,10 @@ export default function MyOrdersScreen() {
             await cancelOrder(orderId, getAuthHeaders());
             await loadOrders();
           } catch (err) {
+            if (isOfflineQueuedError(err)) {
+              appAlert('Saved offline', err.message);
+              return;
+            }
             appAlert('Error', err instanceof Error ? err.message : 'Failed to cancel order.');
           } finally {
             setCancellingId(null);

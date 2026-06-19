@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch, isOfflineQueuedError } from '@/lib/api-request';
 import {
   COLOR_LENS_DEFAULT_COATING,
   COLOR_LENS_DEFAULT_TINT_STRENGTH,
@@ -53,26 +54,42 @@ export async function placeColorLensOrder(
     },
   };
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders/color-lens`, {
-    method: 'POST',
-    headers: {
-      ...headers,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/color-lens`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+      queueWhenOffline: true,
+      queueLabel: 'Place color lens order',
+    });
 
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    return { success: false, error: result?.error || 'Failed to place color lens order.' };
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return { success: false, error: result?.error || 'Failed to place color lens order.' };
+    }
+
+    const typed = result as PlaceColorLensOrderResult;
+    return {
+      success: true,
+      orderId: typed.order?.id ?? '',
+      message:
+        typed.message ||
+        'Your color lens order has been placed. Our team will confirm pricing and delivery.',
+    };
+  } catch (error) {
+    if (isOfflineQueuedError(error)) {
+      return {
+        success: true,
+        orderId: error.queueId,
+        message: error.message,
+      };
+    }
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to place color lens order.',
+    };
   }
-
-  const typed = result as PlaceColorLensOrderResult;
-  return {
-    success: true,
-    orderId: typed.order?.id ?? '',
-    message:
-      typed.message ||
-      'Your color lens order has been placed. Our team will confirm pricing and delivery.',
-  };
 }

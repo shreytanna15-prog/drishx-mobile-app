@@ -103,6 +103,7 @@ export default function CartTabScreen() {
     setPlacingOrder(true);
     const failures: string[] = [];
     let successCount = 0;
+    let queuedCount = 0;
     let procurementCount = 0;
     const checkoutBatchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
@@ -115,6 +116,9 @@ export default function CartTabScreen() {
       );
       if (result.success) {
         successCount += 1;
+        if (result.queued) {
+          queuedCount += 1;
+        }
         if (result.status === 'AWAITING_PROCUREMENT') {
           procurementCount += 1;
         }
@@ -136,8 +140,12 @@ export default function CartTabScreen() {
         procurementCount > 0
           ? ` ${procurementCount} order(s) are in procurement (out of stock). Check My Orders for updates.`
           : '';
+      const offlineNote =
+        queuedCount > 0
+          ? ` ${queuedCount} order(s) saved offline and will sync when you're back online.`
+          : '';
       setOrderPlacedModal({
-        message: `Successfully placed ${successCount} order(s).${procurementNote}`,
+        message: `Successfully placed ${successCount} order(s).${procurementNote}${offlineNote}`,
         notes: trimmedNotes || undefined,
       });
       return;

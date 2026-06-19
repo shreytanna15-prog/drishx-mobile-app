@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 
 export type TaskStatus = 'PENDING' | 'COMPLETED';
 
@@ -27,10 +28,12 @@ export async function updateTaskStatus(
   status: TaskStatus,
   headers: Record<string, string>
 ): Promise<TaskRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/tasks/${taskId}`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/tasks/${taskId}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({ status }),
+    queueWhenOffline: true,
+    queueLabel: 'Update task',
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {

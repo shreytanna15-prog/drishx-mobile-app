@@ -25,6 +25,7 @@ import {
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { onOfflineSyncComplete } from '@/lib/offline-sync';
 
 type StaffOrderFilter = 'ALL' | 'IN_PROGRESS' | 'COMPLETED';
 
@@ -75,6 +76,12 @@ export default function EmployeeOrdersScreen() {
 
   useEffect(() => {
     loadOrders();
+  }, [loadOrders]);
+
+  useEffect(() => {
+    return onOfflineSyncComplete(() => {
+      void loadOrders();
+    });
   }, [loadOrders]);
 
   const orderGroups = useMemo(() => {

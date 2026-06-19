@@ -209,6 +209,7 @@ export default function EmployeeOrderOnBehalfScreen() {
     setPlacingOrder(true);
     const failures: string[] = [];
     let successCount = 0;
+    let queuedCount = 0;
     const checkoutBatchId = `staff_batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     for (const line of selectedLines) {
@@ -219,6 +220,9 @@ export default function EmployeeOrderOnBehalfScreen() {
       });
       if (result.success) {
         successCount += 1;
+        if (result.queued) {
+          queuedCount += 1;
+        }
       } else {
         failures.push(`${formatLensLabel(line.lens)}: ${result.error}`);
       }
@@ -235,7 +239,9 @@ export default function EmployeeOrderOnBehalfScreen() {
       return;
     }
 
-    appAlert('Order placed', `Successfully placed ${successCount} order(s).`);
+    const offlineNote =
+      queuedCount > 0 ? ` ${queuedCount} order(s) will sync when you're back online.` : '';
+    appAlert('Order placed', `Successfully placed ${successCount} order(s).${offlineNote}`);
     setSelectedLines([]);
     setOrderNotes('');
   }

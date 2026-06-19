@@ -29,8 +29,9 @@ import {
 } from '@/lib/cart-utils';
 import { formatLensProductCardDetail } from '@/lib/lens-display';
 import { getOrderLensRef, orderToLensItem } from '@/lib/order-list-display';
-import { recordStockIntake } from '@/lib/procurement-api';
+import { isOfflineQueuedError } from '@/lib/api-request';
 import type { OrderRecord } from '@/lib/orders-api';
+import { recordStockIntake } from '@/lib/procurement-api';
 
 type EmployeeProcurementProductSheetProps = {
   visible: boolean;
@@ -152,6 +153,12 @@ export function EmployeeProcurementProductSheet({
       onSuccess();
       onClose();
     } catch (err) {
+      if (isOfflineQueuedError(err)) {
+        appAlert('Saved offline', err.message);
+        onSuccess();
+        onClose();
+        return;
+      }
       appAlert('Failed', err instanceof Error ? err.message : 'Could not record purchase.');
     } finally {
       setSubmitting(false);

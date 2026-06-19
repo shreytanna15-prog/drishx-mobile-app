@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 import type { ApiLensType } from '@/lib/types/lens';
 
 export type ProcurementRecord = {
@@ -69,10 +70,12 @@ export async function recordStockIntake(
   payload: StockIntakePayload,
   headers: Record<string, string>
 ): Promise<{ transaction: ProcurementRecord; lens: { id: string; quantity: number } }> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    queueWhenOffline: true,
+    queueLabel: 'Record stock intake',
   });
 
   const result = await response.json().catch(() => ({}));
@@ -88,10 +91,12 @@ export async function recordStockIntakeBatch(
   payload: StockIntakeBatchPayload,
   headers: Record<string, string>
 ): Promise<StockIntakeBatchResult> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    queueWhenOffline: true,
+    queueLabel: 'Record stock intake',
   });
 
   const result = await response.json().catch(() => ({}));
@@ -107,10 +112,12 @@ export async function recordManualExpense(
   payload: ManualExpensePayload,
   headers: Record<string, string>
 ): Promise<ProcurementRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/expenses/manual`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/expenses/manual`, {
     method: 'POST',
     headers,
     body: JSON.stringify(payload),
+    queueWhenOffline: true,
+    queueLabel: 'Record expense',
   });
 
   const result = await response.json().catch(() => ({}));
