@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { EmployeeOrderRangeSheet } from '@/components/employee-order-range-sheet';
+import { OrderNotesDisplay } from '@/components/order-notes-display';
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { appAlert } from '@/lib/app-alert';
@@ -459,7 +460,7 @@ export function EmployeeOrderGroupDetail({
       {group.orders.some((order) => order.notes?.trim()) ? (
         <View style={styles.notesBox}>
           <Text style={styles.notesLabel}>Order notes</Text>
-          <Text style={styles.notesText}>{group.orders.find((o) => o.notes?.trim())?.notes?.trim()}</Text>
+          <OrderNotesDisplay notes={group.orders.find((o) => o.notes?.trim())?.notes?.trim() ?? ''} />
         </View>
       ) : null}
 
