@@ -4,6 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { EmployeeOrderRangeSheet } from '@/components/employee-order-range-sheet';
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { appAlert } from '@/lib/app-alert';
@@ -17,28 +18,26 @@ import {
   type PowerLineRow,
 } from '@/lib/order-detail-display';
 import {
-  formatDisplayOrderId,
   formatOrderDateTime,
   getStatusPillStyle,
   type OrderListGroup,
 } from '@/lib/order-list-display';
+import { distributePickedAcrossOrders } from '@/lib/order-line-update';
 import {
-  canStaffMarkLinePacked,
   formatOrderStatusLabel,
-  getStaffStatusOptions,
-  isSpecialStatus,
   MAIN_TRACKING_STEPS,
   normalizeOrderStatus,
-  SPECIAL_STATUS_CONFIG,
   type OrderTrackingStatus,
 } from '@/lib/order-tracking';
-import { getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
-import { formatLensType } from '@/lib/types/lens';
+import type { OrderRecord } from '@/lib/orders-api';
 
 
 type EmployeeOrderGroupDetailProps = {
   group: OrderListGroup;
-  onUpdateStatus: (orderId: string, status: OrderTrackingStatus) => Promise<void>;
+  onUpdateLine: (
+    orderId: string,
+    payload: { status: OrderTrackingStatus; pickedQuantity: number }
+  ) => Promise<void>;
   updatingOrderId: string | null;
 };
 
@@ -136,36 +135,21 @@ function PackedStatusCell({
 
 function PowerTableRow({
   line,
-  order,
-  onMarkPacked,
+  onPress,
   updatingOrderId,
 }: {
   line: PowerLineRow;
-  order: OrderRecord;
-  onMarkPacked: (orderId: string) => void;
+  onPress: () => void;
   updatingOrderId: string | null;
 }) {
   const styles = useThemedStyles(createStyles);
-  const status = normalizeOrderStatus(order.status);
-  const canMarkPacked = canStaffMarkLinePacked(status);
-  const isUpdating = updatingOrderId === line.orderId;
-
-  function handlePackedPress() {
-    if (!canMarkPacked || isUpdating) {
-      return;
-    }
-
-    appAlert('Mark as packed', 'Mark this power line as packed?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Mark packed',
-        onPress: () => onMarkPacked(order.id),
-      },
-    ]);
-  }
+  const isUpdating = updatingOrderId != null && (line.orderIds ?? [line.orderId]).includes(updatingOrderId);
 
   return (
-    <View style={styles.tableRow}>
+    <Pressable
+      style={({ pressed }) => [styles.tableRow, styles.tableRowInteractive, pressed && styles.tableRowPressed]}
+      onPress={onPress}
+      disabled={isUpdating}>
       <Text style={[styles.tableCell, styles.colPower]} numberOfLines={2}>
         {line.sphCylLabel}
       </Text>
@@ -181,24 +165,20 @@ function PowerTableRow({
           state={line.pickState}
           picked={line.picked}
           ordered={line.ordered}
-          interactive={canMarkPacked}
           loading={isUpdating}
-          onPress={handlePackedPress}
         />
       </View>
-    </View>
+    </Pressable>
   );
 }
 
 function ProductSectionCard({
   section,
-  ordersById,
-  onMarkPacked,
+  onLinePress,
   updatingOrderId,
 }: {
   section: OrderProductSection;
-  ordersById: Map<string, OrderRecord>;
-  onMarkPacked: (orderId: string) => void;
+  onLinePress: (line: PowerLineRow) => void;
   updatingOrderId: string | null;
 }) {
   const styles = useThemedStyles(createStyles);
@@ -264,121 +244,14 @@ function ProductSectionCard({
               <Text style={[styles.tableHeadText, styles.tableHeadTextRight]}>Packed</Text>
             </View>
           </View>
-          {section.lines.map((line) => {
-            const order = ordersById.get(line.orderId);
-            if (!order) {
-              return null;
-            }
-            return (
-              <PowerTableRow
-                key={line.orderIds?.join(':') ?? line.orderId}
-                line={line}
-                order={order}
-                onMarkPacked={onMarkPacked}
-                updatingOrderId={updatingOrderId}
-              />
-            );
-          })}
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function StaffLineStatusPanel({
-  order,
-  onUpdateStatus,
-  updatingOrderId,
-}: {
-  order: OrderRecord;
-  onUpdateStatus: (orderId: string, status: OrderTrackingStatus) => Promise<void>;
-  updatingOrderId: string | null;
-}) {
-  const styles = useThemedStyles(createStyles);
-  const colors = useBrandColors();
-  const status = normalizeOrderStatus(order.status);
-  const options = getStaffStatusOptions(status);
-  const details = getOrderLensDetails(order);
-  const lensLabel = formatLensType(order.lensType);
-  const isUpdating = updatingOrderId === order.id;
-
-  function confirmUpdate(nextStatus: OrderTrackingStatus) {
-    const message =
-      nextStatus === 'CANCELLED'
-        ? 'Cancel this order line? Stock will be restored.'
-        : `Mark this line as "${formatOrderStatusLabel(nextStatus)}"?`;
-
-    appAlert('Update order status', message, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, update',
-        onPress: () => onUpdateStatus(order.id, nextStatus),
-      },
-    ]);
-  }
-
-  return (
-    <View style={styles.lineStatusCard}>
-      <View style={styles.lineStatusHeader}>
-        <View style={styles.lineStatusMeta}>
-          <Text style={styles.lineStatusTitle}>{formatDisplayOrderId(order)}</Text>
-          <Text style={styles.lineStatusSub}>
-            {lensLabel}
-            {details
-              ? ` · SPH ${details.sph} / CYL ${details.cyl ?? '—'}`
-              : ''}
-            {' · '}
-            {order.quantity} pairs
-          </Text>
-        </View>
-        <View style={styles.lineStatusPill}>
-          <Text style={styles.lineStatusPillText}>{formatOrderStatusLabel(status)}</Text>
-        </View>
-      </View>
-
-      {isSpecialStatus(status) ? (
-        <View style={styles.procurementBanner}>
-          <MaterialIcons
-            name={status === 'PARTIALLY_FULFILLED' ? 'inventory' : 'schedule'}
-            size={18}
-            color={SPECIAL_STATUS_CONFIG[status].color}
-          />
-          <Text style={[styles.procurementBannerText, { color: SPECIAL_STATUS_CONFIG[status].color }]}>
-            {SPECIAL_STATUS_CONFIG[status].description}
-          </Text>
-        </View>
-      ) : null}
-
-      {options.length > 0 ? (
-        <View style={styles.chipsRow}>
-          {options.map((nextStatus) => (
-            <Pressable
-              key={nextStatus}
-              style={[
-                styles.statusChip,
-                nextStatus === 'CANCELLED' ? styles.statusChipDanger : styles.statusChipPrimary,
-                isUpdating && styles.buttonDisabled,
-              ]}
-              onPress={() => confirmUpdate(nextStatus)}
-              disabled={isUpdating}>
-              <Text
-                style={[
-                  styles.statusChipText,
-                  nextStatus === 'CANCELLED' ? styles.statusChipTextDanger : styles.statusChipTextPrimary,
-                ]}>
-                {formatOrderStatusLabel(nextStatus)}
-              </Text>
-            </Pressable>
+          {section.lines.map((line) => (
+            <PowerTableRow
+              key={line.orderIds?.join(':') ?? line.orderId}
+              line={line}
+              onPress={() => onLinePress(line)}
+              updatingOrderId={updatingOrderId}
+            />
           ))}
-        </View>
-      ) : (
-        <Text style={styles.noActionsText}>No further status updates for this line.</Text>
-      )}
-
-      {isUpdating ? (
-        <View style={styles.updatingRow}>
-          <ActivityIndicator size="small" color={colors.primary} />
-          <Text style={styles.updatingText}>Updating status...</Text>
         </View>
       ) : null}
     </View>
@@ -387,10 +260,9 @@ function StaffLineStatusPanel({
 
 export function EmployeeOrderGroupDetail({
   group,
-  onUpdateStatus,
+  onUpdateLine,
   updatingOrderId,
 }: EmployeeOrderGroupDetailProps) {
-  const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
   const productSections = useMemo(() => buildOrderProductSections(group.orders), [group.orders]);
@@ -401,9 +273,74 @@ export function EmployeeOrderGroupDetail({
   );
   const customerEmail = group.orders[0]?.user?.email;
 
-  const handleMarkPacked = useCallback(
-    (orderId: string) => onUpdateStatus(orderId, 'PACKED'),
-    [onUpdateStatus]
+  const [selectedLine, setSelectedLine] = useState<PowerLineRow | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [updatingLine, setUpdatingLine] = useState(false);
+
+  const selectedLineOrders = useMemo(() => {
+    if (!selectedLine) {
+      return [];
+    }
+    const ids = selectedLine.orderIds ?? [selectedLine.orderId];
+    return ids.map((id) => ordersById.get(id)).filter((order): order is OrderRecord => Boolean(order));
+  }, [ordersById, selectedLine]);
+
+  const selectedLineStatus = useMemo(() => {
+    if (selectedLineOrders.length === 0) {
+      return 'PENDING' as OrderTrackingStatus;
+    }
+    return normalizeOrderStatus(selectedLineOrders[0].status);
+  }, [selectedLineOrders]);
+
+  const handleLinePress = useCallback((line: PowerLineRow) => {
+    setSelectedLine(line);
+    setSheetVisible(true);
+  }, []);
+
+  const handleCloseSheet = useCallback(() => {
+    setSheetVisible(false);
+    setSelectedLine(null);
+  }, []);
+
+  const handleUpdateLine = useCallback(
+    async (payload: { pickedQuantity: number; status: OrderTrackingStatus }) => {
+      if (!selectedLine || selectedLineOrders.length === 0) {
+        return;
+      }
+
+      const message =
+        payload.status === 'CANCELLED'
+          ? 'Cancel this product range? Stock will be restored.'
+          : `Update this range to ${payload.pickedQuantity} picked pair${payload.pickedQuantity === 1 ? '' : 's'} with status "${formatOrderStatusLabel(payload.status)}"?`;
+
+      await new Promise<void>((resolve, reject) => {
+        appAlert('Update product range', message, [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve() },
+          {
+            text: 'Update',
+            onPress: async () => {
+              setUpdatingLine(true);
+              try {
+                const assignments = distributePickedAcrossOrders(selectedLineOrders, payload.pickedQuantity);
+                for (const assignment of assignments) {
+                  await onUpdateLine(assignment.orderId, {
+                    status: payload.status,
+                    pickedQuantity: assignment.pickedQuantity,
+                  });
+                }
+                handleCloseSheet();
+                resolve();
+              } catch (error) {
+                reject(error);
+              } finally {
+                setUpdatingLine(false);
+              }
+            },
+          },
+        ]);
+      });
+    },
+    [handleCloseSheet, onUpdateLine, selectedLine, selectedLineOrders]
   );
 
   const [updatingTracking, setUpdatingTracking] = useState(false);
@@ -448,7 +385,13 @@ export function EmployeeOrderGroupDetail({
             try {
               for (const order of activeOrders) {
                 if (normalizeOrderStatus(order.status) !== step) {
-                  await onUpdateStatus(order.id, step);
+                  await onUpdateLine(order.id, {
+                    status: step,
+                    pickedQuantity:
+                      typeof order.pickedQuantity === 'number' && Number.isFinite(order.pickedQuantity)
+                        ? Math.max(0, Math.floor(order.pickedQuantity))
+                        : 0,
+                  });
                 }
               }
             } finally {
@@ -461,7 +404,7 @@ export function EmployeeOrderGroupDetail({
     [
       activeOrders,
       canEditTracking,
-      onUpdateStatus,
+      onUpdateLine,
       updatingOrderId,
       updatingTracking,
     ]
@@ -508,8 +451,7 @@ export function EmployeeOrderGroupDetail({
         <ProductSectionCard
           key={section.key}
           section={section}
-          ordersById={ordersById}
-          onMarkPacked={handleMarkPacked}
+          onLinePress={handleLinePress}
           updatingOrderId={updatingOrderId}
         />
       ))}
@@ -521,16 +463,6 @@ export function EmployeeOrderGroupDetail({
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Update status</Text>
-      {group.orders.map((order) => (
-        <StaffLineStatusPanel
-          key={order.id}
-          order={order}
-          onUpdateStatus={onUpdateStatus}
-          updatingOrderId={updatingOrderId}
-        />
-      ))}
-
       <View style={styles.trackingCard}>
         <OrderTrackingHorizontal
           status={trackingStatus}
@@ -541,6 +473,15 @@ export function EmployeeOrderGroupDetail({
           <Text style={styles.trackingHint}>Tap a step to update tracking for this order.</Text>
         ) : null}
       </View>
+
+      <EmployeeOrderRangeSheet
+        visible={sheetVisible}
+        line={selectedLine}
+        currentStatus={selectedLineStatus}
+        onClose={handleCloseSheet}
+        onUpdate={handleUpdateLine}
+        updating={updatingLine || updatingOrderId != null}
+      />
     </View>
   );
 }
@@ -634,6 +575,12 @@ const createStyles = (c: BrandColorScheme) =>
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: c.cardBorder,
+  },
+  tableRowInteractive: {
+    borderRadius: 8,
+  },
+  tableRowPressed: {
+    backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
   tableCell: { color: c.text, fontSize: 11, fontWeight: '600' },
   colPowerHead: { flex: 1.5 },

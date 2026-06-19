@@ -89,7 +89,7 @@ export default function TabLayout() {
         name="my-tasks"
         options={{
           title: 'My Tasks',
-          href: isStaff ? undefined : null,
+          href: null,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="checklist" color={color} />,
         }}
       />
@@ -129,7 +129,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="purchase-stock"
         options={{
-          title: 'Purchase',
+          title: 'Procurement',
           href: isStaff ? undefined : null,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="cart.fill" color={color} />,
         }}

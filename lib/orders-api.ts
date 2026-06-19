@@ -196,12 +196,18 @@ export async function cancelOrder(orderId: string, headers: Record<string, strin
 export async function updateOrderStatus(
   orderId: string,
   status: OrderTrackingStatus,
-  headers: Record<string, string>
+  headers: Record<string, string>,
+  pickedQuantity?: number
 ): Promise<OrderRecord> {
+  const payload: { status: OrderTrackingStatus; pickedQuantity?: number } = { status };
+  if (pickedQuantity !== undefined) {
+    payload.pickedQuantity = pickedQuantity;
+  }
+
   const response = await fetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(payload),
   });
 
   const result = await response.json().catch(() => ({}));

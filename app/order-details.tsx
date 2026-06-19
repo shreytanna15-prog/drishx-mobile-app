@@ -91,11 +91,11 @@ export default function OrderDetailsScreen() {
     return groupOrdersForList(batch)[0] ?? null;
   }, [groupKeyParam, orderIdParam, orders]);
 
-  const handleUpdateStatus = useCallback(
-    async (orderId: string, status: OrderTrackingStatus) => {
+  const handleUpdateLine = useCallback(
+    async (orderId: string, payload: { status: OrderTrackingStatus; pickedQuantity: number }) => {
       setUpdatingOrderId(orderId);
       try {
-        await updateOrderStatus(orderId, status, getAuthHeaders());
+        await updateOrderStatus(orderId, payload.status, getAuthHeaders(), payload.pickedQuantity);
         await loadOrders();
       } finally {
         setUpdatingOrderId(null);
@@ -144,13 +144,22 @@ export default function OrderDetailsScreen() {
             {orderGroup.isPhotoOrder ? (
               <EmployeePhotoOrderDetail
                 group={orderGroup}
-                onUpdateStatus={handleUpdateStatus}
+                onUpdateStatus={(orderId, status) =>
+                  handleUpdateLine(orderId, {
+                    status,
+                pickedQuantity: (() => {
+                  const order = orderGroup.orders.find((entry) => entry.id === orderId);
+                  const value = order?.pickedQuantity;
+                  return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 0;
+                })(),
+                  })
+                }
                 updatingOrderId={updatingOrderId}
               />
             ) : (
               <EmployeeOrderGroupDetail
                 group={orderGroup}
-                onUpdateStatus={handleUpdateStatus}
+                onUpdateLine={handleUpdateLine}
                 updatingOrderId={updatingOrderId}
               />
             )}

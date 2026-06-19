@@ -1,5 +1,6 @@
 import { formatOrderStatusLabel, normalizeOrderStatus, type OrderTrackingStatus } from '@/lib/order-tracking';
-import type { OrderRecord } from '@/lib/orders-api';
+import { getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
+import { formatLensType, type LensItem, type LensType } from '@/lib/types/lens';
 
 export type OrderCardStatusVariant =
   | 'ready'
@@ -49,6 +50,29 @@ export function formatOrderDateTime(value: string): string {
     minute: '2-digit',
   });
   return `${datePart} · ${timePart}`;
+}
+
+/** Map an order line to shop-style product card fields (SV / KT / V2 naming). */
+export function orderToLensItem(order: OrderRecord): LensItem {
+  const catalog = order.progressiveLens ?? order.kryptokLens ?? order.singleVisionLens;
+  const details = getOrderLensDetails(order);
+  const lensType = formatLensType(order.lensType) as LensType;
+
+  return {
+    id: order.id,
+    costPrice: null,
+    price: Number(order.unitPrice || order.totalAmount || 0),
+    sph: Number(details?.sph ?? 0),
+    cyl: details?.cyl != null ? Number(details.cyl) : null,
+    axis: details?.axis ?? null,
+    add: details?.add != null ? Number(details.add) : null,
+    quantity: order.quantity,
+    createdAt: order.createdAt,
+    lensType,
+    brand: catalog?.brand ?? null,
+    coating: catalog?.coating ?? null,
+    item: catalog && 'item' in catalog ? catalog.item ?? null : null,
+  };
 }
 
 function isProcurementLine(status: OrderTrackingStatus): boolean {

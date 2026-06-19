@@ -15,11 +15,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LensProductListCard } from '@/components/lens-product-list-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
-import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
+import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, orderToLensItem, type OrderListGroup } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
@@ -82,6 +83,12 @@ function OrderListRow({ group, onPress }: { group: OrderListGroup; onPress: () =
         </>
       ) : (
         <>
+          <View style={styles.productCards}>
+            {group.orders.map((order) => (
+              <LensProductListCard key={order.id} item={orderToLensItem(order)} />
+            ))}
+          </View>
+
           <View style={styles.listMetricsRow}>
             <Text style={styles.listMetricsText}>
               {group.productCount} Product{group.productCount === 1 ? '' : 's'} · {group.pairCount}{' '}
@@ -291,6 +298,7 @@ const createStyles = (c: BrandColorScheme) =>
   statusPillText: { fontSize: 11, fontWeight: '700' },
   listCompany: { color: c.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
   listDate: { color: c.textMuted, fontSize: 12, marginTop: 2 },
+  productCards: { gap: 8, marginTop: 10 },
   listMetricsRow: {
     flexDirection: 'row',
     alignItems: 'center',
