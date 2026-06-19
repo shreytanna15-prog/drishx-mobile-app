@@ -25,6 +25,7 @@ import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-
 import { fetchNotifications } from '@/lib/notifications-api';
 import { useOrderMode } from '@/lib/order-mode';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import type { FilterOption } from '@/lib/types/lens';
 import { filterToCatalogCategory } from '@/lib/wholesale-navigation';
@@ -147,8 +148,16 @@ export default function HomeScreen() {
             d.getDate() === now.getDate()
           );
         });
-        const pendingToday = todayOrders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status)).length;
-        const pendingOrders = orders.filter((order) => STAFF_PENDING_STATUSES.includes(order.status));
+        const pendingToday = todayOrders.filter(
+          (order) =>
+            STAFF_PENDING_STATUSES.includes(order.status) &&
+            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
+        ).length;
+        const pendingOrders = orders.filter(
+          (order) =>
+            STAFF_PENDING_STATUSES.includes(order.status) &&
+            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
+        );
         const todayTasks = tasks.filter((task) => {
           const d = new Date(task.dueDate);
           return (

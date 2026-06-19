@@ -28,6 +28,8 @@ export type StockIntakePayload = {
   /** Customer selling price stored on the lens record. */
   sellingPrice: number;
   description?: string;
+  /** When set, transitions the linked AWAITING_PROCUREMENT order after stock intake. */
+  orderId?: string;
 };
 
 export type StockIntakeBatchPayload = {

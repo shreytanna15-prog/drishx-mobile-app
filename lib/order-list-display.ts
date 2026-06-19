@@ -79,6 +79,49 @@ function isProcurementLine(status: OrderTrackingStatus): boolean {
   return status === 'AWAITING_PROCUREMENT' || status === 'PARTIALLY_FULFILLED';
 }
 
+/** Order batch waiting for stock purchase (Procurement tab). */
+export function hasAwaitingProcurementOrder(group: OrderListGroup): boolean {
+  if (group.isPhotoOrder) {
+    return false;
+  }
+  return group.orders.some(
+    (order) => normalizeOrderStatus(order.status) === 'AWAITING_PROCUREMENT'
+  );
+}
+
+/** @deprecated Use hasAwaitingProcurementOrder — kept for badge logic elsewhere. */
+export function isProcurementOnlyGroup(group: OrderListGroup): boolean {
+  if (group.isPhotoOrder) {
+    return false;
+  }
+  const active = group.orders.filter((order) => normalizeOrderStatus(order.status) !== 'CANCELLED');
+  if (active.length === 0) {
+    return false;
+  }
+  return active.every((order) => normalizeOrderStatus(order.status) === 'AWAITING_PROCUREMENT');
+}
+
+export function filterProcurementOrderGroups(groups: OrderListGroup[]): OrderListGroup[] {
+  return groups.filter(hasAwaitingProcurementOrder);
+}
+
+export function filterNonProcurementOrderGroups(groups: OrderListGroup[]): OrderListGroup[] {
+  return groups.filter((group) => !hasAwaitingProcurementOrder(group));
+}
+
+export function getOrderLensRef(order: OrderRecord): { lensType: OrderRecord['lensType']; lensId: string } | null {
+  if (order.singleVisionLens?.id) {
+    return { lensType: order.lensType, lensId: order.singleVisionLens.id };
+  }
+  if (order.kryptokLens?.id) {
+    return { lensType: order.lensType, lensId: order.kryptokLens.id };
+  }
+  if (order.progressiveLens?.id) {
+    return { lensType: order.lensType, lensId: order.progressiveLens.id };
+  }
+  return null;
+}
+
 export function isColorLensOrder(order: OrderRecord): boolean {
   return order.notes?.includes('[Color Lens]') ?? false;
 }

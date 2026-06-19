@@ -20,6 +20,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { appAlert } from '@/lib/app-alert';
 
+import { EmployeeOrderListRow } from '@/components/employee-order-list-row';
+import { EmployeeProcurementProductSheet } from '@/components/employee-procurement-product-sheet';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -39,11 +41,13 @@ import {
   recordStockIntakeBatch,
   type ProcurementRecord,
 } from '@/lib/procurement-api';
+import { filterProcurementOrderGroups, groupOrdersForList } from '@/lib/order-list-display';
+import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
 
 
-type ScreenMode = 'stock' | 'history' | 'manual';
+type ScreenMode = 'orders' | 'stock' | 'history' | 'manual';
 
 type StockIntakeLine = {
   lineId: string;
@@ -151,7 +155,11 @@ export default function PurchaseStockScreen() {
   const { getAuthHeaders, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
-  const [mode, setMode] = useState<ScreenMode>('stock');
+  const [mode, setMode] = useState<ScreenMode>('orders');
+  const [procurementOrders, setProcurementOrders] = useState<OrderRecord[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [selectedProcurementOrder, setSelectedProcurementOrder] = useState<OrderRecord | null>(null);
+  const [procurementSheetVisible, setProcurementSheetVisible] = useState(false);
   const [history, setHistory] = useState<ProcurementRecord[]>([]);
   const [manualHistory, setManualHistory] = useState<ProcurementRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -175,6 +183,18 @@ export default function PurchaseStockScreen() {
   const [manualAmount, setManualAmount] = useState('');
   const [manualDescription, setManualDescription] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
+
+  const loadProcurementOrders = useCallback(async () => {
+    try {
+      const data = await fetchOrders(getAuthHeaders());
+      setProcurementOrders(data);
+    } catch (err) {
+      appAlert('Error', err instanceof Error ? err.message : 'Failed to load procurement orders.');
+    } finally {
+      setLoadingOrders(false);
+      setRefreshing(false);
+    }
+  }, [getAuthHeaders]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -213,6 +233,13 @@ export default function PurchaseStockScreen() {
   }, [lensFilter, lensSearch]);
 
   useEffect(() => {
+    if (mode === 'orders') {
+      setLoadingOrders(true);
+      loadProcurementOrders();
+    }
+  }, [mode, loadProcurementOrders]);
+
+  useEffect(() => {
     if (mode === 'history') {
       setLoadingHistory(true);
       Promise.all([loadHistory(), loadManualHistory()]).finally(() => setLoadingHistory(false));
@@ -225,6 +252,11 @@ export default function PurchaseStockScreen() {
       return () => clearTimeout(timeout);
     }
   }, [pickerOpen, loadLenses]);
+
+  const procurementGroups = useMemo(
+    () => filterProcurementOrderGroups(groupOrdersForList(procurementOrders)),
+    [procurementOrders]
+  );
 
   const batchTotal = useMemo(
     () => pendingLines.reduce((sum, line) => sum + line.amount, 0),
@@ -483,6 +515,7 @@ export default function PurchaseStockScreen() {
   }
 
   const modeTabs: { key: ScreenMode; label: string; adminOnly?: boolean }[] = [
+    { key: 'orders', label: 'Orders' },
     { key: 'stock', label: 'Add stock' },
     { key: 'history', label: 'History' },
     ...(isAdmin ? [{ key: 'manual' as ScreenMode, label: 'Manual', adminOnly: true }] : []),
@@ -516,6 +549,66 @@ export default function PurchaseStockScreen() {
             );
           })}
         </View>
+
+        {mode === 'orders' && (
+          <>
+            {loadingOrders ? (
+              <View style={styles.centeredState}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.stateText}>Loading procurement orders...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={procurementGroups}
+                keyExtractor={(item) => item.key}
+                contentContainerStyle={styles.ordersListContent}
+                refreshControl={
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={() => {
+                      setRefreshing(true);
+                      loadProcurementOrders();
+                    }}
+                    tintColor={colors.primary}
+                  />
+                }
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                ListEmptyComponent={
+                  <View style={styles.centeredState}>
+                    <MaterialIcons name="inventory-2" size={48} color={colors.textMuted} />
+                    <Text style={styles.emptyTitle}>No procurement orders</Text>
+                    <Text style={styles.stateText}>
+                      Orders waiting for stock will appear here. Tap a product to add purchase details.
+                    </Text>
+                  </View>
+                }
+                renderItem={({ item }) => (
+                  <EmployeeOrderListRow
+                    group={item}
+                    procurementOnly
+                    onProductPress={(order) => {
+                      setSelectedProcurementOrder(order);
+                      setProcurementSheetVisible(true);
+                    }}
+                  />
+                )}
+              />
+            )}
+            <EmployeeProcurementProductSheet
+              visible={procurementSheetVisible}
+              order={selectedProcurementOrder}
+              onClose={() => {
+                setProcurementSheetVisible(false);
+                setSelectedProcurementOrder(null);
+              }}
+              onSuccess={() => {
+                setLoadingOrders(true);
+                loadProcurementOrders();
+              }}
+              getAuthHeaders={getAuthHeaders}
+            />
+          </>
+        )}
 
         {mode === 'stock' && (
           <KeyboardAvoidingView
@@ -1058,6 +1151,16 @@ const createStyles = (c: BrandColorScheme) =>
   historyDesc: { fontSize: 14, lineHeight: 20, marginBottom: 6, color: c.text },
   historyMeta: { fontSize: 12, color: c.textMuted },
   separator: { height: 10 },
+  ordersListContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+  centeredState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+    gap: 8,
+  },
+  stateText: { fontSize: 15, color: c.textMuted, textAlign: 'center' },
   loader: { marginTop: 40 },
   emptyBlock: { alignItems: 'center', paddingVertical: 48, gap: 8 },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: c.text },
