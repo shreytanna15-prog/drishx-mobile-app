@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth';
 import { appAlert } from '@/lib/app-alert';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import { groupOrdersForList } from '@/lib/order-list-display';
+import { downloadEmployeeOrderPdf, printEmployeeOrder } from '@/lib/order-print';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
 
@@ -40,6 +41,7 @@ export default function OrderDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<'print' | 'download' | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (!orderIdParam) {
@@ -112,6 +114,32 @@ export default function OrderDetailsScreen() {
     [getAuthHeaders, loadOrders]
   );
 
+  const handlePrintOrder = useCallback(async () => {
+    if (!orderGroup) return;
+    setExporting('print');
+    try {
+      await printEmployeeOrder(orderGroup);
+    } catch (err) {
+      appAlert('Print failed', err instanceof Error ? err.message : 'Could not print order.');
+    } finally {
+      setExporting(null);
+    }
+  }, [orderGroup]);
+
+  const handleDownloadOrder = useCallback(async () => {
+    if (!orderGroup) return;
+    setExporting('download');
+    try {
+      await downloadEmployeeOrderPdf(orderGroup);
+    } catch (err) {
+      appAlert('Download failed', err instanceof Error ? err.message : 'Could not download order.');
+    } finally {
+      setExporting(null);
+    }
+  }, [orderGroup]);
+
+  const showExportActions = Boolean(orderGroup) && !loading && !error;
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -119,8 +147,39 @@ export default function OrderDetailsScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton} hitSlop={10}>
             <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>{orderGroup?.displayOrderId ?? 'Order details'}</Text>
-          <View style={styles.backButton} />
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {orderGroup?.displayOrderId ?? 'Order details'}
+          </Text>
+          {showExportActions ? (
+            <View style={styles.headerActions}>
+              <Pressable
+                style={styles.headerActionButton}
+                onPress={() => void handlePrintOrder()}
+                disabled={exporting !== null}
+                hitSlop={8}
+                accessibilityLabel="Print order">
+                {exporting === 'print' ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <MaterialIcons name="print" size={22} color={colors.primary} />
+                )}
+              </Pressable>
+              <Pressable
+                style={styles.headerActionButton}
+                onPress={() => void handleDownloadOrder()}
+                disabled={exporting !== null}
+                hitSlop={8}
+                accessibilityLabel="Download order">
+                {exporting === 'download' ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <MaterialIcons name="download" size={22} color={colors.primary} />
+                )}
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.headerActionsPlaceholder} />
+          )}
         </View>
 
         {loading ? (
@@ -196,9 +255,28 @@ const createStyles = (c: BrandColorScheme) =>
     justifyContent: 'center',
   },
   headerTitle: {
+    flex: 1,
     color: c.text,
     fontSize: 17,
     fontWeight: '700',
+    textAlign: 'center',
+    marginHorizontal: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 56,
+    justifyContent: 'flex-end',
+  },
+  headerActionsPlaceholder: {
+    width: 56,
+  },
+  headerActionButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
   centeredState: {
