@@ -10,8 +10,9 @@ export type LensesPageResponse = {
     lensType: 'KRYPTOK' | 'PROGRESSIVE' | 'SINGLE_VISION';
     costPrice: number | null;
     price: number;
-    sph: number;
+    sph: number | null;
     cyl: number | null;
+    crossPower?: number | null;
     axis: number | null;
     add: number | null;
     eye: string | null;
@@ -58,8 +59,9 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
     id: item.id,
     costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
     price: Number(item.price),
-    sph: Number(item.sph),
+    sph: item.sph !== null && item.sph !== undefined ? Number(item.sph) : null,
     cyl: item.cyl !== null ? Number(item.cyl) : null,
+    crossPower: item.crossPower !== null && item.crossPower !== undefined ? Number(item.crossPower) : null,
     axis: item.axis,
     add: item.add !== null ? Number(item.add) : null,
     eye: item.eye ?? undefined,

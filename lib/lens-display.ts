@@ -32,13 +32,28 @@ function formatPowerProfileLabel(
       return 'sph';
     case 'cyl-only':
       return 'cyl';
+    case 'cross':
+      return 'cross';
   }
+}
+
+export function formatCrossPowerLabel(crossPower: number | null | undefined): string {
+  if (crossPower === null || crossPower === undefined) {
+    return '—';
+  }
+  const value = Number(crossPower);
+  if (!Number.isFinite(value)) {
+    return '—';
+  }
+  const fixed = value.toFixed(2).replace(/\.?0+$/, '');
+  return `cross ${value > 0 ? `+${fixed}` : fixed}`;
 }
 
 /** Shop / wholesale product card detail, e.g. "HC Comp KT +2.00/-1.00 x 180". */
 export function formatLensProductCardDetail(item: {
-  sph: number;
+  sph?: number | null;
   cyl?: number | null;
+  crossPower?: number | null;
   axis?: number | null;
   coating?: string | null;
   lensType?: LensType | string | null;
@@ -47,9 +62,13 @@ export function formatLensProductCardDetail(item: {
   const profileLabel = formatPowerProfileLabel(resolveWholesalePowerProfile(item));
   const lensAbbrev = formatLensTypeAbbrev(item.lensType);
 
-  const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph) : '—';
-  const cylPart = hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl!) : '—';
-  const powerPart = `${sphPart}/${cylPart}`;
+  const powerPart = hasMeaningfulPower(item.crossPower)
+    ? formatCrossPowerLabel(item.crossPower)
+    : (() => {
+        const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
+        const cylPart = hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl!) : '—';
+        return `${sphPart}/${cylPart}`;
+      })();
 
   const axisPart =
     item.axis !== null && item.axis !== undefined ? ` x ${formatAxisValue(item.axis)}` : '';
@@ -79,8 +98,17 @@ export function formatAddAxisLabel(item: {
   return `ADD ${formatAddValue(item.add)} · AXIS ${formatAxisValue(item.axis)}`;
 }
 
-export function formatSphCylSlash(item: { sph: number; cyl?: number | null }): string {
-  return `${formatPowerLabel(item.sph)}/${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
+export function formatSphCylSlash(item: {
+  sph?: number | null;
+  cyl?: number | null;
+  crossPower?: number | null;
+}): string {
+  if (hasMeaningfulPower(item.crossPower)) {
+    return formatCrossPowerLabel(item.crossPower);
+  }
+  const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
+  const cylPart = item.cyl != null && hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl) : '—';
+  return `${sphPart}/${cylPart}`;
 }
 
 function isSpecialColorsItem(item: string | null | undefined): boolean {
@@ -120,11 +148,16 @@ export function formatLensItemCoatingSummary(item: {
 }
 
 export function isSameLensPower(
-  a: { id?: string; sph: number; cyl?: number | null },
-  b: { id?: string; sph: number; cyl?: number | null }
+  a: { id?: string; sph?: number | null; cyl?: number | null; crossPower?: number | null },
+  b: { id?: string; sph?: number | null; cyl?: number | null; crossPower?: number | null }
 ): boolean {
   if (a.id && b.id && a.id === b.id) {
     return true;
+  }
+  const crossA = a.crossPower ?? null;
+  const crossB = b.crossPower ?? null;
+  if (crossA !== null || crossB !== null) {
+    return crossA === crossB;
   }
   const cylA = a.cyl ?? null;
   const cylB = b.cyl ?? null;

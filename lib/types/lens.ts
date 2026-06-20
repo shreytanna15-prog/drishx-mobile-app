@@ -19,8 +19,9 @@ export type LensItem = {
   id: string;
   costPrice: number | null;
   price: number;
-  sph: number;
+  sph: number | null;
   cyl: number | null;
+  crossPower?: number | null;
   axis: number | null;
   add: number | null;
   /** Kryptok wholesale compound: CYL-side ADD when it differs from SPH ADD. */

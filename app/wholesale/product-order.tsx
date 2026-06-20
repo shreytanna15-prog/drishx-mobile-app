@@ -108,7 +108,7 @@ export default function WholesaleProductOrderScreen() {
     [item]
   );
   const gridMode = useMemo(() => defaultWholesaleGridMode(powerProfile), [powerProfile]);
-  const showSphRange = powerProfile !== 'cyl-only';
+  const showSphRange = powerProfile !== 'cyl-only' && powerProfile !== 'cross';
   const showCylRange = powerProfile !== 'sph-only';
 
   useEffect(() => {

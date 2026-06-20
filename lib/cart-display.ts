@@ -1,5 +1,5 @@
 import { formatPowerLabel } from '@/lib/cart-utils';
-import { formatAddValue, formatLensItemLabel } from '@/lib/lens-display';
+import { formatAddValue, formatCrossPowerLabel, formatLensItemLabel } from '@/lib/lens-display';
 import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import {
   displayQuantityFromPieces,
@@ -42,7 +42,10 @@ function getCartProductMeta(item: CartItem): { key: string; title: string; subti
 }
 
 function formatSphCyl(item: CartItem): string {
-  const sphCyl = `${formatPowerLabel(item.sph)} / ${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
+  if (item.crossPower != null && Math.abs(Number(item.crossPower)) > 1e-9) {
+    return formatCrossPowerLabel(item.crossPower);
+  }
+  const sphCyl = `${item.sph != null ? formatPowerLabel(item.sph) : '—'} / ${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
   if (item.lensType === 'Single Vision') {
     return sphCyl;
   }

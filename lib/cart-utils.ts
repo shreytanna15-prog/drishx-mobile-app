@@ -2,9 +2,9 @@ import type { LensItem } from '@/lib/types/lens';
 
 export function buildCartLineId(
   item: Pick<LensItem, 'id' | 'sph' | 'cyl' | 'add'> &
-    Partial<Pick<LensItem, 'axis' | 'cylAdd' | 'eye'>>
+    Partial<Pick<LensItem, 'axis' | 'cylAdd' | 'eye' | 'crossPower'>>
 ): string {
-  return `${item.id}:${item.sph}:${item.cyl ?? ''}:${item.add ?? ''}:${item.axis ?? ''}:${item.cylAdd ?? ''}:${item.eye ?? ''}`;
+  return `${item.id}:${item.crossPower ?? ''}:${item.sph ?? ''}:${item.cyl ?? ''}:${item.add ?? ''}:${item.axis ?? ''}:${item.cylAdd ?? ''}:${item.eye ?? ''}`;
 }
 
 export function parseNumericInput(value: string): number | null {
