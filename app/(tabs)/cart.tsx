@@ -257,19 +257,41 @@ export default function CartTabScreen() {
                   void adjustQuantity(cartLineId, -quantityStep);
                 }}
                 onRemove={(cartLineId) => {
-                  void removeFromCart(cartLineId);
+                  appAlert('Remove item', 'Are you sure you want to remove this item?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Remove',
+                      style: 'destructive',
+                      onPress: () => {
+                        void removeFromCart(cartLineId);
+                      },
+                    },
+                  ]);
                 }}
                 onRemoveSection={(cartLineIds) => {
-                  void removeLinesFromCart(cartLineIds);
+                  appAlert(
+                    'Remove product',
+                    'Are you sure you want to remove this product and all its variants?',
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => {
+                          void removeLinesFromCart(cartLineIds);
+                        },
+                      },
+                    ]
+                  );
                 }}
                 onClearCart={() => {
                   appAlert(
                     'Clear cart',
-                    'Remove all products from your cart?',
+                    'Are you sure you want to clear the entire cart?',
                     [
                       { text: 'Cancel', style: 'cancel' },
                       {
-                        text: 'Clear cart',
+                        text: 'Clear',
                         style: 'destructive',
                         onPress: () => {
                           void clearCart();
