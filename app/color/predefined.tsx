@@ -12,9 +12,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { TintStrengthSlider } from '@/components/color-mix-sliders';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { PREDEFINED_LENS_COLORS, type PredefinedLensColor } from '@/lib/color-lens';
+import {
+  buildColorLensRouteParams,
+  COLOR_LENS_DEFAULT_TINT_STRENGTH,
+} from '@/lib/color-lens-order';
 import { useBrandColors } from '@/lib/theme-provider';
 
 function ColorSwatch({
@@ -52,6 +57,7 @@ export default function PredefinedColorsScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [tintStrength, setTintStrength] = useState(COLOR_LENS_DEFAULT_TINT_STRENGTH);
 
   const selectedColor = useMemo(
     () => PREDEFINED_LENS_COLORS.find((entry) => entry.id === selectedId) ?? null,
@@ -62,11 +68,14 @@ export default function PredefinedColorsScreen() {
     if (!selectedColor) return;
     router.push({
       pathname: '/color/lens-type',
-      params: {
+      params: buildColorLensRouteParams({
         colorId: selectedColor.id,
         colorName: selectedColor.name,
         colorHex: selectedColor.hex,
-      },
+        colorHighlight: selectedColor.highlight,
+        colorShadow: selectedColor.shadow,
+        tintStrength,
+      }),
     } as never);
   };
 
@@ -116,6 +125,21 @@ export default function PredefinedColorsScreen() {
               <Text style={styles.selectedEmptyText}>Select a color to continue</Text>
             </View>
           )}
+
+          <View style={[styles.tintCard, !selectedColor && styles.tintCardDisabled]}>
+            <View style={styles.tintHeader}>
+              <View>
+                <Text style={styles.tintTitle}>Tint Strength</Text>
+                <Text style={styles.tintSubtitle}>How strong the lens tint appears</Text>
+              </View>
+              <Text style={styles.tintValue}>{tintStrength}%</Text>
+            </View>
+            <TintStrengthSlider
+              value={tintStrength}
+              accentHex={selectedColor?.hex ?? colors.primary}
+              onChange={setTintStrength}
+            />
+          </View>
 
           <Pressable
             style={[styles.continueBtn, !selectedColor && styles.continueBtnDisabled]}
@@ -239,6 +263,25 @@ const createStyles = (c: BrandColorScheme) =>
     selectedHint: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
     selectedName: { color: c.text, fontSize: 16, fontWeight: '800' },
     selectedCollection: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
+    tintCard: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      gap: 4,
+    },
+    tintCardDisabled: { opacity: 0.55 },
+    tintHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    tintTitle: { color: c.text, fontSize: 15, fontWeight: '800' },
+    tintSubtitle: { color: c.textMuted, fontSize: 11, fontWeight: '500', marginTop: 2 },
+    tintValue: { color: c.primary, fontSize: 18, fontWeight: '900' },
     continueBtn: {
       flexDirection: 'row',
       alignItems: 'center',
