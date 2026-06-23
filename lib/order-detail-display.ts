@@ -1,5 +1,6 @@
 import { getOrderLensDetails } from '@/lib/orders-api';
 import type { OrderRecord } from '@/lib/orders-api';
+import { isRxOrder } from '@/lib/order-list-display';
 import { normalizeOrderStatus, type OrderTrackingStatus } from '@/lib/order-tracking';
 import { formatLensType } from '@/lib/types/lens';
 
@@ -57,6 +58,25 @@ function getProductMeta(order: OrderRecord): { key: string; title: string; subti
       key: `pr-${lens.id}`,
       title: lens.brand?.trim() || lens.item?.trim() || lensLabel,
       subtitle: joinParts([lensLabel, lens.item, lens.coating, lens.category]) || lensLabel,
+    };
+  }
+
+  if (isRxOrder(order)) {
+    const productName = order.notes
+      ?.split('\n')
+      .find((line) => line.startsWith('Product name: '))
+      ?.slice('Product name: '.length)
+      .trim();
+    const feature = order.notes
+      ?.split('\n')
+      .find((line) => line.startsWith('Feature: '))
+      ?.slice('Feature: '.length)
+      .trim();
+
+    return {
+      key: `rx-${order.id}`,
+      title: productName || `${lensLabel} RX`,
+      subtitle: joinParts([lensLabel, feature, 'Custom RX order']) || 'Custom RX order',
     };
   }
 

@@ -126,9 +126,15 @@ export function isColorLensOrder(order: OrderRecord): boolean {
   return order.notes?.includes('[Color Lens]') ?? false;
 }
 
-/** Shop prescription photo upload — not a completed color-lens configuration. */
+export function isRxOrder(order: OrderRecord): boolean {
+  return order.notes?.includes('[RX Order]') ?? false;
+}
+
+/** Shop prescription photo upload — not a completed color-lens or RX configuration. */
 function isPhotoOrder(order: OrderRecord): boolean {
-  return Boolean(order.orderImageUrl?.trim()) && !isColorLensOrder(order);
+  return (
+    Boolean(order.orderImageUrl?.trim()) && !isColorLensOrder(order) && !isRxOrder(order)
+  );
 }
 
 export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDisplay {

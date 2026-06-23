@@ -69,6 +69,10 @@ function goToCategory(
     router.push('/color' as never);
     return;
   }
+  if (categoryId === 'rx') {
+    router.push('/rx' as never);
+    return;
+  }
   goToShop(router, filter);
 }
 

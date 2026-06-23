@@ -22,6 +22,7 @@ import {
   formatOrderDateTime,
   getStatusPillStyle,
   isColorLensOrder,
+  isRxOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
@@ -126,7 +127,7 @@ function ReferenceImageCard({
 
   return (
     <View style={styles.referenceCard}>
-      <Text style={styles.referenceTitle}>Uploaded reference</Text>
+      <Text style={styles.referenceTitle}>Prescription reference</Text>
       <Image
         source={{ uri: imageUrl }}
         style={styles.photoImage}
@@ -223,9 +224,10 @@ export function CustomerOrderGroupDetail({
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
 
-  const colorLensReferenceUrl = useMemo(() => {
+  const orderReferenceUrl = useMemo(() => {
     const orderWithImage = group.orders.find(
-      (order) => isColorLensOrder(order) && order.orderImageUrl?.trim()
+      (order) =>
+        (isColorLensOrder(order) || isRxOrder(order)) && order.orderImageUrl?.trim()
     );
     const raw = orderWithImage?.orderImageUrl?.trim() ?? null;
     return raw ? resolvePhotoOrderImageUrl(raw) : null;
@@ -234,7 +236,7 @@ export function CustomerOrderGroupDetail({
   useEffect(() => {
     setPhotoLoadFailed(false);
     setReferenceLoadFailed(false);
-  }, [group.key, group.photoUrl, colorLensReferenceUrl]);
+  }, [group.key, group.photoUrl, orderReferenceUrl]);
 
   const cancellableOrders = group.orders.filter((order) => {
     const status = normalizeOrderStatus(order.status);
@@ -322,14 +324,14 @@ export function CustomerOrderGroupDetail({
         <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
       </View>
 
-      {colorLensReferenceUrl && !referenceLoadFailed ? (
+      {orderReferenceUrl && !referenceLoadFailed ? (
         <ReferenceImageCard
-          imageUrl={colorLensReferenceUrl}
+          imageUrl={orderReferenceUrl}
           onLoadError={() => setReferenceLoadFailed(true)}
         />
-      ) : colorLensReferenceUrl && referenceLoadFailed ? (
+      ) : orderReferenceUrl && referenceLoadFailed ? (
         <View style={styles.referenceCard}>
-          <Text style={styles.referenceTitle}>Uploaded reference</Text>
+          <Text style={styles.referenceTitle}>Prescription reference</Text>
           <View style={styles.photoMissing}>
             <MaterialIcons name="image-not-supported" size={40} color={colors.textMuted} />
             <Text style={styles.photoMissingText}>Could not load reference image</Text>
