@@ -121,7 +121,7 @@ export function createDefaultRxPrescription(
   const withDiameter = (eye: EyePowerValues): RxEyePower => ({
     ...eye,
     axis: snapToRxAxis(Math.abs(eye.axis) >= 10 ? eye.axis : 180),
-    diameter: '65',
+    diameter: '',
   });
 
   return {

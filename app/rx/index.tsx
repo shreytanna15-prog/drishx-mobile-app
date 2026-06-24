@@ -129,30 +129,51 @@ function DiameterField({
   const styles = useThemedStyles(createStyles);
   const [open, setOpen] = useState(false);
 
+  const trimmed = value.trim();
+  const hasValue = Boolean(trimmed);
+
+  const handleManualChange = (text: string) => {
+    onChange(text.replace(/[^0-9]/g, ''));
+  };
+
   return (
-    <View style={styles.diameterWrap}>
-      <Pressable
-        style={[styles.diameterDropdown, disabled && styles.stepperDisabled]}
-        onPress={() => !disabled && setOpen(true)}
-        disabled={disabled}>
-        <Text style={styles.diameterDropdownText}>{value || '65'}</Text>
-        <MaterialIcons name="keyboard-arrow-down" size={18} color={colors.textMuted} />
-      </Pressable>
+    <View style={[styles.diameterCombo, disabled && styles.stepperDisabled]}>
       <TextInput
-        style={[styles.diameterInput, disabled && styles.stepperDisabled]}
+        style={styles.diameterComboInput}
         value={value}
-        onChangeText={onChange}
-        keyboardType="number-pad"
-        placeholder="mm"
+        onChangeText={handleManualChange}
+        placeholder="—"
         placeholderTextColor={colors.textMuted}
-        editable={!disabled}
+        keyboardType="number-pad"
         maxLength={4}
+        editable={!disabled}
       />
+      <Text style={styles.diameterComboUnit}>mm</Text>
+      <View style={styles.diameterComboDivider} />
+      <Pressable
+        style={styles.diameterComboPicker}
+        onPress={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        hitSlop={4}>
+        <MaterialIcons name="keyboard-arrow-down" size={20} color={colors.primary} />
+      </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.diameterModalOverlay} onPress={() => setOpen(false)}>
           <View style={styles.diameterModalCard}>
-            <Text style={styles.diameterModalTitle}>Select diameter</Text>
+            <Text style={styles.diameterModalTitle}>Diameter (optional)</Text>
+            <Text style={styles.diameterModalHint}>Choose a preset or type a value manually</Text>
+            <Pressable
+              style={styles.diameterOption}
+              onPress={() => {
+                onChange('');
+                setOpen(false);
+              }}>
+              <Text style={[styles.diameterOptionText, styles.diameterOptionMuted]}>
+                Not specified
+              </Text>
+              {!hasValue ? <MaterialIcons name="check" size={18} color={colors.primary} /> : null}
+            </Pressable>
             {RX_DIAMETER_PRESETS.map((preset) => (
               <Pressable
                 key={preset}
@@ -162,7 +183,7 @@ function DiameterField({
                   setOpen(false);
                 }}>
                 <Text style={styles.diameterOptionText}>{preset} mm</Text>
-                {value === preset ? (
+                {trimmed === preset ? (
                   <MaterialIcons name="check" size={18} color={colors.primary} />
                 ) : null}
               </Pressable>
@@ -665,7 +686,10 @@ export default function RxOrderScreen() {
             )}
 
             <View style={styles.prescriptionDataRow}>
-              <Text style={styles.prescriptionFieldLabel}>Diameter</Text>
+              <View style={styles.prescriptionFieldLabelWrap}>
+                <Text style={styles.prescriptionFieldLabel}>Diameter</Text>
+                <Text style={styles.prescriptionFieldHint}>Optional</Text>
+              </View>
               {showRightEye ? (
                 <DiameterField
                   value={prescription.right.diameter}
@@ -943,6 +967,16 @@ const createStyles = (c: BrandColorScheme) =>
       fontSize: 11,
       fontWeight: '800',
     },
+    prescriptionFieldLabelWrap: {
+      width: 56,
+      gap: 1,
+    },
+    prescriptionFieldHint: {
+      color: c.textMuted,
+      fontSize: 9,
+      fontWeight: '600',
+      opacity: 0.85,
+    },
     prescriptionEyeLabel: {
       flex: 1,
       color: c.textMuted,
@@ -974,32 +1008,44 @@ const createStyles = (c: BrandColorScheme) =>
       fontWeight: '800',
       textAlign: 'center',
     },
-    diameterWrap: { flex: 1, flexDirection: 'row', gap: 4 },
-    diameterDropdown: {
+    diameterCombo: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
       backgroundColor: c.menuRow,
       borderRadius: 10,
       borderWidth: 1,
       borderColor: c.cardBorder,
-      paddingHorizontal: 8,
       minHeight: 36,
+      overflow: 'hidden',
     },
-    diameterDropdownText: { color: c.text, fontSize: 12, fontWeight: '700' },
-    diameterInput: {
-      width: 44,
-      backgroundColor: c.menuRow,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
+    diameterComboInput: {
+      flex: 1,
       color: c.text,
       fontSize: 12,
-      fontWeight: '700',
+      fontWeight: '800',
       textAlign: 'center',
-      minHeight: 36,
-      paddingHorizontal: 4,
+      paddingVertical: 8,
+      paddingLeft: 10,
+      minWidth: 0,
+    },
+    diameterComboUnit: {
+      color: c.textMuted,
+      fontSize: 10,
+      fontWeight: '700',
+      marginRight: 4,
+    },
+    diameterComboDivider: {
+      width: 1,
+      alignSelf: 'stretch',
+      backgroundColor: c.cardBorder,
+      marginVertical: 6,
+    },
+    diameterComboPicker: {
+      width: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 8,
     },
     diameterModalOverlay: {
       flex: 1,
@@ -1019,7 +1065,14 @@ const createStyles = (c: BrandColorScheme) =>
       color: c.text,
       fontSize: 15,
       fontWeight: '800',
-      marginBottom: 6,
+      marginBottom: 2,
+      paddingHorizontal: 4,
+    },
+    diameterModalHint: {
+      color: c.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+      marginBottom: 8,
       paddingHorizontal: 4,
     },
     diameterOption: {
@@ -1031,6 +1084,7 @@ const createStyles = (c: BrandColorScheme) =>
       borderRadius: 10,
     },
     diameterOptionText: { color: c.text, fontSize: 14, fontWeight: '600' },
+    diameterOptionMuted: { color: c.textMuted },
     requirementsCard: {
       backgroundColor: c.card,
       borderRadius: 14,
