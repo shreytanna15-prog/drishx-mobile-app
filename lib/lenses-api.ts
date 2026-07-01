@@ -79,6 +79,8 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
 export type LensCatalogItem = {
   name: string;
   productCount: number;
+  /** Present when the card was auto-created from an unmatched DB category. */
+  dynamic?: boolean;
 };
 
 export async function fetchLensCatalogItems(type: string): Promise<LensCatalogItem[]> {
