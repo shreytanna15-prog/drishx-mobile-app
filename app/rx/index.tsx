@@ -27,7 +27,6 @@ import { useAuth } from '@/lib/auth';
 import {
   buildAddOptions,
   buildCylOptions,
-  buildRxAxisOptions,
   buildSphOptions,
   createDefaultRxPrescription,
   getRxLensCount,
@@ -46,6 +45,8 @@ import {
   snapToRxAxis,
   stepEyePower,
   stepRxAxis,
+  stepRxSphCyl,
+  parseRxCustomAxisInput,
   type RxEyePower,
   type RxLensTypeId,
   type RxOrderFor,
@@ -112,6 +113,58 @@ function PowerStepper({
           <MaterialIcons name="add" size={16} color={disabled ? colors.textMuted : colors.text} />
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+function AxisField({
+  value,
+  onDecrease,
+  onIncrease,
+  onCustomChange,
+  disabled,
+}: {
+  value: number;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  onCustomChange: (next: number) => void;
+  disabled?: boolean;
+}) {
+  const colors = useBrandColors();
+  const styles = useThemedStyles(createStyles);
+  const [customText, setCustomText] = useState(String(Math.round(value)));
+
+  useEffect(() => {
+    setCustomText(String(Math.round(value)));
+  }, [value]);
+
+  const handleCustomChange = (text: string) => {
+    const next = text.replace(/[^0-9]/g, '');
+    setCustomText(next);
+    const parsed = parseRxCustomAxisInput(next);
+    if (parsed !== null) {
+      onCustomChange(parsed);
+    }
+  };
+
+  return (
+    <View style={styles.axisFieldWrap}>
+      <PowerStepper
+        value={String(Math.round(value))}
+        onDecrease={onDecrease}
+        onIncrease={onIncrease}
+        disabled={disabled}
+      />
+      <TextInput
+        style={[styles.axisCustomInput, disabled && styles.stepperDisabled]}
+        value={customText}
+        onChangeText={handleCustomChange}
+        placeholder="Custom 0–180"
+        placeholderTextColor={colors.textMuted}
+        keyboardType="number-pad"
+        maxLength={3}
+        editable={!disabled}
+      />
     </View>
   );
 }
@@ -287,7 +340,6 @@ export default function RxOrderScreen() {
   const sphOptions = useMemo(() => buildSphOptions(), []);
   const cylOptions = useMemo(() => buildCylOptions(), []);
   const addOptions = useMemo(() => buildAddOptions(), []);
-  const axisOptions = useMemo(() => buildRxAxisOptions(), []);
 
   const orderSummaryLabel = getRxOrderSummaryLabel(orderFor, pairQuantity);
   const lensCount = getRxLensCount(orderFor, pairQuantity);
@@ -318,7 +370,7 @@ export default function RxOrderScreen() {
         Math.abs(option - value) < Math.abs(best - value) ? option : best
       );
     },
-    [addOptions, axisOptions, cylOptions, sphOptions]
+    [addOptions, cylOptions, sphOptions]
   );
 
   const formatFieldValue = useCallback((field: PowerField, value: number): string => {
@@ -332,6 +384,9 @@ export default function RxOrderScreen() {
     (field: PowerField, current: number, direction: 1 | -1): number => {
       if (field === 'axis') {
         return stepRxAxis(current, direction);
+      }
+      if (field === 'sph' || field === 'cyl') {
+        return stepRxSphCyl(field, current, direction);
       }
       return stepEyePower(field, current, direction);
     },
@@ -360,6 +415,30 @@ export default function RxOrderScreen() {
       });
     },
     [orderFor, samePowerForBothEyes, snapPower, stepField]
+  );
+
+  const updateAxisValue = useCallback(
+    (eye: EyeSide, value: number) => {
+      setPrescription((current) => {
+        const updatedEye: RxEyePower = {
+          ...current[eye],
+          axis: snapToRxAxis(value),
+        };
+
+        if (samePowerForBothEyes && orderFor === 'both') {
+          return {
+            right: { ...updatedEye },
+            left: { ...updatedEye },
+          };
+        }
+
+        return {
+          ...current,
+          [eye]: updatedEye,
+        };
+      });
+    },
+    [orderFor, samePowerForBothEyes]
   );
 
   const updateDiameter = useCallback(
@@ -650,7 +729,7 @@ export default function RxOrderScreen() {
               )}
             </View>
 
-            {(['sph', 'cyl', 'axis', ...(showAdd ? (['add'] as const) : [])] as PowerField[]).map(
+            {(['sph', 'cyl', ...(showAdd ? (['add'] as const) : [])] as PowerField[]).map(
               (field) => (
                 <View key={field} style={styles.prescriptionDataRow}>
                   <Text style={styles.prescriptionFieldLabel}>
@@ -658,9 +737,7 @@ export default function RxOrderScreen() {
                       ? 'SPH'
                       : field === 'cyl'
                         ? 'CYL'
-                        : field === 'axis'
-                          ? 'AXIS'
-                          : 'ADD'}
+                        : 'ADD'}
                   </Text>
                   {showRightEye ? (
                     <PowerStepper
@@ -684,6 +761,34 @@ export default function RxOrderScreen() {
                 </View>
               )
             )}
+
+            <View style={styles.prescriptionDataRow}>
+              <View style={styles.prescriptionFieldLabelWrap}>
+                <Text style={styles.prescriptionFieldLabel}>AXIS</Text>
+                <Text style={styles.prescriptionFieldHint}>Custom 0–180</Text>
+              </View>
+              {showRightEye ? (
+                <AxisField
+                  value={prescription.right.axis}
+                  onDecrease={() => updateEyeField('right', 'axis', -1)}
+                  onIncrease={() => updateEyeField('right', 'axis', 1)}
+                  onCustomChange={(value) => updateAxisValue('right', value)}
+                />
+              ) : (
+                <View style={styles.prescriptionEyeSpacer} />
+              )}
+              {showLeftEye ? (
+                <AxisField
+                  value={prescription.left.axis}
+                  onDecrease={() => updateEyeField('left', 'axis', -1)}
+                  onIncrease={() => updateEyeField('left', 'axis', 1)}
+                  onCustomChange={(value) => updateAxisValue('left', value)}
+                  disabled={orderFor === 'both' && samePowerForBothEyes}
+                />
+              ) : (
+                <View style={styles.prescriptionEyeSpacer} />
+              )}
+            </View>
 
             <View style={styles.prescriptionDataRow}>
               <View style={styles.prescriptionFieldLabelWrap}>
@@ -1007,6 +1112,19 @@ const createStyles = (c: BrandColorScheme) =>
       fontSize: 12,
       fontWeight: '800',
       textAlign: 'center',
+    },
+    axisFieldWrap: { flex: 1, gap: 4 },
+    axisCustomInput: {
+      backgroundColor: c.menuRow,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      color: c.text,
+      fontSize: 11,
+      fontWeight: '700',
+      textAlign: 'center',
+      paddingVertical: 6,
+      paddingHorizontal: 8,
     },
     diameterCombo: {
       flex: 1,
