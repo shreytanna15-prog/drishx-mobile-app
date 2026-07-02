@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../drishx-web-app"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../../Drishx-admin-and-backend"
+		}
+	],
+	"settings": {}
+}

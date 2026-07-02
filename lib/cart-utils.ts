@@ -100,7 +100,9 @@ export function canAcceptPrescriptionInput(text: string, maxValue: number): bool
 }
 
 export function isPrescriptionWithinRange(value: number, minValue: number, maxValue: number): boolean {
-  return value <= minValue && value >= maxValue;
+  const low = Math.min(minValue, maxValue);
+  const high = Math.max(minValue, maxValue);
+  return value >= low - 1e-9 && value <= high + 1e-9;
 }
 
 export function validatePrescriptionInRange(
@@ -117,7 +119,9 @@ export function validatePrescriptionInRange(
     return `Please enter a valid ${label} number.`;
   }
   if (!isPrescriptionWithinRange(parsed, minValue, maxValue)) {
-    return `${label} must be between ${formatPowerLabel(maxValue)} and ${formatPowerLabel(minValue)}.`;
+    const low = Math.min(minValue, maxValue);
+    const high = Math.max(minValue, maxValue);
+    return `${label} must be between ${formatPowerLabel(low)} and ${formatPowerLabel(high)}.`;
   }
   return null;
 }

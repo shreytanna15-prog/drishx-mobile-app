@@ -1,4 +1,4 @@
-import { generatePowerOptions, resolveSelectableRange } from '@/lib/prescription-range';
+import { resolveAddOptions, resolveSelectableRange } from '@/lib/prescription-range';
 import type { LensItem } from '@/lib/types/lens';
 
 /** Step size options for wholesale grid generation. */
@@ -13,12 +13,11 @@ export type WholesaleBoundOptions = {
 /** Scroll bounds for wholesale range pickers, derived from the product card range. */
 export function resolveWholesaleBoundOptions(item: LensItem): WholesaleBoundOptions {
   const range = resolveSelectableRange(item);
-  const addMax = item.add != null && item.add > 0 ? Math.min(3, item.add) : 3;
 
   return {
     sph: range.sph.options,
     cyl: range.cyl?.options ?? [],
-    add: generatePowerOptions(1, addMax),
+    add: resolveAddOptions(),
   };
 }
 

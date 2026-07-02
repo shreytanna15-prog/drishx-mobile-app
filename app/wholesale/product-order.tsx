@@ -68,19 +68,6 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 
 type QtyMap = Record<string, string>;
 
-type WholesaleEyeOption = 'LEFT' | 'RIGHT' | 'BOTH';
-
-const PROGRESSIVE_EYE_OPTIONS: { id: WholesaleEyeOption; label: string }[] = [
-  { id: 'LEFT', label: 'Left eye' },
-  { id: 'RIGHT', label: 'Right eye' },
-  { id: 'BOTH', label: 'Both eyes' },
-];
-
-function progressiveCartEyes(selected: WholesaleEyeOption): Array<'LEFT' | 'RIGHT'> {
-  if (selected === 'BOTH') return ['LEFT', 'RIGHT'];
-  return [selected];
-}
-
 function normalizePairsText(text: string): string {
   const sanitized = sanitizePositiveIntegerInput(text);
   if (sanitized === '') return '';
@@ -95,7 +82,7 @@ export default function WholesaleProductOrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string }>();
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
-  const { addToCart, updateQuantity, items: cartItems } = useCart();
+  const { setCartQuantity, refreshCart } = useCart();
   const { setMode } = useOrderMode();
 
   const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
@@ -126,13 +113,13 @@ export default function WholesaleProductOrderScreen() {
   const [addFrom, setAddFrom] = useState(1);
   const [addTo, setAddTo] = useState(3);
   const [addStep, setAddStep] = useState(0.25);
-  const [selectedEye, setSelectedEye] = useState<WholesaleEyeOption>('LEFT');
 
   const [pairsDefault, setPairsDefault] = useState('1');
   const [qtyMap, setQtyMap] = useState<QtyMap>({});
 
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [addingToCart, setAddingToCart] = useState(false);
   const [visibleRowCount, setVisibleRowCount] = useState(MATRIX_INITIAL_ROWS);
   const [visibleColCount, setVisibleColCount] = useState(MATRIX_INITIAL_COLS);
 
@@ -322,8 +309,7 @@ export default function WholesaleProductOrderScreen() {
   }
 
   async function handleAddAllToCart() {
-    if (!item) {
-      appAlert('Unable to load product', 'Please go back and select a product again.');
+    if (!item || addingToCart) {
       return;
     }
 
@@ -344,59 +330,77 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
+    setAddingToCart(true);
+    setError(null);
+
     // Wholesale: pairs only -> convert to pieces (2 per pair).
     const failures: string[] = [];
     let success = 0;
-    const eyesToAdd = isProgressive ? progressiveCartEyes(selectedEye) : [undefined];
+    const mergedByLine = new Map<
+      string,
+      { cartItem: LensItem; pieces: number; labelParts: string[] }
+    >();
 
     for (const entry of entries) {
       const pieces = piecesFromDisplayQuantity(entry.pairs, 'pair');
 
-      for (const eye of eyesToAdd) {
-        const cartItem: LensItem = {
-          ...item,
-          sph: entry.sph,
-          cyl: entry.cyl,
-          add: entry.add,
-          cylAdd: entry.cylAdd,
-          axis: productAxis,
-          eye,
-        };
+      const cartItem: LensItem = {
+        ...item,
+        sph: entry.sph,
+        cyl: entry.cyl,
+        add: entry.add,
+        cylAdd: entry.cylAdd,
+        axis: productAxis,
+      };
 
-        const lineId = buildCartLineId(cartItem);
-        const existing = cartItems.find((x) => x.cartLineId === lineId);
-        try {
-          if (existing) {
-            await updateQuantity(lineId, pieces);
-          } else {
-            await addToCart(cartItem, pieces);
-          }
-          success += 1;
-        } catch (err) {
-          const parts = [
-            eye ? `Eye ${eye}` : null,
-            `SPH ${formatPowerLabel(entry.sph)}`,
-            entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
-            entry.axis != null ? `AXIS ${formatAxisValue(productAxis)}` : null,
-            entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
-          ].filter(Boolean);
-          failures.push(`${parts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`);
-        }
+      const lineId = buildCartLineId(cartItem);
+      const labelParts = [
+        `SPH ${formatPowerLabel(entry.sph)}`,
+        entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
+        entry.axis != null ? `AXIS ${formatAxisValue(productAxis)}` : null,
+        entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
+      ].filter(Boolean) as string[];
+
+      const existing = mergedByLine.get(lineId);
+      if (existing) {
+        existing.pieces += pieces;
+      } else {
+        mergedByLine.set(lineId, { cartItem, pieces, labelParts });
       }
     }
 
-    if (success > 0 && failures.length === 0) {
-      appAlert('Added to cart', `Added ${success} item(s) to cart.`);
-      router.push('/(tabs)/cart');
-      return;
-    }
+    try {
+      for (const { cartItem, pieces, labelParts } of mergedByLine.values()) {
+        try {
+          await setCartQuantity(cartItem, pieces);
+          success += 1;
+        } catch (err) {
+          failures.push(
+            `${labelParts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`
+          );
+        }
+      }
 
-    if (success > 0) {
-      appAlert('Partially added', `${success} item(s) added. Some failed:\n\n${failures.slice(0, 8).join('\n')}`);
-      return;
-    }
+      await refreshCart();
 
-    appAlert('Failed', failures.join('\n\n'));
+      if (success > 0 && failures.length === 0) {
+        appAlert('Added to cart', `Added ${success} item(s) to cart.`);
+        router.push('/(tabs)/cart');
+        return;
+      }
+
+      if (success > 0) {
+        appAlert(
+          'Partially added',
+          `${success} item(s) added. Some failed:\n\n${failures.slice(0, 8).join('\n')}`
+        );
+        return;
+      }
+
+      appAlert('Failed', failures.join('\n\n'));
+    } finally {
+      setAddingToCart(false);
+    }
   }
 
   if (!item) {
@@ -447,27 +451,6 @@ export default function WholesaleProductOrderScreen() {
             </Text>
             <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
           </View>
-
-          {isProgressive ? (
-            <>
-              <Text style={styles.sectionTitle}>Eye</Text>
-              <View style={styles.eyeRow}>
-                {PROGRESSIVE_EYE_OPTIONS.map((option) => {
-                  const active = selectedEye === option.id;
-                  return (
-                    <Pressable
-                      key={option.id}
-                      style={[styles.eyeChip, active && styles.eyeChipActive]}
-                      onPress={() => setSelectedEye(option.id)}>
-                      <Text style={[styles.eyeChipText, active && styles.eyeChipTextActive]}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </>
-          ) : null}
 
           <Text style={styles.sectionTitle}>Ranges</Text>
           {rangeHint ? <Text style={styles.rangeHint}>{rangeHint}</Text> : null}
@@ -591,15 +574,18 @@ export default function WholesaleProductOrderScreen() {
         <View style={styles.bottomBar}>
           <View>
             <Text style={styles.bottomMeta}>{totalPairs} pair{totalPairs === 1 ? '' : 's'} selected</Text>
-            <Text style={styles.bottomHint}>
-              {isProgressive && selectedEye === 'BOTH'
-                ? 'Adds LEFT + RIGHT lines per selection'
-                : 'Will add multiple lines to cart'}
-            </Text>
+            <Text style={styles.bottomHint}>Will add multiple lines to cart</Text>
           </View>
-          <Pressable style={styles.addBtn} onPress={() => void handleAddAllToCart()} disabled={totalPairs < 1}>
-            <MaterialIcons name="add-shopping-cart" size={20} color={colors.primaryText} />
-            <Text style={styles.addBtnText}>Add to cart</Text>
+          <Pressable
+            style={[styles.addBtn, (totalPairs < 1 || addingToCart) && styles.addBtnDisabled]}
+            onPress={() => void handleAddAllToCart()}
+            disabled={totalPairs < 1 || addingToCart}>
+            {addingToCart ? (
+              <ActivityIndicator size="small" color={colors.primaryText} />
+            ) : (
+              <MaterialIcons name="add-shopping-cart" size={20} color={colors.primaryText} />
+            )}
+            <Text style={styles.addBtnText}>{addingToCart ? 'Adding…' : 'Add to cart'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -765,25 +751,6 @@ const createStyles = (c: BrandColorScheme) =>
     },
     loadMoreText: { color: c.primary, fontSize: 13, fontWeight: '800' },
     addSection: { gap: 10, marginTop: 4 },
-    eyeRow: {
-      flexDirection: 'row',
-      gap: 8,
-      padding: 4,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      backgroundColor: c.card,
-    },
-    eyeChip: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    eyeChipActive: { backgroundColor: c.primary },
-    eyeChipText: { color: c.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center' },
-    eyeChipTextActive: { color: c.primaryText },
     bottomBar: {
       position: 'absolute',
       left: 0,
@@ -810,6 +777,9 @@ const createStyles = (c: BrandColorScheme) =>
       paddingHorizontal: 14,
       paddingVertical: 12,
       opacity: 1,
+    },
+    addBtnDisabled: {
+      opacity: 0.6,
     },
     addBtnText: { color: c.primaryText, fontSize: 14, fontWeight: '900' },
   });

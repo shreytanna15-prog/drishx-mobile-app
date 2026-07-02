@@ -28,6 +28,8 @@ type CartContextValue = {
   syncing: boolean;
   refreshCart: () => Promise<void>;
   addToCart: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
+  /** Set an absolute cart quantity (wholesale grid / replace line qty). */
+  setCartQuantity: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
   removeFromCart: (cartLineId: string) => Promise<void>;
   removeLinesFromCart: (cartLineIds: string[]) => Promise<void>;
   updateQuantity: (cartLineId: string, quantity: number) => Promise<void>;
@@ -139,6 +141,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     },
     [getAuthHeaders, items, persistLocalCart, useServerCart]
+  );
+
+  const setCartQuantity = useCallback(
+    async (item: LensItem, quantity: number) => {
+      const safeQuantity = Math.max(1, Math.floor(quantity));
+      const cartLineId = buildCartLineId(item);
+
+      const optimisticItem: CartItem = {
+        ...item,
+        cartLineId,
+        cartLineKey: cartLineId,
+        cartQuantity: safeQuantity,
+        reservedQuantity: 0,
+        isBackorder: false,
+      };
+
+      setItems((current) => {
+        const without = current.filter((entry) => entry.cartLineId !== cartLineId);
+        return [...without, optimisticItem];
+      });
+
+      if (!useServerCart) {
+        return {};
+      }
+
+      try {
+        const { item: saved } = await upsertCartLine(item, safeQuantity, getAuthHeaders());
+        setItems((current) => {
+          const without = current.filter((entry) => entry.cartLineId !== cartLineId);
+          return [...without, saved];
+        });
+        await persistLocalCart(
+          items
+            .filter((entry) => entry.cartLineId !== cartLineId)
+            .concat(saved)
+        );
+        return {};
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(
+            items
+              .filter((entry) => entry.cartLineId !== cartLineId)
+              .concat(optimisticItem)
+          );
+          return { message: err.message };
+        }
+        await refreshCart();
+        throw err;
+      }
+    },
+    [getAuthHeaders, items, persistLocalCart, refreshCart, useServerCart]
   );
 
   const removeFromCart = useCallback(
@@ -387,6 +440,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       syncing,
       refreshCart,
       addToCart,
+      setCartQuantity,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,
@@ -402,6 +456,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       syncing,
       refreshCart,
       addToCart,
+      setCartQuantity,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,
