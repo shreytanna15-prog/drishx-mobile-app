@@ -1,5 +1,11 @@
 import type { LensItem, PowerAxisRange, SelectableRange } from '@/lib/types/lens';
 import { resolveWholesalePowerProfile } from '@/lib/wholesale-powers';
+import {
+  computeCrossCylOptions,
+  computeCrossSphOptions,
+  resolveCrossPowerMeta,
+  type CrossPowerRangeMeta,
+} from '@/lib/cross-power';
 
 const POWER_STEP = 0.25;
 
@@ -303,6 +309,34 @@ export function restrictSelectableRangeForCheaperSiblings(
 
 /** API range when present; otherwise 0 → product max in 0.25 steps. */
 export function resolveSelectableRange(item: LensItem): SelectableRange {
+  const crossMeta = resolveCrossPowerMeta(item);
+  if (crossMeta) {
+    const cylOptions =
+      item.selectableRange?.cyl?.options.length
+        ? orderPowerOptions(item.selectableRange.cyl.options)
+        : computeCrossCylOptions(crossMeta.maxCyl);
+    const sphOptions =
+      item.selectableRange?.sph?.options.length && !item.selectableRange.crossPower
+        ? orderPowerOptions(item.selectableRange.sph.options)
+        : computeCrossSphOptions(crossMeta.maxCyl);
+
+    return {
+      sph: {
+        min: sphOptions[0] ?? 0,
+        max: sphOptions[sphOptions.length - 1] ?? 0,
+        options: sphOptions,
+      },
+      cyl: cylOptions.length
+        ? {
+            min: cylOptions[cylOptions.length - 1]!,
+            max: cylOptions[0]!,
+            options: cylOptions,
+          }
+        : null,
+      crossPower: crossMeta,
+    };
+  }
+
   if (item.selectableRange?.sph.options.length) {
     return withPickerRules(item, normalizeSelectableRange(item.selectableRange));
   }
@@ -322,6 +356,19 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
     sph: { min: sphMin, max: sphMax, options: sphOptions },
     cyl: null,
   });
+}
+
+/** SPH scroll options for the selected CYL on cross products. */
+export function resolveCrossSphRangeForCyl(
+  cyl: number,
+  meta: CrossPowerRangeMeta
+): PowerAxisRange {
+  const options = computeCrossSphOptions(cyl);
+  return {
+    min: options[0] ?? 0,
+    max: options[options.length - 1] ?? 0,
+    options,
+  };
 }
 
 /** Kryptok / Progressive ADD scroll options (+1.00 → +3.00 in 0.25 steps). */

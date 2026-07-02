@@ -49,6 +49,7 @@ import {
   yieldToUi,
   type BuildMatrixParams,
 } from '@/lib/wholesale-matrix';
+import { resolveCrossPowerMeta } from '@/lib/cross-power';
 import {
   buildPowerList,
   defaultWholesaleGridMode,
@@ -95,7 +96,11 @@ export default function WholesaleProductOrderScreen() {
     [item]
   );
   const gridMode = useMemo(() => defaultWholesaleGridMode(powerProfile), [powerProfile]);
-  const showSphRange = powerProfile !== 'cyl-only' && powerProfile !== 'cross';
+  const crossPowerMeta = useMemo(
+    () => (item ? resolveCrossPowerMeta(item) : null),
+    [item]
+  );
+  const showSphRange = powerProfile !== 'cyl-only';
   const showCylRange = powerProfile !== 'sph-only';
 
   useEffect(() => {
@@ -199,8 +204,9 @@ export default function WholesaleProductOrderScreen() {
       cylList,
       addList,
       productAxis,
+      crossPowerMeta,
     }),
-    [addList, cylList, gridMode, isBifocalLens, isSingleVision, productAxis, sphList]
+    [addList, crossPowerMeta, cylList, gridMode, isBifocalLens, isSingleVision, productAxis, sphList]
   );
 
   const matrixSpec = useMemo(

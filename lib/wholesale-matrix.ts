@@ -1,6 +1,7 @@
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { formatAxisValue } from '@/lib/lens-display';
 import { isAllowedCompoundCombo, powerKey, type WholesaleGridMode } from '@/lib/wholesale-powers';
+import { isAllowedCrossCombo } from '@/lib/cross-power';
 
 export const MATRIX_INITIAL_ROWS = 10;
 export const MATRIX_INITIAL_COLS = 10;
@@ -53,6 +54,7 @@ export type BuildMatrixParams = {
   addList: number[];
   /** Fixed axis from the product card (not user-selectable). */
   productAxis: number | null;
+  crossPowerMeta?: { maxCyl: number } | null;
 };
 
 export function qtyKeyCompound(sph: number, cyl: number) {
@@ -88,9 +90,27 @@ export function qtyKeyCompoundKryptok(
   return qtyKeyCompoundBifocal(sph, cyl, axis, add);
 }
 
-function compoundRowValues(sphList: number[], cylList: number[], isSingleVision: boolean): number[] {
+function isAllowedMatrixCombo(
+  sph: number,
+  cyl: number,
+  params: Pick<BuildMatrixParams, 'isSingleVision' | 'crossPowerMeta'>
+): boolean {
+  if (params.crossPowerMeta) {
+    return isAllowedCrossCombo(sph, cyl);
+  }
+  if (params.isSingleVision) {
+    return isAllowedCompoundCombo(sph, cyl);
+  }
+  return isAllowedCompoundCombo(sph, cyl);
+}
+
+function compoundRowValues(
+  sphList: number[],
+  cylList: number[],
+  params: Pick<BuildMatrixParams, 'isSingleVision' | 'crossPowerMeta'>
+): number[] {
   return sphList.filter((sph) =>
-    cylList.some((cyl) => !isSingleVision || isAllowedCompoundCombo(sph, cyl))
+    cylList.some((cyl) => isAllowedMatrixCombo(sph, cyl, params))
   );
 }
 
@@ -98,11 +118,15 @@ function powerRow(value: number): WholesaleMatrixRow {
   return { id: powerKey(value), label: formatPowerLabel(value), power: value };
 }
 
-function compoundSphCylPairRows(sphList: number[], cylList: number[]): WholesaleMatrixRow[] {
+function compoundSphCylPairRows(
+  sphList: number[],
+  cylList: number[],
+  params: Pick<BuildMatrixParams, 'isSingleVision' | 'crossPowerMeta'>
+): WholesaleMatrixRow[] {
   const rows: WholesaleMatrixRow[] = [];
   for (const sph of sphList) {
     for (const cyl of cylList) {
-      if (!isAllowedCompoundCombo(sph, cyl)) {
+      if (!isAllowedMatrixCombo(sph, cyl, params)) {
         continue;
       }
       rows.push({
@@ -125,6 +149,7 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
     cylList,
     addList,
     productAxis,
+    crossPowerMeta,
   } = params;
 
   const axisForKey = productAxis ?? 0;
@@ -171,11 +196,17 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
 
   if (mode === 'compound') {
     if (sphList.length === 0 || cylList.length === 0) return null;
-    const sphRows = compoundRowValues(sphList, cylList, isSingleVision);
+    const sphRows = compoundRowValues(sphList, cylList, {
+      isSingleVision,
+      crossPowerMeta,
+    });
     if (sphRows.length === 0) return null;
 
     if (isBifocalLens) {
-      const rows = compoundSphCylPairRows(sphList, cylList);
+      const rows = compoundSphCylPairRows(sphList, cylList, {
+        isSingleVision,
+        crossPowerMeta,
+      });
       if (rows.length === 0 || addList.length === 0) return null;
       return {
         rows,
@@ -201,7 +232,7 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
       cellsAt: (row, cyl) => {
         const sph = row.power;
         if (sph == null) return [];
-        if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) return [];
+        if (!isAllowedMatrixCombo(sph, cyl, { isSingleVision, crossPowerMeta })) return [];
         return [{ key: qtyKeyCompound(sph, cyl) }];
       },
     };
@@ -379,6 +410,7 @@ export async function buildWholesaleQtyMap(
     cylList,
     addList,
     productAxis,
+    crossPowerMeta,
   } = params;
 
   const axisForKey = productAxis ?? 0;
@@ -420,7 +452,7 @@ export async function buildWholesaleQtyMap(
       let pending = 0;
       for (const sph of sphList) {
         for (const cyl of cylList) {
-          if (!isAllowedCompoundCombo(sph, cyl)) {
+          if (!isAllowedMatrixCombo(sph, cyl, { isSingleVision, crossPowerMeta })) {
             continue;
           }
           for (const add of addList) {
@@ -437,7 +469,7 @@ export async function buildWholesaleQtyMap(
       let pending = 0;
       for (const sph of sphList) {
         for (const cyl of cylList) {
-          if (isSingleVision && !isAllowedCompoundCombo(sph, cyl)) {
+          if (!isAllowedMatrixCombo(sph, cyl, { isSingleVision, crossPowerMeta })) {
             continue;
           }
           next[qtyKeyCompound(sph, cyl)] = pairsText;

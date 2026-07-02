@@ -38,9 +38,11 @@ import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { fetchProductSiblings, fetchRelatedLenses } from '@/lib/lenses-api';
 import {
   resolveAddOptions,
+  resolveCrossSphRangeForCyl,
   resolveSelectableRange,
   restrictSelectableRangeForCheaperSiblings,
 } from '@/lib/prescription-range';
+import { resolveCrossPowerMeta } from '@/lib/cross-power';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import {
   PROGRESSIVE_EYE_OPTIONS,
@@ -83,6 +85,10 @@ export default function LensProductScreen() {
     const base = resolveSelectableRange(item);
     return restrictSelectableRangeForCheaperSiblings(base, item, productSiblings);
   }, [item, productSiblings]);
+  const crossMeta = useMemo(
+    () => (item ? resolveCrossPowerMeta(item) : null),
+    [item]
+  );
   const addOptions = useMemo(() => (item && showAdd ? resolveAddOptions(item) : []), [item, showAdd]);
 
   const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
@@ -99,6 +105,18 @@ export default function LensProductScreen() {
   );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const effectiveSelectableRange = useMemo(() => {
+    if (!selectableRange || !crossMeta) {
+      return selectableRange;
+    }
+
+    const sphRange = resolveCrossSphRangeForCyl(cyl, crossMeta);
+    return {
+      ...selectableRange,
+      sph: sphRange,
+    };
+  }, [cyl, crossMeta, selectableRange]);
 
   const formQuantityText = quantity.trim();
   const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
@@ -200,7 +218,7 @@ export default function LensProductScreen() {
       return null;
     }
 
-    const cylForLine = selectableRange?.cyl ? cyl : item.cyl ?? 0;
+    const cylForLine = effectiveSelectableRange?.cyl ? cyl : item.cyl ?? 0;
     const eyes = showProgressiveEye ? progressiveCartEyes(selectedEye) : [undefined];
 
     return eyes.map((eye) => {
@@ -224,7 +242,7 @@ export default function LensProductScreen() {
     showAdd,
     showProgressiveEye,
     sph,
-    selectableRange?.cyl,
+    effectiveSelectableRange?.cyl,
   ]);
 
   /** Button reflects whether this exact prescription + qty is already in the cart. */
@@ -259,16 +277,16 @@ export default function LensProductScreen() {
     );
   }
 
-  const prescriptionHint = selectableRange
+  const prescriptionHint = effectiveSelectableRange
     ? (() => {
-        const sphOpts = selectableRange.sph.options;
-        const sphStart = sphOpts[0] ?? selectableRange.sph.min;
-        const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
+        const sphOpts = effectiveSelectableRange.sph.options;
+        const sphStart = sphOpts[0] ?? effectiveSelectableRange.sph.min;
+        const sphEnd = sphOpts[sphOpts.length - 1] ?? effectiveSelectableRange.sph.max;
         let hint = `Scroll to select SPH (${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)})`;
-        if (selectableRange.cyl?.options.length) {
-          const cylOpts = selectableRange.cyl.options;
-          const cylStart = cylOpts[0] ?? selectableRange.cyl.min;
-          const cylEnd = cylOpts[cylOpts.length - 1] ?? selectableRange.cyl.max;
+        if (effectiveSelectableRange.cyl?.options.length) {
+          const cylOpts = effectiveSelectableRange.cyl.options;
+          const cylStart = cylOpts[0] ?? effectiveSelectableRange.cyl.min;
+          const cylEnd = cylOpts[cylOpts.length - 1] ?? effectiveSelectableRange.cyl.max;
           hint += ` and CYL (${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)})`;
         }
         if (showAdd && addOptions.length > 0) {
@@ -303,6 +321,12 @@ export default function LensProductScreen() {
 
   function handleCylChange(value: number) {
     setCyl(value);
+    if (crossMeta) {
+      const nextSphOptions = resolveCrossSphRangeForCyl(value, crossMeta).options;
+      if (nextSphOptions.length > 0 && !nextSphOptions.includes(sph)) {
+        setSph(nextSphOptions[0]!);
+      }
+    }
     setError(null);
   }
 
@@ -312,7 +336,7 @@ export default function LensProductScreen() {
       return;
     }
 
-    if (!selectableRange) {
+    if (!effectiveSelectableRange) {
       setError('Unable to resolve prescription range.');
       return;
     }
@@ -320,8 +344,8 @@ export default function LensProductScreen() {
     const sphError = validatePrescriptionInRange(
       'SPH',
       String(sph),
-      selectableRange.sph.min,
-      selectableRange.sph.max
+      effectiveSelectableRange.sph.min,
+      effectiveSelectableRange.sph.max
     );
     if (sphError) {
       setError(sphError);
@@ -329,12 +353,12 @@ export default function LensProductScreen() {
     }
 
     let parsedCyl: number;
-    if (selectableRange.cyl) {
+    if (effectiveSelectableRange.cyl) {
       const cylError = validatePrescriptionInRange(
         'CYL',
         String(cyl),
-        selectableRange.cyl.min,
-        selectableRange.cyl.max
+        effectiveSelectableRange.cyl.min,
+        effectiveSelectableRange.cyl.max
       );
       if (cylError) {
         setError(cylError);
@@ -560,18 +584,18 @@ export default function LensProductScreen() {
             </View>
             <View style={styles.prescriptionRow}>
               <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
-                {selectableRange ? (
+                {effectiveSelectableRange ? (
                   <PrescriptionWheelPicker
-                    options={selectableRange.sph.options}
+                    options={effectiveSelectableRange.sph.options}
                     value={sph}
                     onChange={handleSphChange}
                   />
                 ) : null}
               </View>
               <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
-                {selectableRange?.cyl ? (
+                {effectiveSelectableRange?.cyl ? (
                   <PrescriptionWheelPicker
-                    options={selectableRange.cyl.options}
+                    options={effectiveSelectableRange.cyl.options}
                     value={cyl}
                     onChange={handleCylChange}
                   />

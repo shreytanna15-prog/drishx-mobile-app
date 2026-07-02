@@ -1,4 +1,5 @@
 import { parseNumericInput } from '@/lib/cart-utils';
+import { isAllowedCrossCombo, resolveCrossPowerMeta } from '@/lib/cross-power';
 
 export type WholesaleGridMode = 'sph-only' | 'cyl-only' | 'compound';
 
@@ -83,6 +84,22 @@ export function isAllowedCompoundCombo(sph: number, cyl: number): boolean {
   return !(sph < 0 && cyl > 0);
 }
 
+export function isAllowedCrossComboForItem(
+  sph: number,
+  cyl: number,
+  item: {
+    crossPower?: number | null;
+    sph?: number | null;
+    selectableRange?: { crossPower?: { maxCyl: number } | null } | null;
+  }
+): boolean {
+  const meta = resolveCrossPowerMeta(item);
+  if (!meta) {
+    return false;
+  }
+  return isAllowedCrossCombo(sph, cyl);
+}
+
 /** @deprecated Use isAllowedCompoundCombo */
 export const isAllowedSvCompoundCombo = isAllowedCompoundCombo;
 
@@ -143,7 +160,7 @@ export function getAvailableWholesaleGridModes(
     case 'cyl-only':
       return ['cyl-only'];
     case 'cross':
-      return ['cyl-only'];
+      return ['compound'];
     case 'compound':
       return ['sph-only', 'cyl-only', 'compound'];
   }
@@ -154,7 +171,7 @@ export function defaultWholesaleGridMode(profile: WholesalePowerProfile): Wholes
     return 'compound';
   }
   if (profile === 'cross') {
-    return 'cyl-only';
+    return 'compound';
   }
   return profile;
 }
