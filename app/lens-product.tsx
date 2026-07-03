@@ -38,11 +38,12 @@ import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { fetchProductSiblings, fetchRelatedLenses } from '@/lib/lenses-api';
 import {
   resolveAddOptions,
-  resolveCrossSphRangeForCyl,
+  resolveCrossCylRangeForSph,
+  resolveCrossSphRangeForMax,
   resolveSelectableRange,
   restrictSelectableRangeForCheaperSiblings,
 } from '@/lib/prescription-range';
-import { resolveCrossPowerMeta } from '@/lib/cross-power';
+import { coerceCrossCylForSph, resolveCrossPowerMeta } from '@/lib/cross-power';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import {
   PROGRESSIVE_EYE_OPTIONS,
@@ -92,7 +93,10 @@ export default function LensProductScreen() {
   const addOptions = useMemo(() => (item && showAdd ? resolveAddOptions(item) : []), [item, showAdd]);
 
   const initialSph = selectableRange?.sph.options[0] ?? item?.sph ?? 0;
-  const initialCyl = selectableRange?.cyl?.options[0] ?? item?.cyl ?? 0;
+  const initialCyl =
+    crossMeta && selectableRange
+      ? coerceCrossCylForSph(initialSph, selectableRange.cyl?.options[0] ?? 0, crossMeta.maxCyl)
+      : (selectableRange?.cyl?.options[0] ?? item?.cyl ?? 0);
   const initialAdd = addOptions[0] ?? 1;
 
   const [sph, setSph] = useState<number>(initialSph);
@@ -111,12 +115,14 @@ export default function LensProductScreen() {
       return selectableRange;
     }
 
-    const sphRange = resolveCrossSphRangeForCyl(cyl, crossMeta);
+    const sphRange = resolveCrossSphRangeForMax(crossMeta);
+    const cylRange = resolveCrossCylRangeForSph(sph, crossMeta);
     return {
       ...selectableRange,
       sph: sphRange,
+      cyl: cylRange.options.length ? cylRange : selectableRange.cyl,
     };
-  }, [cyl, crossMeta, selectableRange]);
+  }, [sph, crossMeta, selectableRange]);
 
   const formQuantityText = quantity.trim();
   const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
@@ -133,15 +139,20 @@ export default function LensProductScreen() {
       item,
       productSiblings
     );
-    setSph(range.sph.options[0] ?? item.sph);
-    setCyl(range.cyl?.options[0] ?? item.cyl ?? 0);
+    const nextSph = range.sph.options[0] ?? item.sph;
+    const nextCyl =
+      crossMeta && range.cyl
+        ? coerceCrossCylForSph(nextSph, range.cyl.options[0] ?? 0, crossMeta.maxCyl)
+        : (range.cyl?.options[0] ?? item.cyl ?? 0);
+    setSph(nextSph);
+    setCyl(nextCyl);
     setAdd(resolveAddOptions(item)[0] ?? 1);
     setSelectedEye('LEFT');
     const unit = getDefaultQuantityUnit(orderMode);
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
     setError(null);
-  }, [item?.id, orderMode, productSiblings]);
+  }, [item?.id, orderMode, productSiblings, crossMeta]);
 
   useEffect(() => {
     const unit = getDefaultQuantityUnit(orderMode);
@@ -316,17 +327,14 @@ export default function LensProductScreen() {
 
   function handleSphChange(value: number) {
     setSph(value);
+    if (crossMeta) {
+      setCyl((currentCyl) => coerceCrossCylForSph(value, currentCyl, crossMeta.maxCyl));
+    }
     setError(null);
   }
 
   function handleCylChange(value: number) {
     setCyl(value);
-    if (crossMeta) {
-      const nextSphOptions = resolveCrossSphRangeForCyl(value, crossMeta).options;
-      if (nextSphOptions.length > 0 && !nextSphOptions.includes(sph)) {
-        setSph(nextSphOptions[0]!);
-      }
-    }
     setError(null);
   }
 

@@ -77,9 +77,14 @@ export default function ShopItemsScreen() {
     try {
       const data = await fetchLensCatalogItems(wholesaleCategoryToApiType(category));
       setItems(data);
-    } catch {
+    } catch (err) {
       setItems([]);
-      setError('Unable to load items from the backend.');
+      const detail = err instanceof Error ? err.message : 'Network request failed';
+      setError(
+        detail.includes('Cannot reach backend')
+          ? `${detail}\n\nUse your PC Wi-Fi IP in .env (not WSL 172.x), then restart Expo with: npx expo start -c`
+          : 'Unable to load items from the backend.'
+      );
     } finally {
       setLoading(false);
     }

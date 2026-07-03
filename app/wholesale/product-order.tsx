@@ -39,13 +39,13 @@ import {
 import {
   buildWholesaleMatrixSpec,
   buildWholesaleQtyMap,
+  collectQtyEntriesFromSpec,
   countMatrixCells,
   countVisibleMatrixCells,
   MATRIX_INITIAL_COLS,
   MATRIX_INITIAL_ROWS,
   MATRIX_LOAD_MORE_COLS,
   MATRIX_LOAD_MORE_ROWS,
-  resolveGridEntryFromKey,
   yieldToUi,
   type BuildMatrixParams,
 } from '@/lib/wholesale-matrix';
@@ -83,7 +83,7 @@ export default function WholesaleProductOrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string }>();
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
-  const { setCartQuantity, refreshCart } = useCart();
+  const { bulkSetCartQuantities } = useCart();
   const { setMode } = useOrderMode();
 
   const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
@@ -307,6 +307,12 @@ export default function WholesaleProductOrderScreen() {
   }
 
   function totalPairsSelected(): number {
+    if (matrixSpec && hasGeneratedGrid) {
+      return collectQtyEntriesFromSpec(matrixSpec, qtyMap, matrixParams).reduce(
+        (sum, entry) => sum + entry.pairs,
+        0
+      );
+    }
     return Object.values(qtyMap).reduce((sum, v) => {
       const n = Number(v);
       if (!Number.isInteger(n) || n < 1) return sum;
@@ -319,17 +325,9 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
-    const entries = Object.entries(qtyMap).flatMap(([key, pairsText]) => {
-      const pairs = Number(pairsText);
-      if (!Number.isInteger(pairs) || pairs < 1) {
-        return [];
-      }
-      const entry = resolveGridEntryFromKey(key, matrixParams);
-      if (!entry) {
-        return [];
-      }
-      return [{ ...entry, pairs }];
-    });
+    const entries = matrixSpec
+      ? collectQtyEntriesFromSpec(matrixSpec, qtyMap, matrixParams)
+      : [];
 
     if (entries.length === 0) {
       setError('Enter at least 1 quantity in the grid.');
@@ -340,12 +338,7 @@ export default function WholesaleProductOrderScreen() {
     setError(null);
 
     // Wholesale: pairs only -> convert to pieces (2 per pair).
-    const failures: string[] = [];
-    let success = 0;
-    const mergedByLine = new Map<
-      string,
-      { cartItem: LensItem; pieces: number; labelParts: string[] }
-    >();
+    const bulkLines: Array<{ cartItem: LensItem; pieces: number; labelParts: string[] }> = [];
 
     for (const entry of entries) {
       const pieces = piecesFromDisplayQuantity(entry.pairs, 'pair');
@@ -367,43 +360,29 @@ export default function WholesaleProductOrderScreen() {
         entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
       ].filter(Boolean) as string[];
 
-      const existing = mergedByLine.get(lineId);
+      const existing = bulkLines.find((line) => buildCartLineId(line.cartItem) === lineId);
       if (existing) {
         existing.pieces += pieces;
       } else {
-        mergedByLine.set(lineId, { cartItem, pieces, labelParts });
+        bulkLines.push({ cartItem, pieces, labelParts });
       }
     }
 
     try {
-      for (const { cartItem, pieces, labelParts } of mergedByLine.values()) {
-        try {
-          await setCartQuantity(cartItem, pieces);
-          success += 1;
-        } catch (err) {
-          failures.push(
-            `${labelParts.join(' · ')}: ${err instanceof Error ? err.message : 'Failed'}`
-          );
-        }
-      }
+      const { savedCount } = await bulkSetCartQuantities(
+        bulkLines.map(({ cartItem, pieces }) => ({ item: cartItem, quantity: pieces }))
+      );
 
-      await refreshCart();
-
-      if (success > 0 && failures.length === 0) {
-        appAlert('Added to cart', `Added ${success} item(s) to cart.`);
+      if (savedCount > 0) {
+        appAlert('Added to cart', `Added ${savedCount} item(s) to cart.`);
         router.push('/(tabs)/cart');
         return;
       }
 
-      if (success > 0) {
-        appAlert(
-          'Partially added',
-          `${success} item(s) added. Some failed:\n\n${failures.slice(0, 8).join('\n')}`
-        );
-        return;
-      }
-
-      appAlert('Failed', failures.join('\n\n'));
+      appAlert('Failed', 'Could not add items to cart.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add to cart.');
+      appAlert('Failed', err instanceof Error ? err.message : 'Failed to add to cart.');
     } finally {
       setAddingToCart(false);
     }

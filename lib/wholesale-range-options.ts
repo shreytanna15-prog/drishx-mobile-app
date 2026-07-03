@@ -1,4 +1,5 @@
-import { resolveAddOptions, resolveSelectableRange } from '@/lib/prescription-range';
+import { resolveAddOptions, resolveSelectableRange, resolveFullCrossCylRange } from '@/lib/prescription-range';
+import { resolveCrossPowerMeta } from '@/lib/cross-power';
 import type { LensItem } from '@/lib/types/lens';
 
 /** Step size options for wholesale grid generation. */
@@ -13,10 +14,12 @@ export type WholesaleBoundOptions = {
 /** Scroll bounds for wholesale range pickers, derived from the product card range. */
 export function resolveWholesaleBoundOptions(item: LensItem): WholesaleBoundOptions {
   const range = resolveSelectableRange(item);
+  const crossMeta = resolveCrossPowerMeta(item);
+  const cylOptions = crossMeta ? resolveFullCrossCylRange(crossMeta).options : (range.cyl?.options ?? []);
 
   return {
     sph: range.sph.options,
-    cyl: range.cyl?.options ?? [],
+    cyl: cylOptions,
     add: resolveAddOptions(),
   };
 }

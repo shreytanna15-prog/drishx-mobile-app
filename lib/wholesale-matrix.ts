@@ -241,6 +241,234 @@ export function buildWholesaleMatrixSpec(params: BuildMatrixParams): WholesaleMa
   return null;
 }
 
+/** Build a cart line entry from matrix row/col (same source as cellsAt). */
+export function resolveGridEntryFromMatrixCell(
+  row: WholesaleMatrixRow,
+  colValue: number,
+  params: BuildMatrixParams,
+  key: string
+): GridEntry | null {
+  const { mode, isBifocalLens, productAxis } = params;
+  const axis = productAxis ?? 0;
+
+  if (mode === 'sph-only') {
+    const sph = row.power;
+    if (sph == null) return null;
+    if (isBifocalLens) {
+      return {
+        key,
+        label: `SPH ${formatPowerLabel(sph)} · ADD ${formatPowerLabel(colValue)}`,
+        sph,
+        cyl: null,
+        add: colValue,
+        sphAdd: colValue,
+        cylAdd: null,
+        axis: null,
+      };
+    }
+    return {
+      key,
+      label: formatPowerLabel(sph),
+      sph,
+      cyl: null,
+      add: null,
+      sphAdd: null,
+      cylAdd: null,
+      axis: null,
+    };
+  }
+
+  if (mode === 'cyl-only') {
+    const cyl = row.power;
+    if (cyl == null) return null;
+    if (isBifocalLens) {
+      return {
+        key,
+        label: `CYL ${formatPowerLabel(cyl)} · AXIS ${formatAxisValue(axis)} · ADD ${formatPowerLabel(colValue)}`,
+        sph: 0,
+        cyl,
+        add: colValue,
+        sphAdd: null,
+        cylAdd: colValue,
+        axis,
+      };
+    }
+    return {
+      key,
+      label: formatPowerLabel(cyl),
+      sph: 0,
+      cyl,
+      add: null,
+      sphAdd: null,
+      cylAdd: null,
+      axis: null,
+    };
+  }
+
+  if (mode === 'compound') {
+    if (isBifocalLens) {
+      const sph = row.sph;
+      const cyl = row.cyl;
+      if (sph == null || cyl == null) return null;
+      return {
+        key,
+        label: `SPH ${formatPowerLabel(sph)} · CYL ${formatPowerLabel(cyl)} · ADD ${formatPowerLabel(colValue)} · AXIS ${formatAxisValue(axis)}`,
+        sph,
+        cyl,
+        add: colValue,
+        sphAdd: colValue,
+        cylAdd: colValue,
+        axis,
+      };
+    }
+    const sph = row.power;
+    if (sph == null) return null;
+    return {
+      key,
+      label: `SPH ${formatPowerLabel(sph)} / CYL ${formatPowerLabel(colValue)}`,
+      sph,
+      cyl: colValue,
+      add: null,
+      sphAdd: null,
+      cylAdd: null,
+      axis: null,
+    };
+  }
+
+  return null;
+}
+
+/** Collect cart entries by walking the rendered matrix (avoids fragile key parsing). */
+export function collectQtyEntriesFromSpec(
+  spec: WholesaleMatrixSpec,
+  qtyMap: Record<string, string>,
+  params: BuildMatrixParams
+): Array<GridEntry & { pairs: number }> {
+  const entries: Array<GridEntry & { pairs: number }> = [];
+
+  for (const row of spec.rows) {
+    for (const col of spec.cols) {
+      for (const cell of spec.cellsAt(row, col)) {
+        const pairs = Number(qtyMap[cell.key]);
+        if (!Number.isInteger(pairs) || pairs < 1) {
+          continue;
+        }
+
+        const entry =
+          resolveGridEntryFromMatrixCell(row, col, params, cell.key) ??
+          resolveGridEntryFromKey(cell.key, params);
+        if (entry) {
+          entries.push({ ...entry, pairs });
+        }
+      }
+    }
+  }
+
+  return entries;
+}
+
+function resolveGridEntryByKeyShape(key: string, params: BuildMatrixParams): GridEntry | null {
+  const axisFallback = params.productAxis ?? 0;
+
+  const compoundBifocal = key.match(/^([^|]+)\|([^|]+)\|axis:(\d+)\|add:(.+)$/);
+  if (compoundBifocal) {
+    const sph = Number(compoundBifocal[1]);
+    const cyl = Number(compoundBifocal[2]);
+    const axis = Number(compoundBifocal[3]);
+    const add = Number(compoundBifocal[4]);
+    if (![sph, cyl, add].every(Number.isFinite)) return null;
+    return {
+      key,
+      label: `SPH ${formatPowerLabel(sph)} · CYL ${formatPowerLabel(cyl)} · ADD ${formatPowerLabel(add)} · AXIS ${formatAxisValue(axis)}`,
+      sph,
+      cyl,
+      add,
+      sphAdd: add,
+      cylAdd: add,
+      axis,
+    };
+  }
+
+  const cylBifocal = key.match(/^([^|]+)\|axis:(\d+)\|add:(.+)$/);
+  if (cylBifocal) {
+    const cyl = Number(cylBifocal[1]);
+    const axis = Number(cylBifocal[2]);
+    const add = Number(cylBifocal[3]);
+    if (!Number.isFinite(cyl) || !Number.isFinite(add)) return null;
+    return {
+      key,
+      label: `CYL ${formatPowerLabel(cyl)} · AXIS ${formatAxisValue(axis)} · ADD ${formatPowerLabel(add)}`,
+      sph: 0,
+      cyl,
+      add,
+      sphAdd: null,
+      cylAdd: add,
+      axis,
+    };
+  }
+
+  const sphBifocal = key.match(/^([^|]+)\|add:(.+)$/);
+  if (sphBifocal) {
+    const sph = Number(sphBifocal[1]);
+    const add = Number(sphBifocal[2]);
+    if (!Number.isFinite(sph) || !Number.isFinite(add)) return null;
+    return {
+      key,
+      label: `SPH ${formatPowerLabel(sph)} · ADD ${formatPowerLabel(add)}`,
+      sph,
+      cyl: null,
+      add,
+      sphAdd: add,
+      cylAdd: null,
+      axis: null,
+    };
+  }
+
+  const compoundSv = key.match(/^([^|]+)\|([^|]+)$/);
+  if (compoundSv) {
+    const sph = Number(compoundSv[1]);
+    const cyl = Number(compoundSv[2]);
+    if (!Number.isFinite(sph) || !Number.isFinite(cyl)) return null;
+    return {
+      key,
+      label: `SPH ${formatPowerLabel(sph)} / CYL ${formatPowerLabel(cyl)}`,
+      sph,
+      cyl,
+      add: null,
+      sphAdd: null,
+      cylAdd: null,
+      axis: null,
+    };
+  }
+
+  const single = Number(key);
+  if (!Number.isFinite(single)) return null;
+
+  if (params.mode === 'cyl-only') {
+    return {
+      key,
+      label: formatPowerLabel(single),
+      sph: 0,
+      cyl: single,
+      add: null,
+      sphAdd: null,
+      cylAdd: null,
+      axis: params.isBifocalLens ? axisFallback : null,
+    };
+  }
+
+  return {
+    key,
+    label: formatPowerLabel(single),
+    sph: single,
+    cyl: null,
+    add: null,
+    sphAdd: null,
+    cylAdd: null,
+    axis: null,
+  };
+}
+
 export function resolveGridEntryFromKey(key: string, params: BuildMatrixParams): GridEntry | null {
   const { mode, isBifocalLens } = params;
 
@@ -366,7 +594,7 @@ export function resolveGridEntryFromKey(key: string, params: BuildMatrixParams):
     };
   }
 
-  return null;
+  return resolveGridEntryByKeyShape(key, params);
 }
 
 export function countMatrixCells(spec: WholesaleMatrixSpec): number {

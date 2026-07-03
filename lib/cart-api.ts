@@ -122,6 +122,76 @@ export async function upsertCartLine(
   };
 }
 
+export const BULK_CART_CHUNK_SIZE = 200;
+
+function toBulkLineBody(item: LensItem, quantity: number) {
+  const cartLineKey = buildCartLineId(item);
+  const lensType = item.lensType ?? 'Progressive';
+
+  return {
+    lensType: toApiLensType(lensType),
+    lensId: item.id,
+    cartLineKey,
+    quantity: Math.max(1, Math.floor(quantity)),
+    unitPrice: item.price,
+    sph: item.sph,
+    cyl: item.cyl,
+    add: item.add,
+    axis: item.axis,
+    eye: item.eye,
+    brand: item.brand,
+    coating: item.coating,
+    item: item.item,
+    lensTypeLabel: lensType,
+  };
+}
+
+export async function bulkUpsertCartLines(
+  lines: Array<{ item: LensItem; quantity: number }>,
+  headers: Record<string, string>,
+  customerId?: string
+): Promise<{ items: CartItem[]; count: number; message?: string }> {
+  if (lines.length === 0) {
+    return { items: [], count: 0 };
+  }
+
+  let totalCount = 0;
+  let message: string | undefined;
+
+  for (let offset = 0; offset < lines.length; offset += BULK_CART_CHUNK_SIZE) {
+    const chunk = lines.slice(offset, offset + BULK_CART_CHUNK_SIZE);
+    const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart/bulk`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        lines: chunk.map((line) => toBulkLineBody(line.item, line.quantity)),
+        ...(customerId?.trim() ? { userId: customerId.trim() } : {}),
+      }),
+      queueWhenOffline: true,
+      queueLabel: 'Update cart',
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || 'Failed to add to cart.');
+    }
+
+    const chunkCount =
+      typeof result.count === 'number'
+        ? result.count
+        : Array.isArray(result.items)
+          ? result.items.length
+          : chunk.length;
+    totalCount += chunkCount;
+
+    if (typeof result.message === 'string') {
+      message = result.message;
+    }
+  }
+
+  return { items: [], count: totalCount, message };
+}
+
 export async function removeCartLine(
   cartLineKey: string,
   headers: Record<string, string>,

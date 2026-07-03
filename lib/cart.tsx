@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { clearServerCart, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
+import { clearServerCart, bulkUpsertCartLines, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
@@ -30,6 +30,10 @@ type CartContextValue = {
   addToCart: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
   /** Set an absolute cart quantity (wholesale grid / replace line qty). */
   setCartQuantity: (item: LensItem, quantity: number) => Promise<{ message?: string }>;
+  /** Wholesale grid: set many lines in one (or chunked) API call. */
+  bulkSetCartQuantities: (
+    lines: Array<{ item: LensItem; quantity: number }>
+  ) => Promise<{ savedCount: number; message?: string }>;
   removeFromCart: (cartLineId: string) => Promise<void>;
   removeLinesFromCart: (cartLineIds: string[]) => Promise<void>;
   updateQuantity: (cartLineId: string, quantity: number) => Promise<void>;
@@ -192,6 +196,57 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     },
     [getAuthHeaders, items, persistLocalCart, refreshCart, useServerCart]
+  );
+
+  const bulkSetCartQuantities = useCallback(
+    async (lines: Array<{ item: LensItem; quantity: number }>) => {
+      if (lines.length === 0) {
+        return { savedCount: 0 };
+      }
+
+      const optimisticItems: CartItem[] = lines.map(({ item, quantity }) => {
+        const cartLineId = buildCartLineId(item);
+        const safeQuantity = Math.max(1, Math.floor(quantity));
+        return {
+          ...item,
+          cartLineId,
+          cartLineKey: cartLineId,
+          cartQuantity: safeQuantity,
+          reservedQuantity: 0,
+          isBackorder: false,
+        };
+      });
+
+      const optimisticIds = new Set(optimisticItems.map((entry) => entry.cartLineId));
+      let mergedSnapshot: CartItem[] = [];
+
+      setItems((current) => {
+        const kept = current.filter((entry) => !optimisticIds.has(entry.cartLineId));
+        mergedSnapshot = [...kept, ...optimisticItems];
+        return mergedSnapshot;
+      });
+
+      if (!useServerCart) {
+        await persistLocalCart(mergedSnapshot);
+        return { savedCount: optimisticItems.length };
+      }
+
+      try {
+        const { count, message } = await bulkUpsertCartLines(lines, getAuthHeaders());
+        await persistLocalCart(mergedSnapshot);
+
+        return { savedCount: count, message };
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          await persistLocalCart(mergedSnapshot);
+          return { savedCount: optimisticItems.length, message: err.message };
+        }
+
+        setItems((current) => current.filter((entry) => !optimisticIds.has(entry.cartLineId)));
+        throw err;
+      }
+    },
+    [getAuthHeaders, persistLocalCart, useServerCart]
   );
 
   const removeFromCart = useCallback(
@@ -441,6 +496,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       refreshCart,
       addToCart,
       setCartQuantity,
+      bulkSetCartQuantities,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,
@@ -457,6 +513,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       refreshCart,
       addToCart,
       setCartQuantity,
+      bulkSetCartQuantities,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,

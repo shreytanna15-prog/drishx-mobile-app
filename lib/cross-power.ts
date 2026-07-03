@@ -73,6 +73,7 @@ export function resolveCrossPowerMeta(item: {
   };
 }
 
+/** Negative CYL catalog bound for cross products: −0.25 → maxCyl in 0.25 steps. */
 export function computeCrossCylOptions(maxCyl: number): number[] {
   const cylMax = roundQuarter(maxCyl);
   if (cylMax >= -POWER_EPS) {
@@ -81,23 +82,81 @@ export function computeCrossCylOptions(maxCyl: number): number[] {
   return generatePowerOptions(-CROSS_MIN_GAP, cylMax);
 }
 
-/** Cross products always use positive SPH: +0.25 up to (|CYL| − 0.25). */
-export function computeCrossSphOptions(selectedCyl: number): number[] {
-  const cyl = roundQuarter(selectedCyl);
-  if (cyl >= -POWER_EPS) {
-    return [];
-  }
+/** Full negative CYL catalog bounds for wholesale / static range hints. */
+export function computeFullCrossCylOptions(maxCyl: number): number[] {
+  return computeCrossCylOptions(maxCyl);
+}
 
-  const sphMax = roundQuarter(Math.abs(cyl) - CROSS_MIN_GAP);
+/**
+ * Cross products always use positive SPH.
+ * Full SPH range: +0.25 up to (|maxCyl| − 0.25), e.g. maxCyl −2 → +0.25 … +1.75.
+ */
+export function computeCrossSphOptions(maxCyl: number): number[] {
+  const absMax = roundQuarter(Math.abs(maxCyl));
+  const sphMax = roundQuarter(absMax - CROSS_MIN_GAP);
   if (sphMax < CROSS_MIN_GAP - POWER_EPS) {
     return [];
   }
   return generatePowerOptions(CROSS_MIN_GAP, sphMax);
 }
 
+/**
+ * Negative CYL scroll options for the selected SPH on cross products.
+ * Range: −0.25 down to maxCyl, filtered so |CYL| − SPH ≥ 0.25.
+ */
+export function computeCrossCylOptionsForSph(sph: number, maxCyl: number): number[] {
+  const roundedSph = roundQuarter(sph);
+  if (roundedSph < CROSS_MIN_GAP - POWER_EPS) {
+    return [];
+  }
+
+  const cylMax = roundQuarter(maxCyl);
+  if (cylMax >= -POWER_EPS) {
+    return [];
+  }
+
+  const minMagnitude = roundQuarter(roundedSph + CROSS_MIN_GAP);
+  const negUpper = roundQuarter(-minMagnitude);
+  const negLower = cylMax;
+
+  if (negUpper < negLower - POWER_EPS) {
+    return [];
+  }
+
+  return generatePowerOptions(negUpper, negLower);
+}
+
+/** Keep CYL valid when SPH changes — always negative, at least |SPH| + 0.25. */
+export function coerceCrossCylForSph(sph: number, cyl: number, maxCyl: number): number {
+  const options = computeCrossCylOptionsForSph(sph, maxCyl);
+  if (options.length === 0) {
+    return cyl;
+  }
+
+  const roundedSph = roundQuarter(sph);
+  const roundedCyl = roundQuarter(cyl);
+
+  const isValid =
+    roundedCyl < -POWER_EPS &&
+    options.some((value) => Math.abs(value - roundedCyl) < POWER_EPS) &&
+    Math.abs(roundedCyl) - roundedSph >= CROSS_MIN_GAP - POWER_EPS;
+
+  if (isValid) {
+    return roundedCyl;
+  }
+
+  return options[0]!;
+}
+
 export function isAllowedCrossCombo(sph: number, cyl: number): boolean {
   const roundedSph = roundQuarter(sph);
   const roundedCyl = roundQuarter(cyl);
-  const options = computeCrossSphOptions(roundedCyl);
-  return options.some((value) => Math.abs(value - roundedSph) < POWER_EPS);
+  if (roundedSph < CROSS_MIN_GAP - POWER_EPS) {
+    return false;
+  }
+  if (roundedCyl >= -POWER_EPS) {
+    return false;
+  }
+
+  return Math.abs(roundedCyl) - roundedSph >= CROSS_MIN_GAP - POWER_EPS;
 }

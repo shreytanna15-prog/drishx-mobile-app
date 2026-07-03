@@ -84,10 +84,16 @@ export type LensCatalogItem = {
 };
 
 export async function fetchLensCatalogItems(type: string): Promise<LensCatalogItem[]> {
-  const params = new URLSearchParams({ type });
-  const response = await fetch(`${BACKEND_BASE_URL}/api/lenses/items?${params.toString()}`);
+  const url = `${BACKEND_BASE_URL}/api/lenses/items?${new URLSearchParams({ type }).toString()}`;
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : 'Network request failed';
+    throw new Error(`Cannot reach backend at ${BACKEND_BASE_URL} (${detail})`);
+  }
   if (!response.ok) {
-    throw new Error('Failed to load lens items');
+    throw new Error(`Backend returned ${response.status} for lens items`);
   }
   const data = (await response.json()) as { items?: LensCatalogItem[] };
   return data.items ?? [];
