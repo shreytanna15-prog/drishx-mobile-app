@@ -11,7 +11,9 @@ export type LensesPageResponse = {
     costPrice: number | null;
     price: number;
     sph: number | null;
+    sphStartRange?: number | null;
     cyl: number | null;
+    cylStartRange?: number | null;
     crossPower?: number | null;
     axis: number | null;
     add: number | null;
@@ -60,7 +62,15 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
     costPrice: item.costPrice !== null ? Number(item.costPrice) : null,
     price: Number(item.price),
     sph: item.sph !== null && item.sph !== undefined ? Number(item.sph) : null,
+    sphStartRange:
+      item.sphStartRange !== null && item.sphStartRange !== undefined
+        ? Number(item.sphStartRange)
+        : null,
     cyl: item.cyl !== null ? Number(item.cyl) : null,
+    cylStartRange:
+      item.cylStartRange !== null && item.cylStartRange !== undefined
+        ? Number(item.cylStartRange)
+        : null,
     crossPower: item.crossPower !== null && item.crossPower !== undefined ? Number(item.crossPower) : null,
     axis: item.axis,
     add: item.add !== null ? Number(item.add) : null,

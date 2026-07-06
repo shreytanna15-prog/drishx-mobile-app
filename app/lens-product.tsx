@@ -35,13 +35,12 @@ import {
   isSameLensPower,
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
-import { fetchProductSiblings, fetchRelatedLenses } from '@/lib/lenses-api';
+import { fetchRelatedLenses } from '@/lib/lenses-api';
 import {
   resolveAddOptions,
   resolveCrossCylRangeForSph,
   resolveCrossSphRangeForMax,
   resolveSelectableRange,
-  restrictSelectableRangeForCheaperSiblings,
 } from '@/lib/prescription-range';
 import { coerceCrossCylForSph, resolveCrossPowerMeta } from '@/lib/cross-power';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
@@ -76,16 +75,14 @@ export default function LensProductScreen() {
   const showAdd = lensType !== 'Single Vision';
   const showProgressiveEye = lensType === 'Progressive' && !isWholesale;
   const [relatedLenses, setRelatedLenses] = useState<LensItem[]>([]);
-  const [productSiblings, setProductSiblings] = useState<LensItem[]>([]);
   const [relatedLoading, setRelatedLoading] = useState(false);
 
   const selectableRange = useMemo(() => {
     if (!item) {
       return null;
     }
-    const base = resolveSelectableRange(item);
-    return restrictSelectableRangeForCheaperSiblings(base, item, productSiblings);
-  }, [item, productSiblings]);
+    return resolveSelectableRange(item);
+  }, [item]);
   const crossMeta = useMemo(
     () => (item ? resolveCrossPowerMeta(item) : null),
     [item]
@@ -134,11 +131,7 @@ export default function LensProductScreen() {
       return;
     }
 
-    const range = restrictSelectableRangeForCheaperSiblings(
-      resolveSelectableRange(item),
-      item,
-      productSiblings
-    );
+    const range = resolveSelectableRange(item);
     const nextSph = range.sph.options[0] ?? item.sph;
     const nextCyl =
       crossMeta && range.cyl
@@ -152,7 +145,7 @@ export default function LensProductScreen() {
     setQtyUnit(unit);
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
     setError(null);
-  }, [item?.id, orderMode, productSiblings, crossMeta]);
+  }, [item?.id, orderMode, crossMeta]);
 
   useEffect(() => {
     const unit = getDefaultQuantityUnit(orderMode);
@@ -172,7 +165,6 @@ export default function LensProductScreen() {
   useEffect(() => {
     if (!item?.id || !item.lensType) {
       setRelatedLenses([]);
-      setProductSiblings([]);
       return;
     }
 
@@ -184,21 +176,16 @@ export default function LensProductScreen() {
     async function loadRelated() {
       setRelatedLoading(true);
       try {
-        const [relatedItems, siblingItems] = await Promise.all([
-          fetchRelatedLenses(lensId, lensType),
-          fetchProductSiblings(lensId, lensType),
-        ]);
+        const relatedItems = await fetchRelatedLenses(lensId, lensType);
         const filtered = relatedItems.filter(
           (related) => !isSameLensPower(related, currentLens)
         );
         if (!cancelled) {
           setRelatedLenses(filtered);
-          setProductSiblings(siblingItems);
         }
       } catch {
         if (!cancelled) {
           setRelatedLenses([]);
-          setProductSiblings([]);
         }
       } finally {
         if (!cancelled) {
