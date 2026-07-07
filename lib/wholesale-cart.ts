@@ -187,7 +187,23 @@ export function expandWholesaleSpec(
     return [];
   }
 
-  const qtyMap = buildQtyMapFromWholesaleSpec(spec);
+  const defaultPairs = Math.max(1, Math.floor(spec.defaultPairsPerCell));
+  const qtyMap: Record<string, string> = {};
+  for (const row of matrixSpec.rows) {
+    for (const col of matrixSpec.cols) {
+      for (const cell of matrixSpec.cellsAt(row, col)) {
+        const override = spec.qtyOverrides[cell.key];
+        const pairs =
+          override !== undefined
+            ? Math.max(0, Math.floor(override))
+            : defaultPairs;
+        if (pairs >= 1) {
+          qtyMap[cell.key] = String(pairs);
+        }
+      }
+    }
+  }
+
   const entries = collectQtyEntriesFromSpec(matrixSpec, qtyMap, matrixParams);
 
   return entries.map((entry) => ({
@@ -201,12 +217,25 @@ export function expandWholesaleSpec(
   }));
 }
 
+export function summarizeWholesaleSpec(spec: WholesaleSpec): {
+  expanded: WholesaleExpandedLine[];
+  totalPieces: number;
+  totalPairs: number;
+} {
+  const expanded = expandWholesaleSpec(spec);
+  return {
+    expanded,
+    totalPieces: expanded.reduce((sum, line) => sum + line.pieces, 0),
+    totalPairs: expanded.reduce((sum, line) => sum + line.pairs, 0),
+  };
+}
+
 export function totalPiecesForWholesaleSpec(spec: WholesaleSpec): number {
-  return expandWholesaleSpec(spec).reduce((sum, line) => sum + line.pieces, 0);
+  return summarizeWholesaleSpec(spec).totalPieces;
 }
 
 export function totalPairsForWholesaleSpec(spec: WholesaleSpec): number {
-  return expandWholesaleSpec(spec).reduce((sum, line) => sum + line.pairs, 0);
+  return summarizeWholesaleSpec(spec).totalPairs;
 }
 
 export function buildWholesaleSpecFromOrderState(input: {

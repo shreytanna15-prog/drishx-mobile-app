@@ -39,6 +39,9 @@ export type CartProductSection = {
   lines: CartPowerLine[];
   isWholesaleBatch?: boolean;
   parentCartLineId?: string;
+  wholesaleSpec?: WholesaleSpec | null;
+  unitPrice?: number;
+  lensType?: CartItem["lensType"];
 };
 
 function joinParts(parts: (string | null | undefined)[]): string {
@@ -91,31 +94,38 @@ function formatExpandedWholesaleLabel(
   return parts.join(" · ");
 }
 
-function buildWholesaleSection(
-  item: CartItem,
-  spec: WholesaleSpec,
-  mode: OrderQuantityMode
-): CartProductSection {
+function buildWholesaleSection(item: CartItem, spec: WholesaleSpec): CartProductSection {
   const meta = getCartProductMeta(item);
-  const expanded = expandWholesaleSpec(spec);
-  const lines: CartPowerLine[] = expanded.map((line) => ({
-    cartLineId: `${item.cartLineId}:${line.key}`,
-    parentCartLineId: item.cartLineId,
-    isVirtual: true,
-    sphCylLabel: formatExpandedWholesaleLabel(line, item.lensType),
-    quantity: line.pairs,
-    lineTotal: lineTotalForPieceQuantity(item.price, line.pieces),
-  }));
+  const totalPairs = pairsFromPieces(item.cartQuantity);
 
   return {
     key: meta.key,
     title: meta.title,
-    subtitle: `${meta.subtitle} · Wholesale batch`,
-    totalPairs: lines.reduce((sum, line) => sum + line.quantity, 0),
-    lines,
+    subtitle: `${meta.subtitle} · Wholesale batch · ${totalPairs} pairs`,
+    totalPairs,
+    lines: [],
     isWholesaleBatch: true,
     parentCartLineId: item.cartLineId,
+    wholesaleSpec: spec,
+    unitPrice: item.price,
+    lensType: item.lensType,
   };
+}
+
+export function buildWholesalePowerLines(section: CartProductSection): CartPowerLine[] {
+  if (!section.isWholesaleBatch || !section.wholesaleSpec || !section.parentCartLineId) {
+    return section.lines;
+  }
+
+  const unitPrice = section.unitPrice ?? 0;
+  return expandWholesaleSpec(section.wholesaleSpec).map((line) => ({
+    cartLineId: `${section.parentCartLineId}:${line.key}`,
+    parentCartLineId: section.parentCartLineId,
+    isVirtual: true,
+    sphCylLabel: formatExpandedWholesaleLabel(line, section.lensType),
+    quantity: line.pairs,
+    lineTotal: lineTotalForPieceQuantity(unitPrice, line.pieces),
+  }));
 }
 
 export function buildCartProductSections(
@@ -128,7 +138,7 @@ export function buildCartProductSections(
     if (isWholesaleCartItem(item) && item.wholesaleSpec) {
       sections.set(
         getCartProductMeta(item).key,
-        buildWholesaleSection(item, item.wholesaleSpec, mode)
+        buildWholesaleSection(item, item.wholesaleSpec)
       );
       continue;
     }

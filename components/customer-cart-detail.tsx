@@ -1,7 +1,7 @@
 'use client';
 
 import { MaterialIcons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 
@@ -9,7 +9,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import type { CartPowerLine, CartProductSection } from '@/lib/cart-display';
-import { buildCartProductSections, getCartSummary } from '@/lib/cart-display';
+import { buildCartProductSections, buildWholesalePowerLines, getCartSummary } from '@/lib/cart-display';
 import type { OrderQuantityMode } from '@/lib/order-quantity';
 import type { CartItem } from '@/lib/types/lens';
 
@@ -105,11 +105,19 @@ function CartProductSectionCard({
 }) {
   const styles = useThemedStyles(createStyles);
   const colors = useBrandColors();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(!section.isWholesaleBatch);
 
   const sectionLineIds = section.parentCartLineId
     ? [section.parentCartLineId]
     : section.lines.map((line) => line.cartLineId);
+  const displayLines = useMemo(() => {
+    if (!section.isWholesaleBatch || expanded) {
+      return section.isWholesaleBatch
+        ? buildWholesalePowerLines(section)
+        : section.lines;
+    }
+    return [];
+  }, [expanded, section]);
 
   return (
     <Animated.View
@@ -160,7 +168,7 @@ function CartProductSectionCard({
             <Text style={[styles.tableHeadText, styles.colQtyHead]}>{qtyColumnLabel}</Text>
             <Text style={[styles.tableHeadText, styles.colAmountHead]}>Amt</Text>
           </View>
-          {section.lines.map((line) => (
+          {displayLines.map((line) => (
             <CartPowerRow
               key={line.cartLineId}
               line={line}
