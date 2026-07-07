@@ -39,6 +39,8 @@ function CartPowerRow({
   const colors = useBrandColors();
   const statusParts = [line.reserveLabel, line.backorderNote].filter(Boolean);
 
+  const readOnly = line.isVirtual;
+
   return (
     <Animated.View
       style={styles.lineBlock}
@@ -52,21 +54,27 @@ function CartPowerRow({
           </Text>
         </View>
         <View style={styles.colQty}>
-          <View style={styles.qtyControls}>
-            <Pressable style={styles.qtyButton} onPress={onDecrease} hitSlop={8}>
-              <MaterialIcons name="remove" size={16} color={colors.primary} />
-            </Pressable>
+          {readOnly ? (
             <Text style={styles.qtyValue}>{line.quantity}</Text>
-            <Pressable style={styles.qtyButton} onPress={onIncrease} hitSlop={8}>
-              <MaterialIcons name="add" size={16} color={colors.primary} />
-            </Pressable>
-          </View>
+          ) : (
+            <View style={styles.qtyControls}>
+              <Pressable style={styles.qtyButton} onPress={onDecrease} hitSlop={8}>
+                <MaterialIcons name="remove" size={16} color={colors.primary} />
+              </Pressable>
+              <Text style={styles.qtyValue}>{line.quantity}</Text>
+              <Pressable style={styles.qtyButton} onPress={onIncrease} hitSlop={8}>
+                <MaterialIcons name="add" size={16} color={colors.primary} />
+              </Pressable>
+            </View>
+          )}
         </View>
         <View style={styles.colAmount}>
           <Text style={styles.amountText}>₹{line.lineTotal.toLocaleString('en-IN')}</Text>
-          <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
-            <MaterialIcons name="delete-outline" size={18} color={colors.danger} />
-          </Pressable>
+          {!readOnly ? (
+            <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
+              <MaterialIcons name="delete-outline" size={18} color={colors.danger} />
+            </Pressable>
+          ) : null}
         </View>
       </View>
       {statusParts.length > 0 ? (
@@ -99,7 +107,9 @@ function CartProductSectionCard({
   const colors = useBrandColors();
   const [expanded, setExpanded] = useState(true);
 
-  const sectionLineIds = section.lines.map((line) => line.cartLineId);
+  const sectionLineIds = section.parentCartLineId
+    ? [section.parentCartLineId]
+    : section.lines.map((line) => line.cartLineId);
 
   return (
     <Animated.View

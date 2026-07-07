@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { clearServerCart, bulkUpsertCartLines, fetchCart, removeCartLine, upsertCartLine } from '@/lib/cart-api';
+import { clearServerCart, bulkUpsertCartLines, fetchCart, removeCartLine, upsertCartLine, upsertWholesaleCartBatch, type UpsertWholesaleCartInput } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
@@ -34,6 +34,9 @@ type CartContextValue = {
   bulkSetCartQuantities: (
     lines: Array<{ item: LensItem; quantity: number }>
   ) => Promise<{ savedCount: number; message?: string }>;
+  addWholesaleBatchToCart: (
+    input: UpsertWholesaleCartInput
+  ) => Promise<{ expandedLineCount: number; message?: string }>;
   removeFromCart: (cartLineId: string) => Promise<void>;
   removeLinesFromCart: (cartLineIds: string[]) => Promise<void>;
   updateQuantity: (cartLineId: string, quantity: number) => Promise<void>;
@@ -245,6 +248,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems((current) => current.filter((entry) => !optimisticIds.has(entry.cartLineId)));
         throw err;
       }
+    },
+    [getAuthHeaders, persistLocalCart, useServerCart]
+  );
+
+  const addWholesaleBatchToCart = useCallback(
+    async (input: UpsertWholesaleCartInput) => {
+      if (!useServerCart) {
+        throw new Error('Sign in to add wholesale batches to your cart.');
+      }
+
+      const { item, expandedLineCount, message } = await upsertWholesaleCartBatch(
+        input,
+        getAuthHeaders()
+      );
+
+      setItems((current) => {
+        const kept = current.filter((entry) => entry.cartLineId !== item.cartLineId);
+        const next = [...kept, item];
+        void persistLocalCart(next);
+        return next;
+      });
+
+      return { expandedLineCount, message };
     },
     [getAuthHeaders, persistLocalCart, useServerCart]
   );
@@ -497,6 +523,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addToCart,
       setCartQuantity,
       bulkSetCartQuantities,
+      addWholesaleBatchToCart,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,
@@ -514,6 +541,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       addToCart,
       setCartQuantity,
       bulkSetCartQuantities,
+      addWholesaleBatchToCart,
       removeFromCart,
       removeLinesFromCart,
       updateQuantity,

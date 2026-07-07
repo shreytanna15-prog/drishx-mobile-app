@@ -22,7 +22,6 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
-  buildCartLineId,
   sanitizePositiveIntegerInput,
   formatPowerLabel,
 } from '@/lib/cart-utils';
@@ -50,11 +49,13 @@ import {
   type BuildMatrixParams,
 } from '@/lib/wholesale-matrix';
 import { resolveCrossPowerMeta } from '@/lib/cross-power';
+import { buildWholesaleSpecFromOrderState } from '@/lib/wholesale-cart';
 import {
   buildPowerList,
   defaultWholesaleGridMode,
   resolveWholesalePowerProfile,
 } from '@/lib/wholesale-powers';
+import { toApiLensType } from '@/lib/types/lens';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -83,7 +84,7 @@ export default function WholesaleProductOrderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string }>();
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
-  const { bulkSetCartQuantities } = useCart();
+  const { addWholesaleBatchToCart } = useCart();
   const { setMode } = useOrderMode();
 
   const selectableRange = useMemo(() => (item ? resolveSelectableRange(item) : null), [item]);
@@ -334,52 +335,62 @@ export default function WholesaleProductOrderScreen() {
       return;
     }
 
+    const defaultPairs = Number(pairsDefault);
+    if (!Number.isInteger(defaultPairs) || defaultPairs < 1) {
+      setError('Enter a valid default pairs value.');
+      return;
+    }
+
     setAddingToCart(true);
     setError(null);
 
-    // Wholesale: pairs only -> convert to pieces (2 per pair).
-    const bulkLines: Array<{ cartItem: LensItem; pieces: number; labelParts: string[] }> = [];
-
-    for (const entry of entries) {
-      const pieces = piecesFromDisplayQuantity(entry.pairs, 'pair');
-
-      const cartItem: LensItem = {
-        ...item,
-        sph: entry.sph,
-        cyl: entry.cyl,
-        add: entry.add,
-        cylAdd: entry.cylAdd,
-        axis: productAxis,
-      };
-
-      const lineId = buildCartLineId(cartItem);
-      const labelParts = [
-        `SPH ${formatPowerLabel(entry.sph)}`,
-        entry.cyl != null ? `CYL ${formatPowerLabel(entry.cyl)}` : null,
-        entry.axis != null ? `AXIS ${formatAxisValue(productAxis)}` : null,
-        entry.add != null ? `ADD ${formatPowerLabel(entry.add)}` : null,
-      ].filter(Boolean) as string[];
-
-      const existing = bulkLines.find((line) => buildCartLineId(line.cartItem) === lineId);
-      if (existing) {
-        existing.pieces += pieces;
-      } else {
-        bulkLines.push({ cartItem, pieces, labelParts });
-      }
-    }
+    const wholesaleSpec = buildWholesaleSpecFromOrderState({
+      sphFrom,
+      sphTo,
+      sphStep,
+      cylFrom,
+      cylTo,
+      cylStep,
+      addFrom,
+      addTo,
+      addStep,
+      gridMode,
+      defaultPairsPerCell: defaultPairs,
+      qtyMap,
+      productAxis,
+      isBifocalLens,
+      isSingleVision,
+      crossPower: item.crossPower ?? null,
+      showSphRange,
+      showCylRange,
+    });
 
     try {
-      const { savedCount } = await bulkSetCartQuantities(
-        bulkLines.map(({ cartItem, pieces }) => ({ item: cartItem, quantity: pieces }))
-      );
+      const { expandedLineCount } = await addWholesaleBatchToCart({
+        lensId: item.id,
+        lensType: toApiLensType(item.lensType ?? 'Progressive'),
+        unitPrice: item.price,
+        brand: item.brand,
+        coating: item.coating,
+        item: item.item,
+        lensTypeLabel: item.lensType ?? 'Progressive',
+        ranges: wholesaleSpec.ranges,
+        gridMode: wholesaleSpec.gridMode,
+        defaultPairsPerCell: wholesaleSpec.defaultPairsPerCell,
+        qtyOverrides: wholesaleSpec.qtyOverrides,
+        productAxis: wholesaleSpec.productAxis,
+        isBifocalLens: wholesaleSpec.isBifocalLens,
+        isSingleVision: wholesaleSpec.isSingleVision,
+        crossPower: wholesaleSpec.crossPower,
+      });
 
-      if (savedCount > 0) {
-        appAlert('Added to cart', `Added ${savedCount} item(s) to cart.`);
+      if (expandedLineCount > 0) {
+        appAlert('Added to cart', `Added wholesale batch (${expandedLineCount} power lines).`);
         router.push('/(tabs)/cart');
         return;
       }
 
-      appAlert('Failed', 'Could not add items to cart.');
+      appAlert('Failed', 'Could not add wholesale batch to cart.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add to cart.');
       appAlert('Failed', err instanceof Error ? err.message : 'Failed to add to cart.');

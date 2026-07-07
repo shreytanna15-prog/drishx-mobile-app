@@ -1,7 +1,7 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { apiFetch } from '@/lib/api-request';
 import { buildCartLineId } from '@/lib/cart-utils';
-import type { CartItem, LensItem } from '@/lib/types/lens';
+import type { CartItem, LensItem, WholesaleSpec } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
 
 export type ServerCartItem = {
@@ -24,6 +24,8 @@ export type ServerCartItem = {
   quantity: number;
   expiresAt: string;
   createdAt: string;
+  lineType?: 'RETAIL' | 'WHOLESALE';
+  wholesaleSpec?: WholesaleSpec | null;
 };
 
 function mapServerItem(row: ServerCartItem): CartItem {
@@ -49,6 +51,8 @@ function mapServerItem(row: ServerCartItem): CartItem {
     brand: row.brand,
     item: row.item,
     coating: row.coating,
+    lineType: row.lineType ?? 'RETAIL',
+    wholesaleSpec: row.wholesaleSpec ?? null,
   };
 }
 
@@ -190,6 +194,49 @@ export async function bulkUpsertCartLines(
   }
 
   return { items: [], count: totalCount, message };
+}
+
+export type UpsertWholesaleCartInput = {
+  lensId: string;
+  lensType: string;
+  unitPrice: number;
+  brand?: string | null;
+  coating?: string | null;
+  item?: string | null;
+  lensTypeLabel?: string | null;
+  ranges: WholesaleSpec['ranges'];
+  gridMode: WholesaleSpec['gridMode'];
+  defaultPairsPerCell: number;
+  qtyOverrides?: Record<string, number>;
+  productAxis?: number | null;
+  isBifocalLens: boolean;
+  isSingleVision: boolean;
+  crossPower?: number | null;
+};
+
+export async function upsertWholesaleCartBatch(
+  input: UpsertWholesaleCartInput,
+  headers: Record<string, string>
+): Promise<{ item: CartItem; expandedLineCount: number; message?: string }> {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart/wholesale`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+    queueWhenOffline: true,
+    queueLabel: 'Add wholesale batch',
+  });
+
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to add wholesale batch to cart.');
+  }
+
+  return {
+    item: mapServerItem(result.item as ServerCartItem),
+    expandedLineCount:
+      typeof result.expandedLineCount === 'number' ? result.expandedLineCount : 0,
+    message: typeof result.message === 'string' ? result.message : undefined,
+  };
 }
 
 export async function removeCartLine(

@@ -1,12 +1,22 @@
-import { formatPowerLabel } from '@/lib/cart-utils';
-import { formatAddValue, formatCrossPowerLabel, formatLensItemLabel } from '@/lib/lens-display';
-import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
+import { formatPowerLabel } from "@/lib/cart-utils";
+import {
+  formatAddValue,
+  formatAxisValue,
+  formatLensItemLabel,
+  formatSphCylSlash,
+} from "@/lib/lens-display";
+import { lineTotalForPieceQuantity } from "@/lib/lens-pricing";
 import {
   displayQuantityFromPieces,
   pairsFromPieces,
   type OrderQuantityMode,
-} from '@/lib/order-quantity';
-import type { CartItem } from '@/lib/types/lens';
+} from "@/lib/order-quantity";
+import type { CartItem } from "@/lib/types/lens";
+import {
+  expandWholesaleSpec,
+  isWholesaleCartItem,
+  type WholesaleSpec,
+} from "@/lib/wholesale-cart";
 
 export type CartPowerLine = {
   cartLineId: string;
@@ -14,9 +24,11 @@ export type CartPowerLine = {
   eye?: string;
   quantity: number;
   lineTotal: number;
-  reserveLabel: string | null;
-  isBackorder: boolean;
-  backorderNote: string | null;
+  isVirtual?: boolean;
+  parentCartLineId?: string;
+  reserveLabel?: string | null;
+  isBackorder?: boolean;
+  backorderNote?: string | null;
 };
 
 export type CartProductSection = {
@@ -25,40 +37,102 @@ export type CartProductSection = {
   subtitle: string;
   totalPairs: number;
   lines: CartPowerLine[];
+  isWholesaleBatch?: boolean;
+  parentCartLineId?: string;
 };
 
 function joinParts(parts: (string | null | undefined)[]): string {
-  return parts.map((part) => part?.trim()).filter(Boolean).join(' · ');
+  return parts.map((part) => part?.trim()).filter(Boolean).join(" · ");
 }
 
-function getCartProductMeta(item: CartItem): { key: string; title: string; subtitle: string } {
-  const lensType = item.lensType ?? 'Progressive';
+function getCartProductMeta(item: CartItem): {
+  key: string;
+  title: string;
+  subtitle: string;
+} {
+  const lensType = item.lensType ?? "Progressive";
 
   return {
-    key: `${lensType}-${item.brand ?? ''}-${item.item ?? ''}-${item.coating ?? ''}`,
+    key: isWholesaleCartItem(item)
+      ? `wholesale-${item.cartLineKey}`
+      : `${lensType}-${item.brand ?? ""}-${item.item ?? ""}-${item.coating ?? ""}`,
     title: item.brand?.trim() || lensType,
     subtitle: joinParts([lensType, formatLensItemLabel(item)]) || lensType,
   };
 }
 
 function formatSphCyl(item: CartItem): string {
-  if (item.crossPower != null && Math.abs(Number(item.crossPower)) > 1e-9) {
-    return formatCrossPowerLabel(item.crossPower);
-  }
-  const sphCyl = `${item.sph != null ? formatPowerLabel(item.sph) : '—'} / ${item.cyl != null ? formatPowerLabel(item.cyl) : '—'}`;
-  if (item.lensType === 'Single Vision') {
+  const sphCyl = formatSphCylSlash(item);
+  if (item.lensType === "Single Vision") {
     return sphCyl;
   }
-  return item.add != null ? `${sphCyl} · ADD ${formatAddValue(item.add)}` : sphCyl;
+  return item.add != null
+    ? `${sphCyl} · ADD ${formatAddValue(item.add)}`
+    : sphCyl;
+}
+
+function formatExpandedWholesaleLabel(
+  line: ReturnType<typeof expandWholesaleSpec>[number],
+  lensType: CartItem["lensType"]
+): string {
+  const sphCyl = `${formatPowerLabel(line.sph)} / ${
+    line.cyl != null ? formatPowerLabel(line.cyl) : "—"
+  }`;
+  if (lensType === "Single Vision") {
+    return sphCyl;
+  }
+  const parts = [sphCyl];
+  if (line.add != null) {
+    parts.push(`ADD ${formatAddValue(line.add)}`);
+  }
+  if (line.axis != null) {
+    parts.push(`AXIS ${formatAxisValue(line.axis)}`);
+  }
+  return parts.join(" · ");
+}
+
+function buildWholesaleSection(
+  item: CartItem,
+  spec: WholesaleSpec,
+  mode: OrderQuantityMode
+): CartProductSection {
+  const meta = getCartProductMeta(item);
+  const expanded = expandWholesaleSpec(spec);
+  const lines: CartPowerLine[] = expanded.map((line) => ({
+    cartLineId: `${item.cartLineId}:${line.key}`,
+    parentCartLineId: item.cartLineId,
+    isVirtual: true,
+    sphCylLabel: formatExpandedWholesaleLabel(line, item.lensType),
+    quantity: line.pairs,
+    lineTotal: lineTotalForPieceQuantity(item.price, line.pieces),
+  }));
+
+  return {
+    key: meta.key,
+    title: meta.title,
+    subtitle: `${meta.subtitle} · Wholesale batch`,
+    totalPairs: lines.reduce((sum, line) => sum + line.quantity, 0),
+    lines,
+    isWholesaleBatch: true,
+    parentCartLineId: item.cartLineId,
+  };
 }
 
 export function buildCartProductSections(
   items: CartItem[],
-  mode: OrderQuantityMode = 'retail'
+  mode: OrderQuantityMode = "wholesale"
 ): CartProductSection[] {
   const sections = new Map<string, CartProductSection>();
 
   for (const item of items) {
+    if (isWholesaleCartItem(item) && item.wholesaleSpec) {
+      sections.set(
+        getCartProductMeta(item).key,
+        buildWholesaleSection(item, item.wholesaleSpec, mode)
+      );
+      continue;
+    }
+
     const meta = getCartProductMeta(item);
     const displayQty = displayQuantityFromPieces(item.cartQuantity, mode);
     const line: CartPowerLine = {
@@ -67,9 +141,6 @@ export function buildCartProductSections(
       eye: item.eye,
       quantity: displayQty,
       lineTotal: lineTotalForPieceQuantity(item.price, item.cartQuantity),
-      reserveLabel: null,
-      isBackorder: false,
-      backorderNote: null,
     };
 
     const existing = sections.get(meta.key);
@@ -90,15 +161,20 @@ export function buildCartProductSections(
 
   return [...sections.values()].map((section) => ({
     ...section,
-    lines: section.lines.sort((a, b) => a.sphCylLabel.localeCompare(b.sphCylLabel)),
+    lines: section.lines.sort((a, b) =>
+      a.sphCylLabel.localeCompare(b.sphCylLabel)
+    ),
   }));
 }
 
-export function getCartSummary(items: CartItem[], mode: OrderQuantityMode = 'retail') {
+export function getCartSummary(
+  items: CartItem[],
+  mode: OrderQuantityMode = "wholesale"
+) {
   const productCount = buildCartProductSections(items, mode).length;
   const pieceCount = items.reduce((sum, item) => sum + item.cartQuantity, 0);
   const pairCount =
-    mode === 'wholesale'
+    mode === "wholesale"
       ? items.reduce((sum, item) => sum + pairsFromPieces(item.cartQuantity), 0)
       : pieceCount;
   const totalAmount = items.reduce(
@@ -106,4 +182,26 @@ export function getCartSummary(items: CartItem[], mode: OrderQuantityMode = 'ret
     0
   );
   return { productCount, pairCount, pieceCount, totalAmount };
+}
+
+export function formatCartPowerLabel(item: CartItem): string {
+  return formatSphCyl(item);
+}
+
+export function partitionCartItems(items: CartItem[]): {
+  retailItems: CartItem[];
+  wholesaleItems: CartItem[];
+} {
+  const retailItems: CartItem[] = [];
+  const wholesaleItems: CartItem[] = [];
+
+  for (const item of items) {
+    if (isWholesaleCartItem(item)) {
+      wholesaleItems.push(item);
+    } else {
+      retailItems.push(item);
+    }
+  }
+
+  return { retailItems, wholesaleItems };
 }

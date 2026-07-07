@@ -110,6 +110,74 @@ function buildOrderPayload(item: CartItem): CreateOrderPayload {
   return payload;
 }
 
+export async function wholesaleCheckout(
+  cartLineKeys: string[],
+  headers: Record<string, string>,
+  notes?: string,
+  checkoutBatchId?: string
+): Promise<
+  | {
+      success: true;
+      successCount: number;
+      procurementCount: number;
+      queued?: boolean;
+    }
+  | {
+      success: false;
+      error: string;
+      partialFailures?: string[];
+      successCount?: number;
+      procurementCount?: number;
+    }
+> {
+  try {
+    const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/wholesale-checkout`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        cartLineKeys,
+        ...(notes?.trim() ? { notes: notes.trim() } : {}),
+        ...(checkoutBatchId?.trim()
+          ? { checkoutBatchId: checkoutBatchId.trim() }
+          : {}),
+      }),
+      queueWhenOffline: true,
+      queueLabel: 'Place wholesale order',
+    });
+
+    const result = await response.json().catch(() => ({}));
+    const successCount =
+      typeof result.successCount === 'number' ? result.successCount : 0;
+    const procurementCount =
+      typeof result.procurementCount === 'number' ? result.procurementCount : 0;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: result?.error || 'Failed to place wholesale orders.',
+        partialFailures: Array.isArray(result.failures) ? result.failures : undefined,
+        successCount,
+        procurementCount,
+      };
+    }
+
+    return {
+      success: true,
+      successCount,
+      procurementCount,
+    };
+  } catch (error) {
+    if (isOfflineQueuedError(error)) {
+      return { success: true, successCount: 0, procurementCount: 0, queued: true };
+    }
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to place wholesale orders.',
+    };
+  }
+}
+
 export async function createOrder(
   item: CartItem,
   headers: Record<string, string>,
