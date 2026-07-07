@@ -127,8 +127,11 @@ function applyCylPickerRules(item: LensItem, cylRange: PowerAxisRange): PowerAxi
 }
 
 /** Kryptok compound rows (both SPH and CYL) cannot use 0.00 on either axis. */
-function applyKryptokCompoundPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
-  if (item.lensType !== 'Kryptok' || resolveWholesalePowerProfile(item) !== 'compound') {
+function applyCompoundPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
+  if (
+    (item.lensType !== 'Kryptok' && item.lensType !== 'Progressive') ||
+    resolveWholesalePowerProfile(item) !== 'compound'
+  ) {
     return range;
   }
 
@@ -144,12 +147,19 @@ function applyKryptokCompoundPickerRules(item: LensItem, range: SelectableRange)
   return next;
 }
 
+function isCompoundBifocalLens(item: LensItem): boolean {
+  if (item.lensType !== 'Kryptok' && item.lensType !== 'Progressive') {
+    return false;
+  }
+  return resolveWholesalePowerProfile(item) === 'compound';
+}
+
 function withPickerRules(item: LensItem, range: SelectableRange): SelectableRange {
   let next = range;
   if (range.cyl) {
     next = { ...next, cyl: applyCylPickerRules(item, range.cyl) };
   }
-  return applyKryptokCompoundPickerRules(item, next);
+  return applyCompoundPickerRules(item, next);
 }
 
 /** API range when present; otherwise sphStartRange→sph and cylStartRange→cyl in 0.25 steps. */
@@ -158,7 +168,11 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
   if (crossMeta) {
     const sphOptions = computeCrossSphOptions(crossMeta.maxCyl);
     const initialSph = sphOptions[0] ?? 0;
-    const cylOptions = computeCrossCylOptionsForSph(initialSph, crossMeta.maxCyl);
+    const cylOptions = computeCrossCylOptionsForSph(
+      initialSph,
+      crossMeta.maxCyl,
+      crossMeta.cylStartRange
+    );
 
     return {
       sph: {
@@ -175,6 +189,17 @@ export function resolveSelectableRange(item: LensItem): SelectableRange {
         : null,
       crossPower: crossMeta,
     };
+  }
+
+  if (isCompoundBifocalLens(item)) {
+    const sphRange = resolveProductPowerRange(item.sphStartRange, item.sph);
+    const cylRange = resolveProductPowerRange(item.cylStartRange, item.cyl);
+    if (sphRange) {
+      return withPickerRules(item, {
+        sph: sphRange,
+        cyl: cylRange,
+      });
+    }
   }
 
   if (item.selectableRange?.sph.options.length) {
@@ -212,7 +237,7 @@ export function resolveCrossCylRangeForSph(
   sph: number,
   meta: CrossPowerRangeMeta
 ): PowerAxisRange {
-  const options = computeCrossCylOptionsForSph(sph, meta.maxCyl);
+  const options = computeCrossCylOptionsForSph(sph, meta.maxCyl, meta.cylStartRange);
   return {
     min: options[0] ?? 0,
     max: options[options.length - 1] ?? 0,
@@ -222,7 +247,7 @@ export function resolveCrossCylRangeForSph(
 
 /** Wholesale / catalog CYL bounds for cross products (negative only). */
 export function resolveFullCrossCylRange(meta: CrossPowerRangeMeta): PowerAxisRange {
-  const options = computeFullCrossCylOptions(meta.maxCyl);
+  const options = computeFullCrossCylOptions(meta.maxCyl, meta.cylStartRange);
   return {
     min: options[0] ?? 0,
     max: options[options.length - 1] ?? 0,

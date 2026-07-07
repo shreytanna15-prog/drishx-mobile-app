@@ -15,6 +15,7 @@ export type SelectableRange = {
   cyl: PowerAxisRange | null;
   crossPower?: {
     maxCyl: number;
+    cylStartRange?: number | null;
   } | null;
 };
 
