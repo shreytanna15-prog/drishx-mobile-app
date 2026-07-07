@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
 export const OFFLINE_QUEUE_STORAGE_KEY = '@drishx/offline-queue';
+const AUTH_SESSION_STORAGE_KEY = '@drishx/auth-session';
 
 const QUEUE_FETCH_TIMEOUT_MS = 15_000;
 
@@ -17,6 +18,10 @@ export type QueuedRequest = {
   body?: string;
   label?: string;
   createdAt: string;
+};
+
+type StoredSession = {
+  token: string;
 };
 
 type QueueListener = (count: number) => void;
@@ -59,6 +64,33 @@ function migrateQueuedRequest(entry: QueuedRequest): QueuedRequest {
     return entry;
   }
   return { ...entry, url };
+}
+
+async function loadCurrentSessionToken(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(AUTH_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as StoredSession | null;
+    return typeof parsed?.token === 'string' && parsed.token.trim() ? parsed.token.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getReplayHeaders(entry: QueuedRequest): Promise<Record<string, string>> {
+  const headers = { ...entry.headers };
+  const token = await loadCurrentSessionToken();
+
+  // Use the latest signed-in token when replaying saved API mutations.
+  // This avoids 401s after the user logs back in and the queued request
+  // still carries an older bearer token from a previous session.
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
 }
 
 export async function loadOfflineQueue(): Promise<QueuedRequest[]> {
@@ -136,9 +168,10 @@ async function replayQueuedRequest(entry: QueuedRequest): Promise<Response> {
   const timeout = setTimeout(() => controller.abort(), QUEUE_FETCH_TIMEOUT_MS);
 
   try {
+    const headers = await getReplayHeaders(entry);
     return await fetch(migrateQueuedUrl(entry.url), {
       method: entry.method,
-      headers: entry.headers,
+      headers,
       body: entry.body,
       signal: controller.signal,
     });

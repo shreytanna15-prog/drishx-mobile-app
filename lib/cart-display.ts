@@ -54,9 +54,10 @@ function getCartProductMeta(item: CartItem): {
   subtitle: string;
 } {
   const lensType = item.lensType ?? "Progressive";
+  const isVirtualWholesaleBatch = isWholesaleCartItem(item) && Boolean(item.wholesaleSpec);
 
   return {
-    key: isWholesaleCartItem(item)
+    key: isVirtualWholesaleBatch
       ? `wholesale-${item.cartLineKey}`
       : `${lensType}-${item.brand ?? ""}-${item.item ?? ""}-${item.coating ?? ""}`,
     title: item.brand?.trim() || lensType,

@@ -28,6 +28,18 @@ export type ServerCartItem = {
   wholesaleSpec?: WholesaleSpec | null;
 };
 
+type UpsertCartLineOptions = {
+  cartLineKey?: string;
+  lineType?: 'RETAIL' | 'WHOLESALE';
+};
+
+type BulkCartLineInput = {
+  item: LensItem;
+  quantity: number;
+  cartLineKey?: string;
+  lineType?: 'RETAIL' | 'WHOLESALE';
+};
+
 function mapServerItem(row: ServerCartItem): CartItem {
   const cartLineKey = row.cartLineKey ?? row.cartLineId;
   return {
@@ -86,9 +98,10 @@ export async function upsertCartLine(
   item: LensItem,
   quantity: number,
   headers: Record<string, string>,
-  customerId?: string
+  customerId?: string,
+  options?: UpsertCartLineOptions
 ): Promise<{ item: CartItem; message?: string }> {
-  const cartLineKey = buildCartLineId(item);
+  const cartLineKey = options?.cartLineKey?.trim() || buildCartLineId(item);
   const lensType = item.lensType ?? 'Progressive';
 
   const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart`, {
@@ -109,6 +122,7 @@ export async function upsertCartLine(
       coating: item.coating,
       item: item.item,
       lensTypeLabel: lensType,
+      ...(options?.lineType ? { lineType: options.lineType } : {}),
       ...(customerId?.trim() ? { userId: customerId.trim() } : {}),
     }),
     queueWhenOffline: true,
@@ -128,8 +142,9 @@ export async function upsertCartLine(
 
 export const BULK_CART_CHUNK_SIZE = 200;
 
-function toBulkLineBody(item: LensItem, quantity: number) {
-  const cartLineKey = buildCartLineId(item);
+function toBulkLineBody(line: BulkCartLineInput) {
+  const { item, quantity, cartLineKey: rawCartLineKey, lineType } = line;
+  const cartLineKey = rawCartLineKey?.trim() || buildCartLineId(item);
   const lensType = item.lensType ?? 'Progressive';
 
   return {
@@ -147,11 +162,12 @@ function toBulkLineBody(item: LensItem, quantity: number) {
     coating: item.coating,
     item: item.item,
     lensTypeLabel: lensType,
+    ...(lineType ? { lineType } : {}),
   };
 }
 
 export async function bulkUpsertCartLines(
-  lines: Array<{ item: LensItem; quantity: number }>,
+  lines: BulkCartLineInput[],
   headers: Record<string, string>,
   customerId?: string
 ): Promise<{ items: CartItem[]; count: number; message?: string }> {
@@ -168,7 +184,7 @@ export async function bulkUpsertCartLines(
       method: 'POST',
       headers,
       body: JSON.stringify({
-        lines: chunk.map((line) => toBulkLineBody(line.item, line.quantity)),
+        lines: chunk.map((line) => toBulkLineBody(line)),
         ...(customerId?.trim() ? { userId: customerId.trim() } : {}),
       }),
       queueWhenOffline: true,

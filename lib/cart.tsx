@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { clearServerCart, bulkUpsertCartLines, fetchCart, removeCartLine, upsertCartLine, upsertWholesaleCartBatch, type UpsertWholesaleCartInput } from '@/lib/cart-api';
+import { clearServerCart, bulkUpsertCartLines, fetchCart, removeCartLine, upsertCartLine, type UpsertWholesaleCartInput } from '@/lib/cart-api';
 import { buildCartLineId } from '@/lib/cart-utils';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import { useAuth } from '@/lib/auth';
@@ -19,6 +19,7 @@ import { loadOfflineCache, OFFLINE_CACHE_KEYS, saveOfflineCache } from '@/lib/of
 import { lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
 import type { CartItem, LensItem } from '@/lib/types/lens';
+import { buildWholesaleSpecFromInput, expandWholesaleSpec } from '@/lib/wholesale-cart';
 
 type CartContextValue = {
   items: CartItem[];
@@ -47,6 +48,25 @@ type CartContextValue = {
 };
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
+
+function toLensItemFromCartItem(item: CartItem): LensItem {
+  return {
+    id: item.id,
+    costPrice: item.costPrice,
+    price: item.price,
+    sph: item.sph,
+    cyl: item.cyl,
+    axis: item.axis,
+    add: item.add,
+    eye: item.eye,
+    quantity: item.quantity,
+    createdAt: item.createdAt,
+    lensType: item.lensType,
+    brand: item.brand,
+    item: item.item,
+    coating: item.coating,
+  };
+}
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const { isSignedIn, isStaff, getAuthHeaders } = useAuth();
@@ -258,21 +278,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
         throw new Error('Sign in to add wholesale batches to your cart.');
       }
 
-      const { item, expandedLineCount, message } = await upsertWholesaleCartBatch(
-        input,
-        getAuthHeaders()
-      );
-
-      setItems((current) => {
-        const kept = current.filter((entry) => entry.cartLineId !== item.cartLineId);
-        const next = [...kept, item];
-        void persistLocalCart(next);
-        return next;
+      const spec = buildWholesaleSpecFromInput(input);
+      const expanded = expandWholesaleSpec(spec);
+      const createdAt = new Date().toISOString();
+      const lines = expanded.map((line) => {
+        const item: LensItem = {
+          id: input.lensId,
+          costPrice: null,
+          price: input.unitPrice,
+          sph: line.sph,
+          cyl: line.cyl,
+          axis: line.axis,
+          add: line.add,
+          quantity: 0,
+          createdAt,
+          lensType: input.lensTypeLabel as LensItem['lensType'],
+          brand: input.brand ?? null,
+          item: input.item ?? null,
+          coating: input.coating ?? null,
+        };
+        return {
+          item,
+          quantity: line.pieces,
+          cartLineKey: `wholesale:${buildCartLineId(item)}`,
+          lineType: 'WHOLESALE' as const,
+        };
       });
 
-      return { expandedLineCount, message };
+      const { count, message } = await bulkUpsertCartLines(lines, getAuthHeaders());
+      await refreshCart();
+      return { expandedLineCount: count, message };
     },
-    [getAuthHeaders, persistLocalCart, useServerCart]
+    [getAuthHeaders, refreshCart, useServerCart]
   );
 
   const removeFromCart = useCallback(
@@ -349,23 +386,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const lensItem: LensItem = {
-          id: existing.id,
-          costPrice: existing.costPrice,
-          price: existing.price,
-          sph: existing.sph,
-          cyl: existing.cyl,
-          axis: existing.axis,
-          add: existing.add,
-          eye: existing.eye,
-          quantity: existing.quantity,
-          createdAt: existing.createdAt,
-          lensType: existing.lensType,
-          brand: existing.brand,
-          item: existing.item,
-          coating: existing.coating,
-        };
-        const { item: saved } = await upsertCartLine(lensItem, quantity, getAuthHeaders());
+        const lensItem = toLensItemFromCartItem(existing);
+        const { item: saved } = await upsertCartLine(
+          lensItem,
+          quantity,
+          getAuthHeaders(),
+          undefined,
+          {
+            cartLineKey: existing.cartLineKey,
+            lineType: existing.lineType ?? 'RETAIL',
+          }
+        );
         setItems((current) =>
           current.map((entry) => (entry.cartLineId === cartLineId ? saved : entry))
         );
@@ -412,6 +443,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       let nextQty: number | null = null;
       let lensItemToSave: LensItem | null = null;
+      let existingCartLineKey: string | null = null;
+      let existingLineType: CartItem['lineType'] = 'RETAIL';
 
       setItems((current) => {
         const entry = current.find((e) => e.cartLineId === cartLineId);
@@ -419,23 +452,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
         const computed = entry.cartQuantity + delta;
         nextQty = computed;
+        existingCartLineKey = entry.cartLineKey;
+        existingLineType = entry.lineType ?? 'RETAIL';
 
-        lensItemToSave = {
-          id: entry.id,
-          costPrice: entry.costPrice,
-          price: entry.price,
-          sph: entry.sph,
-          cyl: entry.cyl,
-          axis: entry.axis,
-          add: entry.add,
-          eye: entry.eye,
-          quantity: entry.quantity,
-          createdAt: entry.createdAt,
-          lensType: entry.lensType,
-          brand: entry.brand,
-          item: entry.item,
-          coating: entry.coating,
-        };
+        lensItemToSave = toLensItemFromCartItem(entry);
 
         if (computed <= 0) {
           return current.filter((e) => e.cartLineId !== cartLineId);
@@ -453,7 +473,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (nextQty <= 0) {
           await removeCartLine(cartLineId, getAuthHeaders());
         } else if (lensItemToSave) {
-          const { item: saved } = await upsertCartLine(lensItemToSave, nextQty, getAuthHeaders());
+          const { item: saved } = await upsertCartLine(
+            lensItemToSave,
+            nextQty,
+            getAuthHeaders(),
+            undefined,
+            {
+              cartLineKey: existingCartLineKey ?? cartLineId,
+              lineType: existingLineType ?? 'RETAIL',
+            }
+          );
 
           // Ignore out-of-order responses.
           if (mutationId !== mutationIdRef.current) return;
