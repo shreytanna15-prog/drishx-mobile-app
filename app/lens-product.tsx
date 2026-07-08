@@ -48,6 +48,7 @@ import {
   PROGRESSIVE_EYE_OPTIONS,
   progressiveCartEyes,
   progressivePairQuantityRequired,
+  piecesPerEyeFromDisplayQuantity,
   validateProgressiveQuantityUnit,
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
@@ -137,6 +138,10 @@ export default function LensProductScreen() {
   const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
   const totalPieces =
     displayQtyNumber > 0 ? piecesFromDisplayQuantity(displayQtyNumber, qtyUnit) : 0;
+  const piecesPerEye =
+    showProgressiveEye && displayQtyNumber > 0
+      ? piecesPerEyeFromDisplayQuantity(displayQtyNumber, qtyUnit, selectedEye)
+      : totalPieces;
 
   useEffect(() => {
     if (!item) {
@@ -277,13 +282,13 @@ export default function LensProductScreen() {
     if (!cartLinesForSelection || !formQuantityText) {
       return false;
     }
-    if (totalPieces <= 0) {
+    if (piecesPerEye <= 0) {
       return false;
     }
     return cartLinesForSelection.every(
-      (line) => line != null && line.cartQuantity === totalPieces
+      (line) => line != null && line.cartQuantity === piecesPerEye
     );
-  }, [cartLinesForSelection, totalPieces, formQuantityText]);
+  }, [cartLinesForSelection, piecesPerEye, formQuantityText]);
 
   if (!item) {
     return (
@@ -420,7 +425,11 @@ export default function LensProductScreen() {
       setError(qtyError);
       return;
     }
-    const parsedQty = piecesFromDisplayQuantity(parsedDisplayQty, qtyUnit);
+    const parsedQty = piecesPerEyeFromDisplayQuantity(
+      parsedDisplayQty,
+      qtyUnit,
+      showProgressiveEye ? selectedEye : 'LEFT'
+    );
     const eyesToAdd = showProgressiveEye ? progressiveCartEyes(selectedEye) : [undefined];
 
     if (isOnBehalfSelectMode) {
