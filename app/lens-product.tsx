@@ -3,7 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -47,6 +47,8 @@ import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
 import {
   PROGRESSIVE_EYE_OPTIONS,
   progressiveCartEyes,
+  progressivePairQuantityRequired,
+  validateProgressiveQuantityUnit,
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
 import type { LensItem } from '@/lib/types/lens';
@@ -112,6 +114,9 @@ export default function LensProductScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const pairOnlyForBothEyes =
+    showProgressiveEye && progressivePairQuantityRequired(selectedEye);
+
   const effectiveSelectableRange = useMemo(() => {
     if (!selectableRange || !crossMeta) {
       return selectableRange;
@@ -163,8 +168,20 @@ export default function LensProductScreen() {
     setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
   }, [orderMode]);
 
+  useEffect(() => {
+    if (!pairOnlyForBothEyes || qtyUnit === 'pair') {
+      return;
+    }
+    setQtyUnit('pair');
+    setQuantity(String(getDefaultDisplayQuantity(orderMode, 'pair')));
+    setError(null);
+  }, [pairOnlyForBothEyes, orderMode, qtyUnit]);
+
   function handleQtyUnitChange(nextUnit: QuantityUnit) {
     if (nextUnit === qtyUnit) {
+      return;
+    }
+    if (pairOnlyForBothEyes && nextUnit === 'piece') {
       return;
     }
     setQtyUnit(nextUnit);
@@ -389,6 +406,13 @@ export default function LensProductScreen() {
     }
 
     const parsedDisplayQty = Number(quantity);
+    const progressiveQtyError = showProgressiveEye
+      ? validateProgressiveQuantityUnit(selectedEye, qtyUnit)
+      : null;
+    if (progressiveQtyError) {
+      setError(progressiveQtyError);
+      return;
+    }
     const qtyError = validateDisplayQuantityForMode(parsedDisplayQty, qtyUnit, orderMode);
     if (qtyError) {
       setError(qtyError);
@@ -537,7 +561,9 @@ export default function LensProductScreen() {
                 })}
               </View>
               {selectedEye === 'BOTH' ? (
-                <Text style={styles.eyeHint}>Adds separate LEFT and RIGHT lines to cart.</Text>
+                <Text style={styles.eyeHint}>
+                  Adds separate LEFT and RIGHT lines to cart. Order in pairs only.
+                </Text>
               ) : null}
             </>
           ) : null}
@@ -545,18 +571,20 @@ export default function LensProductScreen() {
 
           <View style={styles.qtyUnitRow}>
             <Text style={styles.qtyUnitLabel}>Qty</Text>
-            <Pressable
-              style={styles.qtyUnitOption}
-              onPress={() => handleQtyUnitChange('piece')}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: qtyUnit === 'piece' }}>
-              <View style={[styles.qtyUnitRadio, qtyUnit === 'piece' && styles.qtyUnitRadioSelected]}>
-                {qtyUnit === 'piece' ? <View style={styles.qtyUnitRadioDot} /> : null}
-              </View>
-              <Text style={[styles.qtyUnitOptionText, qtyUnit === 'piece' && styles.qtyUnitOptionTextActive]}>
-                Piece
-              </Text>
-            </Pressable>
+            {!pairOnlyForBothEyes ? (
+              <Pressable
+                style={styles.qtyUnitOption}
+                onPress={() => handleQtyUnitChange('piece')}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: qtyUnit === 'piece' }}>
+                <View style={[styles.qtyUnitRadio, qtyUnit === 'piece' && styles.qtyUnitRadioSelected]}>
+                  {qtyUnit === 'piece' ? <View style={styles.qtyUnitRadioDot} /> : null}
+                </View>
+                <Text style={[styles.qtyUnitOptionText, qtyUnit === 'piece' && styles.qtyUnitOptionTextActive]}>
+                  Piece
+                </Text>
+              </Pressable>
+            ) : null}
             <Pressable
               style={styles.qtyUnitOption}
               onPress={() => handleQtyUnitChange('pair')}
@@ -642,21 +670,31 @@ export default function LensProductScreen() {
               void handleSubmit();
             }}
             disabled={submitting}>
-            <MaterialIcons
-              name={
-                isOnBehalfSelectMode
-                  ? 'check-circle-outline'
-                  : showsAddedState
-                    ? 'check-circle'
-                    : 'add-shopping-cart'
-              }
-              size={20}
-              color={colors.primaryText}
-            />
+            {submitting ? (
+              <ActivityIndicator size="small" color={colors.primaryText} />
+            ) : (
+              <MaterialIcons
+                name={
+                  isOnBehalfSelectMode
+                    ? 'check-circle-outline'
+                    : showsAddedState
+                      ? 'check-circle'
+                      : 'add-shopping-cart'
+                }
+                size={20}
+                color={colors.primaryText}
+              />
+            )}
             <Text style={styles.addBtnText}>
-              {isOnBehalfSelectMode ? 'Select product' : showsAddedState ? 'Added to cart' : 'Add to cart'}
+              {submitting
+                ? 'Adding…'
+                : isOnBehalfSelectMode
+                  ? 'Select product'
+                  : showsAddedState
+                    ? 'Added to cart'
+                    : 'Add to cart'}
             </Text>
-            {isOnBehalfSelectMode || !showsAddedState ? (
+            {!submitting && (isOnBehalfSelectMode || !showsAddedState) ? (
               <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} />
             ) : null}
           </Pressable>
