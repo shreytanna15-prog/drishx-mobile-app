@@ -51,6 +51,7 @@ import {
   validateProgressiveQuantityUnit,
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
+import { isWhiteCatalogLensId } from '@/lib/white-catalog';
 import type { LensItem } from '@/lib/types/lens';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
@@ -72,6 +73,7 @@ export default function LensProductScreen() {
   const { mode: orderMode, isWholesale } = useOrderMode();
 
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
+  const isWhiteCatalogProduct = item ? isWhiteCatalogLensId(item.id) : false;
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
@@ -190,7 +192,7 @@ export default function LensProductScreen() {
   }
 
   useEffect(() => {
-    if (!item?.id || !item.lensType) {
+    if (!item?.id || !item.lensType || isWhiteCatalogProduct) {
       setRelatedLenses([]);
       return;
     }
@@ -512,9 +514,11 @@ export default function LensProductScreen() {
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryType}>{lensType}</Text>
             <Text style={styles.summaryPrice}>
-              ₹{item.price}
-              {LENS_PRICE_PER_PAIR_LABEL}
+              {isWhiteCatalogProduct ? 'White catalog product' : `₹${item.price}${LENS_PRICE_PER_PAIR_LABEL}`}
             </Text>
+            {isWhiteCatalogProduct ? (
+              <Text style={styles.whiteCatalogHint}>Select power from the white catalog range below.</Text>
+            ) : null}
           </View>
 
           <Text style={styles.sectionTitle}>Details</Text>
@@ -699,7 +703,7 @@ export default function LensProductScreen() {
             ) : null}
           </Pressable>
 
-          {!isOnBehalfSelectMode ? (
+          {!isOnBehalfSelectMode && !isWhiteCatalogProduct ? (
             <View style={styles.relatedSection}>
               <View style={styles.relatedDivider} />
               <Text style={styles.relatedTitle}>Related Products</Text>
@@ -753,6 +757,13 @@ const createStyles = (c: BrandColorScheme) =>
     summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
     summaryType: { color: c.text, fontSize: 16, marginTop: 6, fontWeight: '600' },
     summaryPrice: { color: c.primary, fontSize: 18, marginTop: 8, fontWeight: '800' },
+    whiteCatalogHint: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+      marginTop: 6,
+      lineHeight: 18,
+    },
     catalogDetailRow: {
       flexDirection: 'row',
       alignItems: 'center',

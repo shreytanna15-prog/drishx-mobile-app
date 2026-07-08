@@ -73,6 +73,10 @@ function goToCategory(
     router.push('/rx' as never);
     return;
   }
+  if (categoryId === 'white') {
+    router.push('/white' as never);
+    return;
+  }
   goToShop(router, filter);
 }
 
