@@ -151,7 +151,7 @@ function CartProductSectionCard({
           onPress={() => setExpanded((value) => !value)}
           hitSlop={4}>
           <Text style={styles.productPairs}>
-            {section.totalPairs} {isWholesale ? 'pr' : 'pc'}
+            {section.totalPairs} pr
           </Text>
           <MaterialIcons
             name={expanded ? 'expand-less' : 'expand-more'}
@@ -198,7 +198,7 @@ export function CustomerCartDetail({
   const isWholesale = orderMode === 'wholesale';
   const sections = buildCartProductSections(items, orderMode);
   const { productCount, pairCount, totalAmount } = getCartSummary(items, orderMode);
-  const qtyColumnLabel = isWholesale ? 'Pairs' : 'Qty';
+  const qtyColumnLabel = 'Pairs';
 
   return (
     <View style={styles.wrap}>
@@ -216,7 +216,7 @@ export function CustomerCartDetail({
           <View style={styles.statDivider} />
           <View style={styles.statCell}>
             <Text style={styles.statValue}>{pairCount}</Text>
-            <Text style={styles.statLabel}>{isWholesale ? 'Pairs' : 'Qty'}</Text>
+            <Text style={styles.statLabel}>Pairs</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCell}>

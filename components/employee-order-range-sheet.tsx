@@ -112,7 +112,10 @@ export function EmployeeOrderRangeSheet({
 
           <View style={styles.sheetHeader}>
             <View style={styles.sheetHeaderText}>
-              <Text style={styles.sheetTitle}>{line.sphCylLabel}</Text>
+              <Text style={styles.sheetTitle}>
+                {line.sphCylLabel}
+                {line.eye ? <Text style={styles.eyeInline}> · {line.eye}</Text> : null}
+              </Text>
               <Text style={styles.sheetSubtitle}>
                 Ordered: {ordered} Pair{ordered === 1 ? '' : 's'} · Picked: {currentPicked} Pair
                 {currentPicked === 1 ? '' : 's'}
@@ -247,6 +250,7 @@ const createStyles = (c: BrandColorScheme) =>
     },
     sheetHeaderText: { flex: 1, minWidth: 0 },
     sheetTitle: { color: c.text, fontSize: 22, fontWeight: '800' },
+    eyeInline: { color: c.primary, fontWeight: '700' },
     sheetSubtitle: { marginTop: 4, color: c.textMuted, fontSize: 14, fontWeight: '600' },
     qtyRow: {
       flexDirection: 'row',

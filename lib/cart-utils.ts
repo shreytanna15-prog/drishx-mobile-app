@@ -42,6 +42,27 @@ export function sanitizePositiveIntegerInput(text: string): string {
   return text.replace(/\D/g, '');
 }
 
+/** Allow 0.5-step pair quantities while typing (0.5, 1, 1.5, …). */
+export function sanitizePairQuantityInput(text: string): string {
+  const cleaned = text.replace(/[^0-9.]/g, '');
+  if (!cleaned) {
+    return '';
+  }
+  const parts = cleaned.split('.');
+  const whole = parts[0] ?? '';
+  if (parts.length === 1) {
+    return whole;
+  }
+  const fraction = (parts[1] ?? '').replace(/\D/g, '').slice(0, 1);
+  if (fraction === '') {
+    return `${whole}.`;
+  }
+  if (fraction === '0' || fraction === '5') {
+    return `${whole}.${fraction}`;
+  }
+  return whole;
+}
+
 /** Allow only non-negative decimals for currency fields. */
 export function sanitizePositiveDecimalInput(text: string): string {
   const cleaned = text.replace(/[^0-9.]/g, '');
@@ -131,4 +152,26 @@ export function formatPowerLabel(value: number): string {
   if (rounded === 0) return '0.00';
   const sign = rounded > 0 ? '+' : '';
   return `${sign}${rounded.toFixed(2)}`;
+}
+
+/** Compact bound for range hints (e.g. -8, 0, +1.25). */
+export function formatPowerRangeBound(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  if (rounded === 0) {
+    return '0';
+  }
+  const abs = Math.abs(rounded)
+    .toFixed(2)
+    .replace(/\.?0+$/, '');
+  if (rounded < 0) {
+    return `-${abs}`;
+  }
+  return `+${abs}`;
+}
+
+/** Always low → high for prescription range copy (e.g. "-8 to 0"). */
+export function formatPowerRangeLabel(a: number, b: number): string {
+  const low = Math.min(a, b);
+  const high = Math.max(a, b);
+  return `${formatPowerRangeBound(low)} to ${formatPowerRangeBound(high)}`;
 }

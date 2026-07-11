@@ -1,14 +1,23 @@
-import { piecesFromDisplayQuantity, type QuantityUnit } from '@/lib/order-quantity';
+import {
+  piecesFromDisplayQuantity,
+  validatePairQuantity,
+  type QuantityUnit,
+} from '@/lib/order-quantity';
 
 export type ProgressiveEyeOption = 'LEFT' | 'RIGHT' | 'BOTH';
 
-export const PROGRESSIVE_EYE_OPTIONS: { id: ProgressiveEyeOption; label: string }[] = [
+export const PROGRESSIVE_EYE_OPTIONS: {
+  id: ProgressiveEyeOption;
+  label: string;
+}[] = [
   { id: 'LEFT', label: 'Left eye' },
   { id: 'RIGHT', label: 'Right eye' },
   { id: 'BOTH', label: 'Both eyes' },
 ];
 
-export function progressiveCartEyes(selected: ProgressiveEyeOption): Array<'LEFT' | 'RIGHT'> {
+export function progressiveCartEyes(
+  selected: ProgressiveEyeOption
+): Array<'LEFT' | 'RIGHT'> {
   if (selected === 'BOTH') {
     return ['LEFT', 'RIGHT'];
   }
@@ -40,10 +49,16 @@ export function piecesPerEyeFromDisplayQuantity(
 
 export function validateProgressiveQuantityUnit(
   selected: ProgressiveEyeOption,
-  unit: QuantityUnit
+  _unit?: QuantityUnit
 ): string | null {
-  if (progressivePairQuantityRequired(selected) && unit === 'piece') {
-    return 'Both eyes orders must be placed in pairs only.';
-  }
   return null;
+}
+
+export function validateProgressivePairQuantity(
+  selected: ProgressiveEyeOption,
+  pairs: number
+): string | null {
+  return validatePairQuantity(pairs, {
+    wholePairsOnly: progressivePairQuantityRequired(selected),
+  });
 }

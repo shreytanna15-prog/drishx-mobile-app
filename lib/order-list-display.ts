@@ -1,5 +1,6 @@
 import { formatOrderStatusLabel, normalizeOrderStatus, type OrderTrackingStatus } from '@/lib/order-tracking';
 import { getOrderLensDetails, type OrderRecord } from '@/lib/orders-api';
+import { pairsFromPieces } from '@/lib/order-quantity';
 import { formatLensType, type LensItem, type LensType } from '@/lib/types/lens';
 
 export type OrderCardStatusVariant =
@@ -251,7 +252,10 @@ export function groupOrdersForList(
       companyName,
       createdAt: primary.createdAt,
       productCount: sorted.length,
-      pairCount: sorted.reduce((sum, order) => sum + Math.max(1, Number(order.quantity) || 1), 0),
+      pairCount: sorted.reduce(
+        (sum, order) => sum + pairsFromPieces(Math.max(1, Number(order.quantity) || 1)),
+        0
+      ),
       totalAmount: sorted.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0),
       readyProductCount,
       procurementProductCount,

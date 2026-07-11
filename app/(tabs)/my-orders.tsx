@@ -14,9 +14,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { appAlert } from '@/lib/app-alert';
-import { isOfflineQueuedError } from '@/lib/api-request';
-
 import { CustomerOrderGroupDetail } from '@/components/customer-order-group-detail';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -24,9 +21,8 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
 import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
-import { cancelOrder, fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
-
 
 type FilterKey = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
@@ -140,7 +136,6 @@ export default function MyOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
 
@@ -189,31 +184,6 @@ export default function MyOrdersScreen() {
     [orderGroups, activeFilter]
   );
 
-  function handleCancel(orderId: string) {
-    appAlert('Cancel order', 'Are you sure you want to cancel this order?', [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, cancel',
-        style: 'destructive',
-        onPress: async () => {
-          setCancellingId(orderId);
-          try {
-            await cancelOrder(orderId, getAuthHeaders());
-            await loadOrders();
-          } catch (err) {
-            if (isOfflineQueuedError(err)) {
-              appAlert('Saved offline', err.message);
-              return;
-            }
-            appAlert('Error', err instanceof Error ? err.message : 'Failed to cancel order.');
-          } finally {
-            setCancellingId(null);
-          }
-        },
-      },
-    ]);
-  }
-
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -260,11 +230,7 @@ export default function MyOrdersScreen() {
                 tintColor={colors.primary}
               />
             }>
-            <CustomerOrderGroupDetail
-              group={selectedGroup}
-              onCancelOrder={handleCancel}
-              cancellingId={cancellingId}
-            />
+            <CustomerOrderGroupDetail group={selectedGroup} />
           </ScrollView>
         ) : (
           <>

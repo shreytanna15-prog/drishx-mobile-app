@@ -3,12 +3,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { OrderNotesDisplay } from '@/components/order-notes-display';
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
-import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
@@ -25,15 +24,10 @@ import {
   isRxOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
-import { normalizeOrderStatus } from '@/lib/order-tracking';
-import type { OrderRecord } from '@/lib/orders-api';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
-
 
 type CustomerOrderGroupDetailProps = {
   group: OrderListGroup;
-  onCancelOrder: (orderId: string) => void;
-  cancellingId: string | null;
 };
 
 function PackedStatusCell({
@@ -96,6 +90,7 @@ function PowerTableRow({ line }: { line: PowerLineRow }) {
     <View style={styles.tableRow}>
       <Text style={[styles.tableCell, styles.colPower]} numberOfLines={2}>
         {line.sphCylLabel}
+        {line.eye ? <Text style={styles.eyeInline}> · {line.eye}</Text> : null}
       </Text>
       <Text style={[styles.tableCell, styles.colAdd]} numberOfLines={1}>
         {line.addLabel}
@@ -213,8 +208,6 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
 
 export function CustomerOrderGroupDetail({
   group,
-  onCancelOrder,
-  cancellingId,
 }: CustomerOrderGroupDetailProps) {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
@@ -238,16 +231,10 @@ export function CustomerOrderGroupDetail({
     setReferenceLoadFailed(false);
   }, [group.key, group.photoUrl, orderReferenceUrl]);
 
-  const cancellableOrders = group.orders.filter((order) => {
-    const status = normalizeOrderStatus(order.status);
-    return status === 'PENDING' || status === 'AWAITING_PROCUREMENT';
-  });
-
   if (group.isPhotoOrder) {
     const order = group.orders[0];
     const rawImageUrl = group.photoUrl ?? order.orderImageUrl ?? null;
     const photoUri = rawImageUrl ? resolvePhotoOrderImageUrl(rawImageUrl) : null;
-    const canCancel = normalizeOrderStatus(order.status) === 'PENDING';
 
     return (
       <View style={styles.wrap}>
@@ -287,21 +274,6 @@ export function CustomerOrderGroupDetail({
         <View style={styles.trackingCard}>
           <OrderTrackingHorizontal status={trackingStatus} />
         </View>
-
-        {canCancel ? (
-          <View style={styles.cancelBlock}>
-            <Pressable
-              style={[styles.cancelButton, cancellingId === order.id && styles.buttonDisabled]}
-              onPress={() => onCancelOrder(order.id)}
-              disabled={cancellingId === order.id}>
-              {cancellingId === order.id ? (
-                <ActivityIndicator color={colors.danger} />
-              ) : (
-                <Text style={styles.cancelText}>Cancel photo order</Text>
-              )}
-            </Pressable>
-          </View>
-        ) : null}
       </View>
     );
   }
@@ -371,33 +343,6 @@ export function CustomerOrderGroupDetail({
       <View style={styles.trackingCard}>
         <OrderTrackingHorizontal status={trackingStatus} />
       </View>
-
-      {cancellableOrders.length > 0 ? (
-        <View style={styles.cancelBlock}>
-          {cancellableOrders.map((order) => (
-            <Pressable
-              key={order.id}
-              style={[styles.cancelButton, cancellingId === order.id && styles.buttonDisabled]}
-              onPress={() => {
-                appAlert('Cancel order line', 'Cancel this product line from your order?', [
-                  { text: 'No', style: 'cancel' },
-                  {
-                    text: 'Yes, cancel',
-                    style: 'destructive',
-                    onPress: () => onCancelOrder(order.id),
-                  },
-                ]);
-              }}
-              disabled={cancellingId === order.id}>
-              {cancellingId === order.id ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text style={styles.cancelText}>Cancel line · {order.quantity} pairs</Text>
-              )}
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -587,6 +532,10 @@ const createStyles = (c: BrandColorScheme) =>
     fontSize: 11,
     fontWeight: '600',
   },
+  eyeInline: {
+    color: c.primary,
+    fontWeight: '700',
+  },
   colPowerHead: {
     flex: 1.5,
   },
@@ -710,25 +659,6 @@ const createStyles = (c: BrandColorScheme) =>
     borderColor: c.cardBorder,
     padding: 16,
     paddingBottom: 12,
-  },
-  cancelBlock: {
-    gap: 8,
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    backgroundColor: 'rgba(240, 161, 50, 0.08)',
-    alignItems: 'center',
-  },
-  cancelText: {
-    color: c.primary,
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
   },
   referenceCard: {
     backgroundColor: c.card,

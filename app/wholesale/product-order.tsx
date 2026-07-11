@@ -22,14 +22,14 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
-  sanitizePositiveIntegerInput,
-  formatPowerLabel,
+  sanitizePairQuantityInput,
+  formatPowerRangeLabel,
 } from '@/lib/cart-utils';
 import { formatAddAxisLabel, formatAxisValue, formatLensItemCoatingSummary, formatSphCylSlash } from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
-import { piecesFromDisplayQuantity } from '@/lib/order-quantity';
+import { isValidPairQuantity, piecesFromDisplayQuantity } from '@/lib/order-quantity';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import {
   getDefaultRangeEndpoints,
@@ -71,11 +71,7 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 type QtyMap = Record<string, string>;
 
 function normalizePairsText(text: string): string {
-  const sanitized = sanitizePositiveIntegerInput(text);
-  if (sanitized === '') return '';
-  const n = Number(sanitized);
-  if (!Number.isInteger(n) || n < 1) return '';
-  return String(n);
+  return sanitizePairQuantityInput(text);
 }
 
 export default function WholesaleProductOrderScreen() {
@@ -163,13 +159,13 @@ export default function WholesaleProductOrderScreen() {
       const sphOpts = selectableRange.sph.options;
       const sphStart = sphOpts[0] ?? selectableRange.sph.min;
       const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
-      parts.push(`SPH ${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)}`);
+      parts.push(`SPH ${formatPowerRangeLabel(sphStart, sphEnd)}`);
     }
     if (powerProfile !== 'sph-only' && boundOptions.cyl.length > 0) {
       const cylOpts = boundOptions.cyl;
       const cylStart = cylOpts[0]!;
       const cylEnd = cylOpts[cylOpts.length - 1]!;
-      parts.push(`CYL ${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)}`);
+      parts.push(`CYL ${formatPowerRangeLabel(cylStart, cylEnd)}`);
     }
     return parts.length > 0 ? parts.join(' · ') : null;
   }, [boundOptions.cyl, powerProfile, selectableRange]);
@@ -256,8 +252,8 @@ export default function WholesaleProductOrderScreen() {
     setQtyMap({});
 
     const defaultPairs = Number(pairsDefault.trim());
-    if (!Number.isInteger(defaultPairs) || defaultPairs < 1) {
-      setError('Default pairs must be at least 1.');
+    if (!isValidPairQuantity(defaultPairs)) {
+      setError('Default pairs must be 0.5, 1, 1.5, … (minimum 0.5).');
       setGenerating(false);
       return;
     }
@@ -336,8 +332,8 @@ export default function WholesaleProductOrderScreen() {
     }
 
     const defaultPairs = Number(pairsDefault);
-    if (!Number.isInteger(defaultPairs) || defaultPairs < 1) {
-      setError('Enter a valid default pairs value.');
+    if (!isValidPairQuantity(defaultPairs)) {
+      setError('Enter a valid default pairs value (0.5, 1, 1.5, …).');
       return;
     }
 

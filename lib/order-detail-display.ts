@@ -11,6 +11,8 @@ export type PowerLineRow = {
   /** All order ids merged into this row (same power combo within a product). */
   orderIds?: string[];
   sphCylLabel: string;
+  /** Preferred eye when set (e.g. LEFT / RIGHT), shown like cart. */
+  eye?: string;
   addLabel: string;
   axisLabel: string;
   ordered: number;
@@ -148,8 +150,19 @@ function formatAxisLabel(order: OrderRecord): string {
   return formatAxisDisplay(details.axis);
 }
 
-function powerLineMergeKey(line: Pick<PowerLineRow, 'sphCylLabel' | 'addLabel' | 'axisLabel'>): string {
-  return `${line.sphCylLabel}|${line.addLabel}|${line.axisLabel}`;
+function formatEyeLabel(order: OrderRecord): string | undefined {
+  const details = getOrderLensDetails(order);
+  const eye = details?.eye?.trim();
+  if (!eye) {
+    return undefined;
+  }
+  return eye.toUpperCase();
+}
+
+function powerLineMergeKey(
+  line: Pick<PowerLineRow, 'sphCylLabel' | 'addLabel' | 'axisLabel' | 'eye'>
+): string {
+  return `${line.sphCylLabel}|${line.addLabel}|${line.axisLabel}|${line.eye ?? ''}`;
 }
 
 function buildPowerLineRow(
@@ -159,6 +172,7 @@ function buildPowerLineRow(
   return {
     orderId: order.id,
     sphCylLabel: formatSphCylOnly(order),
+    eye: formatEyeLabel(order),
     addLabel: formatAddLabel(order),
     axisLabel: formatAxisLabel(order),
     ordered: pick.ordered,

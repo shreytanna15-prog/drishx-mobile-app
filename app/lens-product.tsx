@@ -16,17 +16,17 @@ import { useCart } from '@/lib/cart';
 import {
   buildCartLineId,
   formatPowerLabel,
-  sanitizePositiveIntegerInput,
+  formatPowerRangeLabel,
+  sanitizePairQuantityInput,
   validatePrescriptionInRange,
 } from '@/lib/cart-utils';
 import { useOrderMode } from '@/lib/order-mode';
 import {
   coerceDisplayQuantity,
+  formatPairQuantity,
   getDefaultDisplayQuantity,
-  getDefaultQuantityUnit,
   piecesFromDisplayQuantity,
   validateDisplayQuantityForMode,
-  type QuantityUnit,
 } from '@/lib/order-quantity';
 import {
   formatAddValue,
@@ -49,7 +49,7 @@ import {
   progressiveCartEyes,
   progressivePairQuantityRequired,
   piecesPerEyeFromDisplayQuantity,
-  validateProgressiveQuantityUnit,
+  validateProgressivePairQuantity,
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
 import { isWhiteCatalogLensId } from '@/lib/white-catalog';
@@ -110,14 +110,11 @@ export default function LensProductScreen() {
   const [cyl, setCyl] = useState<number>(initialCyl);
   const [add, setAdd] = useState<number>(initialAdd);
   const [selectedEye, setSelectedEye] = useState<ProgressiveEyeOption>('LEFT');
-  const [qtyUnit, setQtyUnit] = useState<QuantityUnit>(() => getDefaultQuantityUnit(orderMode));
-  const [quantity, setQuantity] = useState(() =>
-    String(getDefaultDisplayQuantity(orderMode, getDefaultQuantityUnit(orderMode)))
-  );
+  const [quantity, setQuantity] = useState(() => String(getDefaultDisplayQuantity(orderMode)));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const pairOnlyForBothEyes =
+  const bothEyesSelected =
     showProgressiveEye && progressivePairQuantityRequired(selectedEye);
 
   const effectiveSelectableRange = useMemo(() => {
@@ -137,10 +134,10 @@ export default function LensProductScreen() {
   const formQuantityText = quantity.trim();
   const displayQtyNumber = formQuantityText ? Number(formQuantityText) : 0;
   const totalPieces =
-    displayQtyNumber > 0 ? piecesFromDisplayQuantity(displayQtyNumber, qtyUnit) : 0;
+    displayQtyNumber > 0 ? piecesFromDisplayQuantity(displayQtyNumber, 'pair') : 0;
   const piecesPerEye =
     showProgressiveEye && displayQtyNumber > 0
-      ? piecesPerEyeFromDisplayQuantity(displayQtyNumber, qtyUnit, selectedEye)
+      ? piecesPerEyeFromDisplayQuantity(displayQtyNumber, 'pair', selectedEye)
       : totalPieces;
 
   useEffect(() => {
@@ -163,38 +160,23 @@ export default function LensProductScreen() {
     setCyl(nextCyl);
     setAdd(resolveAddOptions(item)[0] ?? 1);
     setSelectedEye('LEFT');
-    const unit = getDefaultQuantityUnit(orderMode);
-    setQtyUnit(unit);
-    setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
+    setQuantity(String(getDefaultDisplayQuantity(orderMode)));
     setError(null);
   }, [item?.id, orderMode, crossMeta]);
 
   useEffect(() => {
-    const unit = getDefaultQuantityUnit(orderMode);
-    setQtyUnit(unit);
-    setQuantity(String(getDefaultDisplayQuantity(orderMode, unit)));
+    setQuantity(String(getDefaultDisplayQuantity(orderMode)));
   }, [orderMode]);
 
   useEffect(() => {
-    if (!pairOnlyForBothEyes || qtyUnit === 'pair') {
+    if (!bothEyesSelected) {
       return;
     }
-    setQtyUnit('pair');
-    setQuantity(String(getDefaultDisplayQuantity(orderMode, 'pair')));
-    setError(null);
-  }, [pairOnlyForBothEyes, orderMode, qtyUnit]);
-
-  function handleQtyUnitChange(nextUnit: QuantityUnit) {
-    if (nextUnit === qtyUnit) {
-      return;
+    const parsed = Number(quantity);
+    if (Number.isFinite(parsed) && Math.abs(parsed - Math.round(parsed)) > 1e-9) {
+      setQuantity(String(Math.max(1, Math.round(parsed))));
     }
-    if (pairOnlyForBothEyes && nextUnit === 'piece') {
-      return;
-    }
-    setQtyUnit(nextUnit);
-    setQuantity(String(getDefaultDisplayQuantity(orderMode, nextUnit)));
-    setError(null);
-  }
+  }, [bothEyesSelected, quantity]);
 
   useEffect(() => {
     if (!item?.id || !item.lensType || isWhiteCatalogProduct) {
@@ -314,17 +296,17 @@ export default function LensProductScreen() {
         const sphOpts = effectiveSelectableRange.sph.options;
         const sphStart = sphOpts[0] ?? effectiveSelectableRange.sph.min;
         const sphEnd = sphOpts[sphOpts.length - 1] ?? effectiveSelectableRange.sph.max;
-        let hint = `Scroll to select SPH (${formatPowerLabel(sphStart)} to ${formatPowerLabel(sphEnd)})`;
+        let hint = `Scroll to select SPH (${formatPowerRangeLabel(sphStart, sphEnd)})`;
         if (effectiveSelectableRange.cyl?.options.length) {
           const cylOpts = effectiveSelectableRange.cyl.options;
           const cylStart = cylOpts[0] ?? effectiveSelectableRange.cyl.min;
           const cylEnd = cylOpts[cylOpts.length - 1] ?? effectiveSelectableRange.cyl.max;
-          hint += ` and CYL (${formatPowerLabel(cylStart)} to ${formatPowerLabel(cylEnd)})`;
+          hint += ` and CYL (${formatPowerRangeLabel(cylStart, cylEnd)})`;
         }
         if (showAdd && addOptions.length > 0) {
           const addStart = addOptions[0]!;
           const addEnd = addOptions[addOptions.length - 1]!;
-          hint += ` and ADD (${formatPowerLabel(addStart)} to ${formatPowerLabel(addEnd)})`;
+          hint += ` and ADD (${formatPowerRangeLabel(addStart, addEnd)})`;
         }
         return `${hint}.`;
       })()
@@ -336,13 +318,13 @@ export default function LensProductScreen() {
   }
 
   function handleQuantityChange(text: string) {
-    const sanitized = sanitizePositiveIntegerInput(text);
+    const sanitized = sanitizePairQuantityInput(text);
     if (sanitized === '') {
       setQuantity('');
       setError(null);
       return;
     }
-    setQuantity(coerceDisplayQuantity(sanitized, qtyUnit, orderMode));
+    setQuantity(coerceDisplayQuantity(sanitized));
     setError(null);
   }
 
@@ -414,20 +396,22 @@ export default function LensProductScreen() {
 
     const parsedDisplayQty = Number(quantity);
     const progressiveQtyError = showProgressiveEye
-      ? validateProgressiveQuantityUnit(selectedEye, qtyUnit)
+      ? validateProgressivePairQuantity(selectedEye, parsedDisplayQty)
       : null;
     if (progressiveQtyError) {
       setError(progressiveQtyError);
       return;
     }
-    const qtyError = validateDisplayQuantityForMode(parsedDisplayQty, qtyUnit, orderMode);
+    const qtyError = validateDisplayQuantityForMode(parsedDisplayQty, 'pair', orderMode, {
+      wholePairsOnly: bothEyesSelected,
+    });
     if (qtyError) {
       setError(qtyError);
       return;
     }
     const parsedQty = piecesPerEyeFromDisplayQuantity(
       parsedDisplayQty,
-      qtyUnit,
+      'pair',
       showProgressiveEye ? selectedEye : 'LEFT'
     );
     const eyesToAdd = showProgressiveEye ? progressiveCartEyes(selectedEye) : [undefined];
@@ -583,36 +567,12 @@ export default function LensProductScreen() {
           <Text style={styles.sectionHint}>{prescriptionHint}</Text>
 
           <View style={styles.qtyUnitRow}>
-            <Text style={styles.qtyUnitLabel}>Qty</Text>
-            {!pairOnlyForBothEyes ? (
-              <Pressable
-                style={styles.qtyUnitOption}
-                onPress={() => handleQtyUnitChange('piece')}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: qtyUnit === 'piece' }}>
-                <View style={[styles.qtyUnitRadio, qtyUnit === 'piece' && styles.qtyUnitRadioSelected]}>
-                  {qtyUnit === 'piece' ? <View style={styles.qtyUnitRadioDot} /> : null}
-                </View>
-                <Text style={[styles.qtyUnitOptionText, qtyUnit === 'piece' && styles.qtyUnitOptionTextActive]}>
-                  Piece
-                </Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              style={styles.qtyUnitOption}
-              onPress={() => handleQtyUnitChange('pair')}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: qtyUnit === 'pair' }}>
-              <View style={[styles.qtyUnitRadio, qtyUnit === 'pair' && styles.qtyUnitRadioSelected]}>
-                {qtyUnit === 'pair' ? <View style={styles.qtyUnitRadioDot} /> : null}
-              </View>
-              <Text style={[styles.qtyUnitOptionText, qtyUnit === 'pair' && styles.qtyUnitOptionTextActive]}>
-                Pair
-              </Text>
-            </Pressable>
+            <Text style={styles.qtyUnitLabel}>Pairs</Text>
+            <Text style={styles.qtyUnitOptionText}>0.5 steps</Text>
             {totalPieces > 0 ? (
               <Text style={styles.qtyUnitPiecesHint}>
-                = {totalPieces} pc{totalPieces === 1 ? '' : 's'}
+                = {formatPairQuantity(displayQtyNumber)} pr · {totalPieces} pc
+                {totalPieces === 1 ? '' : 's'}
               </Text>
             ) : null}
           </View>
@@ -666,9 +626,9 @@ export default function LensProductScreen() {
                 <TextInput
                   value={quantity}
                   onChangeText={handleQuantityChange}
-                  keyboardType="number-pad"
+                  keyboardType="decimal-pad"
                   style={showAdd ? styles.compactFieldInput : styles.qtyFieldInput}
-                  placeholder={String(getDefaultDisplayQuantity(orderMode, qtyUnit))}
+                  placeholder={String(getDefaultDisplayQuantity(orderMode))}
                   placeholderTextColor={colors.placeholder}
                 />
               </View>

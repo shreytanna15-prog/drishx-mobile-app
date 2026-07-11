@@ -66,13 +66,14 @@ function getCartProductMeta(item: CartItem): {
 }
 
 function formatSphCyl(item: CartItem): string {
-  const sphCyl = formatSphCylSlash(item);
-  if (item.lensType === "Single Vision") {
-    return sphCyl;
+  const parts = [formatSphCylSlash(item)];
+  if (item.lensType !== "Single Vision" && item.add != null) {
+    parts.push(`ADD ${formatAddValue(item.add)}`);
   }
-  return item.add != null
-    ? `${sphCyl} · ADD ${formatAddValue(item.add)}`
-    : sphCyl;
+  if (item.axis != null) {
+    parts.push(`AXIS ${formatAxisValue(item.axis)}`);
+  }
+  return parts.join(" · ");
 }
 
 function formatExpandedWholesaleLabel(
@@ -185,9 +186,7 @@ export function getCartSummary(
   const productCount = buildCartProductSections(items, mode).length;
   const pieceCount = items.reduce((sum, item) => sum + item.cartQuantity, 0);
   const pairCount =
-    mode === "wholesale"
-      ? items.reduce((sum, item) => sum + pairsFromPieces(item.cartQuantity), 0)
-      : pieceCount;
+    items.reduce((sum, item) => sum + pairsFromPieces(item.cartQuantity), 0);
   const totalAmount = items.reduce(
     (sum, item) => sum + lineTotalForPieceQuantity(item.price, item.cartQuantity),
     0

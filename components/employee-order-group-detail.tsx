@@ -153,6 +153,7 @@ function PowerTableRow({
       disabled={isUpdating}>
       <Text style={[styles.tableCell, styles.colPower]} numberOfLines={2}>
         {line.sphCylLabel}
+        {line.eye ? <Text style={styles.eyeInline}> · {line.eye}</Text> : null}
       </Text>
       <Text style={[styles.tableCell, styles.colAdd]} numberOfLines={1}>
         {line.addLabel}
@@ -584,6 +585,7 @@ const createStyles = (c: BrandColorScheme) =>
     backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
   tableCell: { color: c.text, fontSize: 11, fontWeight: '600' },
+  eyeInline: { color: c.primary, fontWeight: '700' },
   colPowerHead: { flex: 1.5 },
   colAddHead: { flex: 0.7, alignItems: 'center' },
   colAxisHead: { flex: 0.75, alignItems: 'center' },
