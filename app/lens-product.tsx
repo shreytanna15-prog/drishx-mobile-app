@@ -25,6 +25,8 @@ import {
   coerceDisplayQuantity,
   formatPairQuantity,
   getDefaultDisplayQuantity,
+  MIN_PAIR_QUANTITY,
+  PAIR_QUANTITY_STEP,
   piecesFromDisplayQuantity,
   validateDisplayQuantityForMode,
 } from '@/lib/order-quantity';
@@ -328,6 +330,20 @@ export default function LensProductScreen() {
     setError(null);
   }
 
+  function adjustQuantity(direction: -1 | 1) {
+    const step = bothEyesSelected ? 1 : PAIR_QUANTITY_STEP;
+    const min = bothEyesSelected ? 1 : MIN_PAIR_QUANTITY;
+    const parsed = Number.parseFloat(quantity);
+    const current =
+      Number.isFinite(parsed) && parsed > 0
+        ? parsed
+        : getDefaultDisplayQuantity(orderMode);
+    const snapped = Math.round((current + direction * step) * 2) / 2;
+    const next = Math.max(min, snapped);
+    setQuantity(formatPairQuantity(next));
+    setError(null);
+  }
+
   function handleSphChange(value: number) {
     setSph(value);
     if (crossMeta) {
@@ -566,29 +582,11 @@ export default function LensProductScreen() {
           ) : null}
           <Text style={styles.sectionHint}>{prescriptionHint}</Text>
 
-          <View style={styles.qtyUnitRow}>
-            <Text style={styles.qtyUnitLabel}>Pairs</Text>
-            <Text style={styles.qtyUnitOptionText}>0.5 steps</Text>
-            {totalPieces > 0 ? (
-              <Text style={styles.qtyUnitPiecesHint}>
-                = {formatPairQuantity(displayQtyNumber)} pr · {totalPieces} pc
-                {totalPieces === 1 ? '' : 's'}
-              </Text>
-            ) : null}
-          </View>
-
           <View style={styles.prescriptionCard}>
             <View style={styles.prescriptionHeader}>
               <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
               <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
               {showAdd ? <Text style={styles.prescriptionHeaderLabel}>ADD</Text> : null}
-              <Text
-                style={[
-                  styles.prescriptionHeaderLabel,
-                  showAdd ? styles.prescriptionHeaderLabelNarrow : null,
-                ]}>
-                QTY
-              </Text>
             </View>
             <View style={styles.prescriptionRow}>
               <View style={[styles.pickerColumn, showAdd && styles.pickerColumnCompact]}>
@@ -622,15 +620,42 @@ export default function LensProductScreen() {
                   />
                 </View>
               ) : null}
-              <View style={[styles.compactFieldColumn, showAdd && styles.compactFieldColumnNarrow]}>
+            </View>
+
+            <View style={styles.qtyStepperRow}>
+              <Text style={styles.qtyStepperLabel}>Qty</Text>
+              <View style={styles.qtyStepperControls}>
+                <Pressable
+                  style={styles.qtyStepperBtn}
+                  onPress={() => adjustQuantity(-1)}
+                  accessibilityLabel="Decrease quantity"
+                  hitSlop={8}>
+                  <MaterialIcons name="remove" size={18} color={colors.primary} />
+                </Pressable>
                 <TextInput
                   value={quantity}
                   onChangeText={handleQuantityChange}
+                  onBlur={() => {
+                    const parsed = Number.parseFloat(quantity);
+                    if (!Number.isFinite(parsed) || parsed <= 0) {
+                      return;
+                    }
+                    const min = bothEyesSelected ? 1 : MIN_PAIR_QUANTITY;
+                    const snapped = Math.round(parsed * 2) / 2;
+                    setQuantity(formatPairQuantity(Math.max(min, snapped)));
+                  }}
                   keyboardType="decimal-pad"
-                  style={showAdd ? styles.compactFieldInput : styles.qtyFieldInput}
+                  style={styles.qtyStepperInput}
                   placeholder={String(getDefaultDisplayQuantity(orderMode))}
                   placeholderTextColor={colors.placeholder}
                 />
+                <Pressable
+                  style={styles.qtyStepperBtn}
+                  onPress={() => adjustQuantity(1)}
+                  accessibilityLabel="Increase quantity"
+                  hitSlop={8}>
+                  <MaterialIcons name="add" size={18} color={colors.primary} />
+                </Pressable>
               </View>
             </View>
           </View>
@@ -795,62 +820,51 @@ const createStyles = (c: BrandColorScheme) =>
       fontWeight: '600',
       marginBottom: 8,
     },
-    qtyUnitRow: {
+    qtyStepperRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      flexWrap: 'wrap',
-      gap: 12,
-      marginBottom: 12,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
+      justifyContent: 'space-between',
+      gap: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: c.cardBorder,
       backgroundColor: c.card,
+    },
+    qtyStepperLabel: {
+      color: c.label,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+    },
+    qtyStepperControls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    qtyStepperBtn: {
+      width: 40,
+      height: 40,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: c.cardBorder,
-    },
-    qtyUnitLabel: {
-      color: c.text,
-      fontSize: 14,
-      fontWeight: '700',
-      marginRight: 4,
-    },
-    qtyUnitOption: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-    },
-    qtyUnitRadio: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      borderWidth: 2,
       borderColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: c.card,
     },
-    qtyUnitRadioSelected: {
-      borderColor: c.primary,
-    },
-    qtyUnitRadioDot: {
-      width: 10,
-      height: 10,
-      borderRadius: 5,
-      backgroundColor: c.primary,
-    },
-    qtyUnitOptionText: {
-      color: c.textMuted,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    qtyUnitOptionTextActive: {
+    qtyStepperInput: {
+      width: 72,
+      borderWidth: 1,
+      borderColor: c.inputBorder,
+      borderRadius: 12,
+      backgroundColor: c.inputBg,
       color: c.text,
+      fontSize: 16,
       fontWeight: '700',
-    },
-    qtyUnitPiecesHint: {
-      marginLeft: 'auto',
-      color: c.primary,
-      fontSize: 12,
-      fontWeight: '700',
+      textAlign: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 8,
     },
     sectionHint: { color: c.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 12 },
     prescriptionCard: {
@@ -878,9 +892,6 @@ const createStyles = (c: BrandColorScheme) =>
       letterSpacing: 1.2,
       textTransform: 'uppercase',
     },
-    prescriptionHeaderLabelNarrow: {
-      flex: 0.82,
-    },
     prescriptionRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -896,47 +907,6 @@ const createStyles = (c: BrandColorScheme) =>
       justifyContent: 'center',
     },
     pickerPlaceholderText: { color: c.textMuted, fontSize: 18 },
-    compactFieldColumn: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 6,
-    },
-    compactFieldColumnNarrow: {
-      flex: 0.82,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 4,
-    },
-    qtyFieldInput: {
-      width: '100%',
-      maxWidth: 88,
-      borderWidth: 1,
-      borderColor: c.inputBorder,
-      borderRadius: 10,
-      backgroundColor: c.inputBg,
-      color: c.text,
-      fontSize: 16,
-      fontWeight: '600',
-      textAlign: 'center',
-      paddingVertical: 10,
-      paddingHorizontal: 8,
-    },
-    compactFieldInput: {
-      width: '100%',
-      minWidth: 48,
-      maxWidth: 62,
-      borderWidth: 1,
-      borderColor: c.inputBorder,
-      borderRadius: 8,
-      backgroundColor: c.inputBg,
-      color: c.text,
-      fontSize: 13,
-      fontWeight: '700',
-      textAlign: 'center',
-      paddingVertical: 7,
-      paddingHorizontal: 4,
-    },
     errorText: { color: c.danger, textAlign: 'center', marginBottom: 12, fontSize: 14 },
     addBtn: {
       flexDirection: 'row',

@@ -182,11 +182,11 @@ export function coercePairQuantityInput(text: string): string {
     return trimmed;
   }
   const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed) || parsed < 0) {
+  if (!Number.isFinite(parsed)) {
     return trimmed;
   }
-  if (parsed === 0) {
-    return trimmed.endsWith('.') ? trimmed : '0';
+  if (parsed <= 0) {
+    return formatPairQuantity(MIN_PAIR_QUANTITY);
   }
   const snapped = Math.round(parsed * 2) / 2;
   if (snapped < MIN_PAIR_QUANTITY) {

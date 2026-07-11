@@ -25,11 +25,9 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import { getCartSummary, partitionCartItems } from '@/lib/cart-display';
-import { isWholesaleCartItem } from '@/lib/wholesale-cart';
-import { useOrderMode, type OrderMode } from '@/lib/order-mode';
+import { useOrderMode } from '@/lib/order-mode';
 import {
   getQuantityStep,
-  normalizeQuantityForMode,
 } from '@/lib/order-quantity';
 import { createOrder, ORDER_NOTES_MAX_LENGTH, wholesaleCheckout } from '@/lib/orders-api';
 
@@ -43,15 +41,13 @@ export default function CartTabScreen() {
     totalPrice,
     loading,
     adjustQuantity,
-    updateQuantity,
     removeFromCart,
     removeLinesFromCart,
     clearCart,
     refreshCart,
   } = useCart();
-  const { mode: orderMode, setMode: setOrderMode, isWholesale } = useOrderMode();
+  const { mode: orderMode, isWholesale } = useOrderMode();
   const quantityStep = getQuantityStep(orderMode);
-  const [switchingOrderMode, setSwitchingOrderMode] = useState(false);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
   const [orderPlacedModal, setOrderPlacedModal] = useState<{
@@ -60,34 +56,6 @@ export default function CartTabScreen() {
   } | null>(null);
 
   const summary = getCartSummary(items, orderMode);
-
-  async function handleOrderModeChange(nextMode: OrderMode) {
-    if (nextMode === orderMode || switchingOrderMode) {
-      return;
-    }
-
-    setOrderMode(nextMode);
-
-    if (nextMode !== 'wholesale' || items.length === 0) {
-      return;
-    }
-
-    setSwitchingOrderMode(true);
-    try {
-      await Promise.all(
-        items
-          .filter((item) => !isWholesaleCartItem(item))
-          .map(async (item) => {
-          const normalized = normalizeQuantityForMode(item.cartQuantity, 'wholesale');
-          if (normalized !== item.cartQuantity) {
-            await updateQuantity(item.cartLineId, normalized);
-          }
-        })
-      );
-    } finally {
-      setSwitchingOrderMode(false);
-    }
-  }
 
   async function handlePlaceOrder() {
     if (items.length === 0) {
@@ -207,42 +175,6 @@ export default function CartTabScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.screenTitle}>Cart</Text>
-          <View style={styles.orderModeToggle}>
-              <Pressable
-                style={[
-                  styles.orderModeOption,
-                  orderMode === 'retail' && styles.orderModeOptionActive,
-                ]}
-                onPress={() => {
-                  void handleOrderModeChange('retail');
-                }}
-                disabled={switchingOrderMode}>
-                <Text
-                  style={[
-                    styles.orderModeOptionText,
-                    orderMode === 'retail' && styles.orderModeOptionTextActive,
-                  ]}>
-                  Retail
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.orderModeOption,
-                  orderMode === 'wholesale' && styles.orderModeOptionActive,
-                ]}
-                onPress={() => {
-                  void handleOrderModeChange('wholesale');
-                }}
-                disabled={switchingOrderMode}>
-                <Text
-                  style={[
-                    styles.orderModeOptionText,
-                    orderMode === 'wholesale' && styles.orderModeOptionTextActive,
-                  ]}>
-                  Wholesale
-                </Text>
-              </Pressable>
-          </View>
         </View>
 
         {loading ? (
@@ -386,38 +318,11 @@ const createStyles = (c: BrandColorScheme) =>
       paddingHorizontal: 16,
       paddingTop: 4,
       paddingBottom: 6,
-      gap: 8,
     },
     screenTitle: {
       color: c.text,
       fontSize: 20,
       fontWeight: '800',
-    },
-    orderModeToggle: {
-      flexDirection: 'row',
-      backgroundColor: c.menuRowAlt,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      padding: 3,
-      gap: 3,
-    },
-    orderModeOption: {
-      flex: 1,
-      alignItems: 'center',
-      paddingVertical: 8,
-      borderRadius: 8,
-    },
-    orderModeOptionActive: {
-      backgroundColor: c.primary,
-    },
-    orderModeOptionText: {
-      color: c.textMuted,
-      fontSize: 13,
-      fontWeight: '700',
-    },
-    orderModeOptionTextActive: {
-      color: c.primaryText,
     },
     pairsHint: {
       color: c.primary,
