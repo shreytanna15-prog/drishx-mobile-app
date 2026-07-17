@@ -375,7 +375,7 @@ export default function EmployeeOrderOnBehalfScreen() {
                   <TextInput
                     value={productSearch}
                     onChangeText={setProductSearch}
-                    placeholder="Search SPH, CYL, price, brand, item..."
+                    placeholder="Search SPH, CYL, price, brand, item, plano..."
                     placeholderTextColor={colors.placeholder}
                     style={styles.searchBarInput}
                   />

@@ -221,7 +221,7 @@ export default function InventoryScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search SPH, CYL, price, brand, eye..."
+            placeholder="Search SPH, CYL, price, brand, eye, plano..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoFocus

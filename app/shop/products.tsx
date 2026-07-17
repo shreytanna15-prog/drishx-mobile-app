@@ -172,7 +172,7 @@ export default function ShopProductsScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search brand, coating, power..."
+            placeholder="Search brand, coating, power, plano..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}

@@ -900,7 +900,7 @@ export default function PurchaseStockScreen() {
               <TextInput
                 value={lensSearch}
                 onChangeText={setLensSearch}
-                placeholder="Search brand, SPH, coating…"
+                placeholder="Search brand, SPH, coating, plano…"
                 placeholderTextColor={colors.placeholder}
                 style={styles.modalSearchInput}
               />

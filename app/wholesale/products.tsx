@@ -171,7 +171,7 @@ export default function WholesaleProductsScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search sv, kt, v2, BRC, brand, power..."
+            placeholder="Search sv, kt, v2, BRC, brand, power, plano..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}
