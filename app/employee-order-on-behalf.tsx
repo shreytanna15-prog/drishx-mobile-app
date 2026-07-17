@@ -23,6 +23,7 @@ import { fetchCustomerCompanies, type CustomerCompany } from '@/lib/customers-ap
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
 import { LENS_PRICE_PER_PAIR_LABEL, lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { consumePendingOnBehalfSelection } from '@/lib/on-behalf-selection';
+import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
 import { setOnBehalfCustomOrderContext } from '@/lib/on-behalf-custom-order';
 import { createOrderFromLens, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -436,7 +437,7 @@ export default function EmployeeOrderOnBehalfScreen() {
                             onPress={() => updateLineQuantity(line.lens.id, line.quantity - 1)}>
                             <MaterialIcons name="remove" size={18} color={colors.primary} />
                           </Pressable>
-                          <Text style={styles.qtyValue}>{line.quantity}</Text>
+                          <Text style={styles.qtyValue}>{formatPairQuantity(pairsFromPieces(line.quantity))} pair</Text>
                           <Pressable
                             style={styles.qtyBtn}
                             onPress={() => updateLineQuantity(line.lens.id, line.quantity + 1)}>
