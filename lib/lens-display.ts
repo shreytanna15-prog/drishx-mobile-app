@@ -62,13 +62,16 @@ export function formatLensProductCardDetail(item: {
   const profileLabel = formatPowerProfileLabel(resolveWholesalePowerProfile(item));
   const lensAbbrev = formatLensTypeAbbrev(item.lensType);
 
-  const powerPart = hasMeaningfulPower(item.crossPower)
-    ? formatCrossPowerLabel(item.crossPower)
-    : (() => {
-        const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
-        const cylPart = hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl!) : '—';
-        return `${sphPart}/${cylPart}`;
-      })();
+  const powerPart =
+    item.sph != null || item.cyl != null
+      ? (() => {
+          const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
+          const cylPart = hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl!) : '—';
+          return `${sphPart}/${cylPart}`;
+        })()
+      : hasMeaningfulPower(item.crossPower)
+        ? formatCrossPowerLabel(item.crossPower)
+        : '—/—';
 
   const axisPart =
     item.axis !== null && item.axis !== undefined ? ` x ${formatAxisValue(item.axis)}` : '';
@@ -103,12 +106,19 @@ export function formatSphCylSlash(item: {
   cyl?: number | null;
   crossPower?: number | null;
 }): string {
+  // Cart / order lines always carry the selected SPH and CYL.
+  // Prefer those over catalog crossPower (max CYL).
+  if (item.sph != null || item.cyl != null) {
+    const sphPart = item.sph != null ? formatPowerLabel(Number(item.sph)) : '—';
+    const cylPart = item.cyl != null ? formatPowerLabel(Number(item.cyl)) : '—';
+    return `${sphPart}/${cylPart}`;
+  }
+
   if (hasMeaningfulPower(item.crossPower)) {
     return formatCrossPowerLabel(item.crossPower);
   }
-  const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
-  const cylPart = item.cyl != null && hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl) : '—';
-  return `${sphPart}/${cylPart}`;
+
+  return '—/—';
 }
 
 function isSpecialColorsItem(item: string | null | undefined): boolean {

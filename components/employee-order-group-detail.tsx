@@ -21,6 +21,9 @@ import {
 import {
   formatOrderDateTime,
   getStatusPillStyle,
+  isColorLensOrder,
+  isCrossOrder,
+  isRxOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { distributePickedAcrossOrders } from '@/lib/order-line-update';
@@ -274,6 +277,9 @@ export function EmployeeOrderGroupDetail({
     [group.orders]
   );
   const customerEmail = group.orders[0]?.user?.email;
+  const hasColorOrder = group.orders.some(isColorLensOrder);
+  const hasRxOrder = group.orders.some(isRxOrder);
+  const hasCrossOrder = group.orders.some(isCrossOrder);
 
   const [selectedLine, setSelectedLine] = useState<PowerLineRow | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -429,6 +435,58 @@ export function EmployeeOrderGroupDetail({
         <Text style={styles.companyName}>{group.companyName}</Text>
         {customerEmail ? <Text style={styles.customerEmail}>{customerEmail}</Text> : null}
         <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
+        {hasColorOrder || hasRxOrder || hasCrossOrder || group.isPhotoOrder ? (
+          <View style={styles.typeBadgeRow}>
+            {group.isPhotoOrder ? (
+              <View
+                style={[
+                  styles.typeBadge,
+                  {
+                    backgroundColor: 'rgba(240, 161, 50, 0.14)',
+                    borderColor: 'rgba(240, 161, 50, 0.35)',
+                  },
+                ]}>
+                <Text style={[styles.typeBadgeText, { color: '#f0a132' }]}>Photo order</Text>
+              </View>
+            ) : null}
+            {hasCrossOrder ? (
+              <View
+                style={[
+                  styles.typeBadge,
+                  {
+                    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+                    borderColor: 'rgba(245, 158, 11, 0.35)',
+                  },
+                ]}>
+                <Text style={[styles.typeBadgeText, { color: '#d97706' }]}>Cross order</Text>
+              </View>
+            ) : null}
+            {hasColorOrder ? (
+              <View
+                style={[
+                  styles.typeBadge,
+                  {
+                    backgroundColor: 'rgba(139, 92, 246, 0.14)',
+                    borderColor: 'rgba(139, 92, 246, 0.35)',
+                  },
+                ]}>
+                <Text style={[styles.typeBadgeText, { color: '#8b5cf6' }]}>Color order</Text>
+              </View>
+            ) : null}
+            {hasRxOrder ? (
+              <View
+                style={[
+                  styles.typeBadge,
+                  {
+                    backgroundColor: 'rgba(14, 165, 233, 0.14)',
+                    borderColor: 'rgba(14, 165, 233, 0.35)',
+                  },
+                ]}>
+                <Text style={[styles.typeBadgeText, { color: '#0ea5e9' }]}>RX order</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.statsRow}>
@@ -511,6 +569,14 @@ const createStyles = (c: BrandColorScheme) =>
   companyName: { color: c.text, fontSize: 17, fontWeight: '800', marginTop: 4 },
   customerEmail: { color: c.textMuted, fontSize: 13 },
   dateTime: { color: c.textMuted, fontSize: 13 },
+  typeBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  typeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  typeBadgeText: { fontSize: 11, fontWeight: '700' },
   statsRow: {
     flexDirection: 'row',
     backgroundColor: c.card,

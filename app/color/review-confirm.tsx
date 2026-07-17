@@ -19,6 +19,10 @@ import { OrderPlacedModal } from '@/components/order-placed-modal';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
+import {
+  clearOnBehalfCustomOrderContext,
+  getOnBehalfCustomOrderContext,
+} from '@/lib/on-behalf-custom-order';
 import { placeColorLensOrder } from '@/lib/color-lens-orders-api';
 import { COLOR_LENS_TYPE_OPTIONS, PREDEFINED_LENS_COLORS, type ColorLensTypeId } from '@/lib/color-lens';
 import {
@@ -61,6 +65,7 @@ export default function ReviewConfirmScreen() {
   const { getAuthHeaders } = useAuth();
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderPlacedMessage, setOrderPlacedMessage] = useState<string | null>(null);
+  const [onBehalf] = useState(() => getOnBehalfCustomOrderContext());
   const rawParams = useLocalSearchParams<Record<string, string>>();
   const order = useMemo(() => parseColorLensOrderParams(rawParams), [rawParams]);
 
@@ -110,11 +115,15 @@ export default function ReviewConfirmScreen() {
           colorHex,
           prescription,
           materialId,
+          ...(onBehalf?.userId ? { userId: onBehalf.userId } : {}),
         },
         getAuthHeaders()
       );
 
       if (result.success) {
+        if (onBehalf) {
+          clearOnBehalfCustomOrderContext();
+        }
         setOrderPlacedMessage(result.message);
         return;
       }
@@ -137,10 +146,18 @@ export default function ReviewConfirmScreen() {
         message={orderPlacedMessage ?? ''}
         onViewOrders={() => {
           setOrderPlacedMessage(null);
+          if (onBehalf) {
+            router.replace((onBehalf.returnTo || '/employee-order-on-behalf') as never);
+            return;
+          }
           router.replace('/(tabs)/my-orders' as never);
         }}
         onContinueShopping={() => {
           setOrderPlacedMessage(null);
+          if (onBehalf) {
+            router.replace((onBehalf.returnTo || '/employee-order-on-behalf') as never);
+            return;
+          }
           router.replace('/(tabs)/' as never);
         }}
       />
@@ -150,8 +167,14 @@ export default function ReviewConfirmScreen() {
             <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.title}>Review & Confirm</Text>
-            <Text style={styles.stepLabel}>Step 6 of 6</Text>
+            <Text style={styles.title}>
+              {onBehalf ? 'Review & Confirm (on behalf)' : 'Review & Confirm'}
+            </Text>
+            <Text style={styles.stepLabel}>
+              {onBehalf
+                ? `For ${onBehalf.customerLabel || 'customer'} · Step 6 of 6`
+                : 'Step 6 of 6'}
+            </Text>
           </View>
           <View style={styles.backBtn} />
         </View>

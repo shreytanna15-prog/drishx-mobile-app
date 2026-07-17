@@ -25,6 +25,10 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { formatPowerLabel } from '@/lib/cart-utils';
 import { useAuth } from '@/lib/auth';
 import {
+  clearOnBehalfCustomOrderContext,
+  getOnBehalfCustomOrderContext,
+} from '@/lib/on-behalf-custom-order';
+import {
   buildAddOptions,
   buildCylOptions,
   buildSphOptions,
@@ -335,6 +339,7 @@ export default function RxOrderScreen() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderPlacedMessage, setOrderPlacedMessage] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(false);
+  const [onBehalf] = useState(() => getOnBehalfCustomOrderContext());
 
   const showAdd = rxShowsAdd(lensType);
   const sphOptions = useMemo(() => buildSphOptions(), []);
@@ -562,11 +567,15 @@ export default function RxOrderScreen() {
           remarks: remarks.trim() || null,
           remarkTags,
           prescriptionImageUrl,
+          ...(onBehalf?.userId ? { userId: onBehalf.userId } : {}),
         },
         getAuthHeaders()
       );
 
       if (result.success) {
+        if (onBehalf) {
+          clearOnBehalfCustomOrderContext();
+        }
         setOrderPlacedMessage(result.message);
         return;
       }
@@ -607,10 +616,18 @@ export default function RxOrderScreen() {
         message={orderPlacedMessage ?? ''}
         onViewOrders={() => {
           setOrderPlacedMessage(null);
+          if (onBehalf) {
+            router.replace((onBehalf.returnTo || '/employee-order-on-behalf') as never);
+            return;
+          }
           router.replace('/(tabs)/my-orders' as never);
         }}
         onContinueShopping={() => {
           setOrderPlacedMessage(null);
+          if (onBehalf) {
+            router.replace((onBehalf.returnTo || '/employee-order-on-behalf') as never);
+            return;
+          }
           router.replace('/(tabs)/' as never);
         }}
       />
@@ -621,8 +638,12 @@ export default function RxOrderScreen() {
             <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.title}>New RX Order</Text>
-            <Text style={styles.subtitle}>Create a new prescription order</Text>
+            <Text style={styles.title}>{onBehalf ? 'Rx for customer' : 'New RX Order'}</Text>
+            <Text style={styles.subtitle}>
+              {onBehalf
+                ? `Ordering for ${onBehalf.customerLabel || 'customer'}`
+                : 'Create a new prescription order'}
+            </Text>
           </View>
           <View style={styles.backBtn} />
         </View>

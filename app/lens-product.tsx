@@ -539,7 +539,9 @@ export default function LensProductScreen() {
               <Text style={styles.prescriptionHeaderLabel}>AXIS</Text>
             </View>
             <View style={styles.catalogDetailRow}>
-              <Text style={styles.catalogDetailValue}>{formatPowerLabel(item.sph)}</Text>
+              <Text style={styles.catalogDetailValue}>
+                {item.sph != null ? formatPowerLabel(item.sph) : '—'}
+              </Text>
               <Text style={styles.catalogDetailValue}>
                 {item.cyl != null ? formatPowerLabel(item.cyl) : '—'}
               </Text>
@@ -575,7 +577,7 @@ export default function LensProductScreen() {
               </View>
               {selectedEye === 'BOTH' ? (
                 <Text style={styles.eyeHint}>
-                  Adds separate LEFT and RIGHT lines to cart. Order in pairs only.
+                  Adds one cart line for both eyes. Order in pairs only.
                 </Text>
               ) : null}
             </>

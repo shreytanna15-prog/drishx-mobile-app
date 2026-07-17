@@ -23,6 +23,7 @@ import { fetchCustomerCompanies, type CustomerCompany } from '@/lib/customers-ap
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
 import { LENS_PRICE_PER_PAIR_LABEL, lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { consumePendingOnBehalfSelection } from '@/lib/on-behalf-selection';
+import { setOnBehalfCustomOrderContext } from '@/lib/on-behalf-custom-order';
 import { createOrderFromLens, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
 import { useBrandColors } from '@/lib/theme-provider';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
@@ -31,6 +32,27 @@ type Step = 'customer' | 'shop';
 type SelectedLine = { lens: LensItem; quantity: number };
 
 const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single Vision'];
+
+const CUSTOM_ORDER_OPTIONS = [
+  {
+    id: 'rx',
+    label: 'Rx',
+    description: 'Custom prescription order',
+    path: '/rx' as const,
+  },
+  {
+    id: 'white',
+    label: 'White',
+    description: 'White lens catalog order',
+    path: '/white' as const,
+  },
+  {
+    id: 'color',
+    label: 'Color orders',
+    description: 'Tinted / fashion color lens',
+    path: '/color' as const,
+  },
+] as const;
 
 function formatLensLabel(lens: LensItem): string {
   const brand = lens.brand?.trim() || 'Lens';
@@ -375,6 +397,27 @@ export default function EmployeeOrderOnBehalfScreen() {
                   }}
                 />
 
+                <Text style={styles.sectionTitle}>Custom orders</Text>
+                <View style={styles.customOrderRow}>
+                  {CUSTOM_ORDER_OPTIONS.map((option) => (
+                    <Pressable
+                      key={option.id}
+                      style={styles.customOrderCard}
+                      onPress={() => {
+                        if (!selectedCustomerId) return;
+                        setOnBehalfCustomOrderContext({
+                          userId: selectedCustomerId,
+                          customerLabel: selectedCustomerLabel,
+                          returnTo: '/employee-order-on-behalf',
+                        });
+                        router.push(option.path as never);
+                      }}>
+                      <Text style={styles.customOrderLabel}>{option.label}</Text>
+                      <Text style={styles.customOrderDescription}>{option.description}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
                 <Text style={styles.sectionTitle}>Selected products</Text>
                 {selectedLines.length === 0 ? (
                   <Text style={styles.emptySelectionText}>Tap a product card below to add it.</Text>
@@ -582,6 +625,21 @@ const createStyles = (c: BrandColorScheme) =>
     filterChipActive: { backgroundColor: c.primary, borderColor: c.primary },
     filterChipText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
     filterChipTextActive: { fontWeight: '700', color: c.primaryText },
+    customOrderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    customOrderCard: {
+      flexGrow: 1,
+      flexBasis: '30%',
+      minWidth: 96,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 14,
+      gap: 4,
+    },
+    customOrderLabel: { color: c.text, fontSize: 15, fontWeight: '800' },
+    customOrderDescription: { color: c.textMuted, fontSize: 12, fontWeight: '600', lineHeight: 16 },
     emptySelectionText: { color: c.textMuted, marginBottom: 8 },
     selectedWrap: { gap: 8, marginBottom: 8 },
     selectedCard: {

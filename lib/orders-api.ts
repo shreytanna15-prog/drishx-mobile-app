@@ -3,7 +3,7 @@ import { apiFetch, isOfflineQueuedError } from '@/lib/api-request';
 import { loadOfflineCache, OFFLINE_CACHE_KEYS, saveOfflineCache } from '@/lib/offline-cache';
 import { getIsOnline } from '@/lib/network';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
-import type { ApiLensType, CartItem, LensItem } from '@/lib/types/lens';
+import type { ApiLensType, CartItem, CartLineType, LensItem, WholesaleSpec } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
 
 export type OrderUser = {
@@ -17,12 +17,31 @@ export type OrderUser = {
 /** Max length for order notes — must match backend `ORDER_NOTES_MAX_LENGTH`. */
 export const ORDER_NOTES_MAX_LENGTH = 2000;
 
+export type WholesaleOrderLineItem = {
+  id: string;
+  powerKey: string;
+  quantity: number;
+  reservedQuantity?: number;
+  unitPrice?: number;
+  totalAmount?: number;
+  sph: number;
+  cyl?: number | null;
+  axis?: number | null;
+  add?: number | null;
+  needsProcurement?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type OrderRecord = {
   id: string;
   orderNumber?: number | null;
   checkoutBatchId?: string | null;
   orderImageUrl?: string | null;
   lensType: ApiLensType;
+  lineType?: CartLineType | null;
+  wholesaleSpec?: WholesaleSpec | null;
+  wholesaleLineItems?: WholesaleOrderLineItem[];
   quantity: number;
   reservedQuantity?: number;
   pickedQuantity?: number;
@@ -45,18 +64,21 @@ export type OrderRecord = {
     category?: string | null;
     item?: string | null;
     coating?: string | null;
-    sph: number | string;
-    cyl: number | string | null;
+    sph?: number | string | null;
+    cyl?: number | string | null;
+    crossPower?: number | string | null;
   } | null;
   kryptokLens?: {
     id: string;
     brand?: string | null;
     category?: string | null;
+    item?: string | null;
     coating?: string | null;
-    sph: number | string;
-    cyl: number | string | null;
-    axis: number | null;
-    add: number | string;
+    sph?: number | string | null;
+    cyl?: number | string | null;
+    crossPower?: number | string | null;
+    axis?: number | null;
+    add?: number | string;
   } | null;
   progressiveLens?: {
     id: string;
@@ -64,11 +86,12 @@ export type OrderRecord = {
     category?: string | null;
     item?: string | null;
     coating?: string | null;
-    sph: number | string;
-    cyl: number | string | null;
-    axis: number | null;
-    add: number | string;
-    eye: string;
+    sph?: number | string | null;
+    cyl?: number | string | null;
+    crossPower?: number | string | null;
+    axis?: number | null;
+    add?: number | string;
+    eye?: string;
   } | null;
 };
 
@@ -94,7 +117,7 @@ function buildOrderPayload(item: CartItem): CreateOrderPayload {
     lensId: item.id,
     quantity: item.cartQuantity,
     cartLineKey: item.cartLineKey ?? item.cartLineId,
-    sph: item.sph,
+    sph: item.sph ?? 0,
     cyl: item.cyl,
   };
 
@@ -326,6 +349,13 @@ function hasOrderPrescription(order: OrderRecord): boolean {
   return hasSph || hasCyl;
 }
 
+function isWholesaleOrder(order: OrderRecord): boolean {
+  return (
+    order.lineType === 'WHOLESALE' ||
+    (Array.isArray(order.wholesaleLineItems) && order.wholesaleLineItems.length > 0)
+  );
+}
+
 export function getOrderLensDetails(order: OrderRecord) {
   if (hasOrderPrescription(order)) {
     const catalog =
@@ -337,6 +367,11 @@ export function getOrderLensDetails(order: OrderRecord) {
       add: order.add ?? (order.kryptokLens?.add ?? order.progressiveLens?.add ?? null),
       eye: order.eye ?? order.progressiveLens?.eye ?? undefined,
     };
+  }
+
+  // Wholesale parent rows keep sph/cyl null; powers live on wholesaleLineItems.
+  if (isWholesaleOrder(order)) {
+    return null;
   }
 
   if (order.progressiveLens) {

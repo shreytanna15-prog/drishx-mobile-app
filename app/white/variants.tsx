@@ -9,6 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
+import { getOnBehalfCustomOrderContext } from '@/lib/on-behalf-custom-order';
 import {
   buildWhiteCatalogLensItem,
   getWhiteProductLine,
@@ -57,10 +58,12 @@ export default function WhiteVariantsScreen() {
               style={styles.optionCard}
               onPress={() => {
                 const catalogItem = buildWhiteCatalogLensItem(lineId, variant.id);
+                const onBehalf = getOnBehalfCustomOrderContext();
                 router.push({
                   pathname: '/lens-product',
                   params: {
                     payload: encodeURIComponent(JSON.stringify(catalogItem)),
+                    ...(onBehalf ? { mode: 'on-behalf-select' } : {}),
                   },
                 });
               }}>

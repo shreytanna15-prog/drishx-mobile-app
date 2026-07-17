@@ -27,8 +27,13 @@ import {
   sanitizePositiveDecimalInput,
   sanitizePositiveIntegerInput,
 } from '@/lib/cart-utils';
-import { formatLensProductCardDetail } from '@/lib/lens-display';
-import { getOrderLensRef, orderToLensItem } from '@/lib/order-list-display';
+import { formatSphCylSlash } from '@/lib/lens-display';
+import {
+  getOrderLensRef,
+  getOrderPowerDisplayLines,
+  orderToLensItem,
+} from '@/lib/order-list-display';
+import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import type { OrderRecord } from '@/lib/orders-api';
 import { recordStockIntake } from '@/lib/procurement-api';
@@ -58,7 +63,16 @@ export function EmployeeProcurementProductSheet({
 
   const lensRef = useMemo(() => (order ? getOrderLensRef(order) : null), [order]);
   const lensItem = useMemo(() => (order ? orderToLensItem(order) : null), [order]);
-  const productDetail = lensItem ? formatLensProductCardDetail(lensItem) : '';
+  const powerLines = useMemo(
+    () => (order ? getOrderPowerDisplayLines(order) : []),
+    [order]
+  );
+  const productLabel = lensItem
+    ? [lensItem.brand, lensItem.coating, lensItem.item]
+        .map((part) => part?.trim())
+        .filter(Boolean)
+        .join(' · ')
+    : '';
 
   useEffect(() => {
     if (!visible || !order) {
@@ -181,7 +195,7 @@ export function EmployeeProcurementProductSheet({
             <View style={styles.sheetHeaderText}>
               <Text style={styles.sheetTitle}>Add purchase</Text>
               <Text style={styles.sheetSubtitle} numberOfLines={2}>
-                {productDetail}
+                {productLabel || 'Record stock intake for this order line.'}
               </Text>
             </View>
             <Pressable onPress={onClose} hitSlop={10}>
@@ -190,6 +204,26 @@ export function EmployeeProcurementProductSheet({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {powerLines.length > 0 ? (
+              <View style={styles.powersBox}>
+                <Text style={styles.powersLabel}>Ordered powers</Text>
+                {powerLines.map((line) => (
+                  <View key={line.key} style={styles.powerRow}>
+                    <Text style={styles.powerText}>
+                      {formatSphCylSlash({
+                        sph: line.sph,
+                        cyl: line.cyl,
+                        crossPower: line.crossPower,
+                      })}
+                    </Text>
+                    <Text style={styles.powerQty}>
+                      {formatPairQuantity(pairsFromPieces(line.quantity))} pr
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
             <Text style={styles.fieldLabel}>Quantity to add</Text>
             <TextInput
               value={quantity}
@@ -288,6 +322,30 @@ const createStyles = (c: BrandColorScheme) =>
     sheetHeaderText: { flex: 1, minWidth: 0 },
     sheetTitle: { color: c.text, fontSize: 20, fontWeight: '800' },
     sheetSubtitle: { marginTop: 4, color: c.textMuted, fontSize: 14, fontWeight: '600' },
+    powersBox: {
+      marginBottom: 8,
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.background,
+      gap: 8,
+    },
+    powersLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: c.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    powerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    powerText: { color: c.text, fontSize: 14, fontWeight: '700', flex: 1 },
+    powerQty: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
     fieldLabel: {
       fontSize: 12,
       fontWeight: '700',
