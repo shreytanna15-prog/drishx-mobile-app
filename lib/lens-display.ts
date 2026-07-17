@@ -2,6 +2,9 @@ import { formatPowerLabel } from '@/lib/cart-utils';
 import type { LensType } from '@/lib/types/lens';
 import { resolveWholesalePowerProfile } from '@/lib/wholesale-powers';
 
+/** Shown when a product has no SPH/CYL (and no cross power). */
+export const PLANO_POWER_LABEL = 'Plano';
+
 function hasMeaningfulPower(value: number | null | undefined): boolean {
   if (value === null || value === undefined) {
     return false;
@@ -67,11 +70,13 @@ export function formatLensProductCardDetail(item: {
       ? (() => {
           const sphPart = hasMeaningfulPower(item.sph) ? formatPowerLabel(item.sph!) : '—';
           const cylPart = hasMeaningfulPower(item.cyl) ? formatPowerLabel(item.cyl!) : '—';
-          return `${sphPart}/${cylPart}`;
+          return sphPart === '—' && cylPart === '—'
+            ? PLANO_POWER_LABEL
+            : `${sphPart}/${cylPart}`;
         })()
       : hasMeaningfulPower(item.crossPower)
         ? formatCrossPowerLabel(item.crossPower)
-        : '—/—';
+        : PLANO_POWER_LABEL;
 
   const axisPart =
     item.axis !== null && item.axis !== undefined ? ` x ${formatAxisValue(item.axis)}` : '';
@@ -109,8 +114,13 @@ export function formatSphCylSlash(item: {
   // Cart / order lines always carry the selected SPH and CYL.
   // Prefer those over catalog crossPower (max CYL).
   if (item.sph != null || item.cyl != null) {
-    const sphPart = item.sph != null ? formatPowerLabel(Number(item.sph)) : '—';
-    const cylPart = item.cyl != null ? formatPowerLabel(Number(item.cyl)) : '—';
+    const hasSph = hasMeaningfulPower(item.sph);
+    const hasCyl = hasMeaningfulPower(item.cyl);
+    if (!hasSph && !hasCyl) {
+      return PLANO_POWER_LABEL;
+    }
+    const sphPart = hasSph ? formatPowerLabel(Number(item.sph)) : '—';
+    const cylPart = hasCyl ? formatPowerLabel(Number(item.cyl)) : '—';
     return `${sphPart}/${cylPart}`;
   }
 
@@ -118,7 +128,7 @@ export function formatSphCylSlash(item: {
     return formatCrossPowerLabel(item.crossPower);
   }
 
-  return '—/—';
+  return PLANO_POWER_LABEL;
 }
 
 function isSpecialColorsItem(item: string | null | undefined): boolean {
