@@ -47,6 +47,8 @@ import {
 } from '@/lib/prescription-range';
 import { coerceCrossCylForSph, resolveCrossPowerMeta } from '@/lib/cross-power';
 import { setPendingOnBehalfSelection } from '@/lib/on-behalf-selection';
+import { setPendingStockLensSelection } from '@/lib/stock-lens-selection';
+import type { LensItem } from '@/lib/types/lens';
 import {
   PROGRESSIVE_EYE_OPTIONS,
   progressiveCartEyes,
@@ -56,7 +58,7 @@ import {
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
 import { isWhiteCatalogLensId } from '@/lib/white-catalog';
-import type { LensItem } from '@/lib/types/lens';
+import { WhiteCatalogPowerForm } from '@/components/white-catalog-power-form';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
   if (!rawPayload) return null;
@@ -79,6 +81,8 @@ export default function LensProductScreen() {
   const item = useMemo(() => parseLensPayload(params.payload), [params.payload]);
   const isWhiteCatalogProduct = item ? isWhiteCatalogLensId(item.id) : false;
   const isOnBehalfSelectMode = params.mode === 'on-behalf-select';
+  const isStockSelectMode = params.mode === 'stock-select';
+  const isSelectMode = isOnBehalfSelectMode || isStockSelectMode;
   const lensType = item?.lensType ?? 'Progressive';
   const showAdd = lensType !== 'Single Vision';
   const showProgressiveEye = lensType === 'Progressive' && !isWholesale;
@@ -231,7 +235,7 @@ export default function LensProductScreen() {
   }
 
   const cartLinesForSelection = useMemo(() => {
-    if (!item || isOnBehalfSelectMode) {
+    if (!item || isSelectMode) {
       return null;
     }
 
@@ -253,7 +257,7 @@ export default function LensProductScreen() {
     add,
     cartItems,
     cyl,
-    isOnBehalfSelectMode,
+    isSelectMode,
     item,
     selectedEye,
     showAdd,
@@ -433,7 +437,7 @@ export default function LensProductScreen() {
     );
     const eyesToAdd = showProgressiveEye ? progressiveCartEyes(selectedEye) : [undefined];
 
-    if (isOnBehalfSelectMode) {
+    if (isSelectMode) {
       const eye = eyesToAdd[0];
       const updatedItem: LensItem = {
         id: currentItem.id,
@@ -453,10 +457,15 @@ export default function LensProductScreen() {
         index: currentItem.index,
         selectableRange: currentItem.selectableRange,
       };
-      setPendingOnBehalfSelection({
+      const selection = {
         lens: updatedItem,
         quantity: parsedQty,
-      });
+      };
+      if (isStockSelectMode) {
+        setPendingStockLensSelection(selection);
+      } else {
+        setPendingOnBehalfSelection(selection);
+      }
       router.back();
       return;
     }
@@ -676,7 +685,7 @@ export default function LensProductScreen() {
             ) : (
               <MaterialIcons
                 name={
-                  isOnBehalfSelectMode
+                  isSelectMode
                     ? 'check-circle-outline'
                     : showsAddedState
                       ? 'check-circle'
@@ -689,18 +698,20 @@ export default function LensProductScreen() {
             <Text style={styles.addBtnText}>
               {submitting
                 ? 'Adding…'
-                : isOnBehalfSelectMode
-                  ? 'Select product'
-                  : showsAddedState
-                    ? 'Added to cart'
-                    : 'Add to cart'}
+                : isStockSelectMode
+                  ? 'Select for stock'
+                  : isOnBehalfSelectMode
+                    ? 'Select product'
+                    : showsAddedState
+                      ? 'Added to cart'
+                      : 'Add to cart'}
             </Text>
-            {!submitting && (isOnBehalfSelectMode || !showsAddedState) ? (
+            {!submitting && (isSelectMode || !showsAddedState) ? (
               <MaterialIcons name="arrow-right-alt" size={20} color={colors.primaryText} />
             ) : null}
           </Pressable>
 
-          {!isOnBehalfSelectMode && !isWhiteCatalogProduct ? (
+          {(params.mode !== 'on-behalf-select') && !isWhiteCatalogProduct ? (
             <View style={styles.relatedSection}>
               <View style={styles.relatedDivider} />
               <Text style={styles.relatedTitle}>Related Products</Text>

@@ -1,6 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -46,6 +47,7 @@ import { filterProcurementOrderGroups, groupOrdersForList } from '@/lib/order-li
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
 import { toApiLensType } from '@/lib/types/lens';
+import { consumePendingStockLensSelection } from '@/lib/stock-lens-selection';
 
 
 type ScreenMode = 'orders' | 'stock' | 'history' | 'manual';
@@ -153,6 +155,7 @@ function FormField({
 export default function PurchaseStockScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
+  const router = useRouter();
   const { getAuthHeaders, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
 
@@ -254,6 +257,15 @@ export default function PurchaseStockScreen() {
     }
   }, [pickerOpen, loadLenses]);
 
+  useFocusEffect(
+    useCallback(() => {
+      const selection = consumePendingStockLensSelection();
+      if (!selection) return;
+      const qty = Math.max(1, Math.floor(selection.quantity) || 1);
+      handleSelectLens(selection.lens, qty);
+    }, [])
+  );
+
   const procurementGroups = useMemo(
     () => filterProcurementOrderGroups(groupOrdersForList(procurementOrders)),
     [procurementOrders]
@@ -283,8 +295,11 @@ export default function PurchaseStockScreen() {
     }
   }
 
-  function applyLensDefaults(item: LensItem) {
-    const qty = Math.max(1, Number(quantity) || 1);
+  function applyLensDefaults(item: LensItem, qtyOverride?: number) {
+    const qty = Math.max(1, qtyOverride ?? (Number(quantity) || 1));
+    if (qtyOverride != null) {
+      setQuantity(String(qty));
+    }
     const storedCost =
       item.costPrice !== null && item.costPrice >= 0
         ? formatMoneyInput(item.costPrice)
@@ -306,10 +321,21 @@ export default function PurchaseStockScreen() {
     setSellingPrice('');
   }
 
-  function handleSelectLens(item: LensItem) {
+  function handleSelectLens(item: LensItem, qtyOverride?: number) {
     setSelectedLens(item);
     setPickerOpen(false);
-    applyLensDefaults(item);
+    applyLensDefaults(item, qtyOverride);
+  }
+
+  function handleOpenLensDetails(item: LensItem) {
+    setPickerOpen(false);
+    router.push({
+      pathname: '/lens-product',
+      params: {
+        payload: encodeURIComponent(JSON.stringify(item)),
+        mode: 'stock-select',
+      },
+    });
   }
 
   function handleQuantityChange(text: string) {
@@ -928,7 +954,7 @@ export default function PurchaseStockScreen() {
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.pickerList}
                 renderItem={({ item }) => (
-                  <Pressable style={styles.pickerItem} onPress={() => handleSelectLens(item)}>
+                  <Pressable style={styles.pickerItem} onPress={() => handleOpenLensDetails(item)}>
                     <View style={styles.flex}>
                       <Text style={styles.pickerTitle} numberOfLines={2}>
                         {formatLensSummary(item)}
