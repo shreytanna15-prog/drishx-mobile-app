@@ -2,7 +2,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatAddAxisLabel, formatLensItemLabel, formatSphCylSlash } from '@/lib/lens-display';
+import {
+  formatAddAxisLabel,
+  formatLensItemLabel,
+  formatLensProductCardTitle,
+  formatSphCylSlash,
+} from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem } from '@/lib/types/lens';
 
@@ -14,12 +19,14 @@ export function RelatedLensCard({
   onPress: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
-  const brand = item.brand?.trim() || 'Lens';
+  const title = formatLensProductCardTitle(item);
   const indexLabel =
     item.index != null && item.lensType === 'Single Vision'
       ? `${Number(item.index)} `
       : '';
   const itemLabel = formatLensItemLabel(item);
+  const showItemLine =
+    Boolean(itemLabel) && itemLabel.toLowerCase() !== title.toLowerCase();
   const sphCyl = formatSphCylSlash(item);
   const addAxis = formatAddAxisLabel(item);
 
@@ -28,9 +35,9 @@ export function RelatedLensCard({
       <View style={styles.topRow}>
         <View style={styles.leftBlock}>
           <Text style={styles.brandText} numberOfLines={2}>
-            {`${indexLabel}${brand}`.trim()}
+            {`${indexLabel}${title}`.trim()}
           </Text>
-          {itemLabel ? (
+          {showItemLine ? (
             <Text style={styles.itemText} numberOfLines={1}>
               {itemLabel}
             </Text>

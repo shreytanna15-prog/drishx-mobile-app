@@ -25,7 +25,13 @@ import {
   sanitizePairQuantityInput,
   formatPowerRangeLabel,
 } from '@/lib/cart-utils';
-import { formatAddAxisLabel, formatAxisValue, formatLensItemCoatingSummary, formatSphCylSlash } from '@/lib/lens-display';
+import {
+  formatAddAxisLabel,
+  formatAxisValue,
+  formatLensItemCoatingSummary,
+  formatLensProductCardTitle,
+  formatSphCylSlash,
+} from '@/lib/lens-display';
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
@@ -244,7 +250,9 @@ export default function WholesaleProductOrderScreen() {
     setVisibleColCount(MATRIX_INITIAL_COLS);
   }, [powerProfile]);
 
-  const title = item ? `${item.brand || 'Lens'} • Wholesale` : 'Wholesale';
+  const title = item
+    ? `${formatLensProductCardTitle(item)} • Wholesale`
+    : 'Wholesale';
 
   async function handleGenerate() {
     setGenerating(true);
@@ -431,7 +439,7 @@ export default function WholesaleProductOrderScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
+            <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryPower}>{formatSphCylSlash(item)}</Text>
             {isBifocalLens ? (

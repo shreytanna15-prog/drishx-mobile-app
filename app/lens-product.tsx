@@ -34,6 +34,7 @@ import {
   formatAddValue,
   formatAxisValue,
   formatLensItemCoatingSummary,
+  formatLensProductCardTitle,
   isSameLensPower,
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
@@ -519,7 +520,7 @@ export default function LensProductScreen() {
 
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryBrand}>{item.brand || 'Lens'}</Text>
+            <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryType}>{lensType}</Text>
             <Text style={styles.summaryPrice}>

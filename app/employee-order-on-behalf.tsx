@@ -20,7 +20,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { fetchCustomerCompanies, type CustomerCompany } from '@/lib/customers-api';
-import { formatSphCylSlash } from '@/lib/lens-display';
+import { formatLensProductCardTitle, formatSphCylSlash } from '@/lib/lens-display';
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
 import { LENS_PRICE_PER_PAIR_LABEL, lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { consumePendingOnBehalfSelection } from '@/lib/on-behalf-selection';
@@ -57,8 +57,7 @@ const CUSTOM_ORDER_OPTIONS = [
 ] as const;
 
 function formatLensLabel(lens: LensItem): string {
-  const brand = lens.brand?.trim() || 'Lens';
-  return `${brand} · ${formatSphCylSlash(lens)}`;
+  return `${formatLensProductCardTitle(lens)} · ${formatSphCylSlash(lens)}`;
 }
 
 function getLensStableKey(lens: LensItem): string {
@@ -498,11 +497,11 @@ export default function EmployeeOrderOnBehalfScreen() {
                 }>
                 <View style={styles.shopCardTop}>
                   <Text style={styles.shopCardTitle}>
-                    {(lens.brand?.trim() || 'Lens').toUpperCase()} {formatSphCylSlash(lens)}
+                    {formatLensProductCardTitle(lens).toUpperCase()} {formatSphCylSlash(lens)}
                   </Text>
                   <Text style={styles.shopCardPrice}>₹{lens.price}</Text>
                 </View>
-                <Text style={styles.shopCardType}>{lens.lensType ?? 'Lens'}</Text>
+                <Text style={styles.shopCardType}>{lens.lensType ?? 'Single Vision'}</Text>
                 {!!lens.item && (
                   <Text style={styles.shopCardItem} numberOfLines={1}>
                     {lens.item.toUpperCase()}

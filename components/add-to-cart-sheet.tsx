@@ -25,7 +25,10 @@ import {
   sanitizeSignedNumericInput,
   validatePrescriptionValue,
 } from '@/lib/cart-utils';
-import { formatLensItemCoatingSummary } from '@/lib/lens-display';
+import {
+  formatLensItemCoatingSummary,
+  formatLensProductCardTitle,
+} from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem, LensType } from '@/lib/types/lens';
 
@@ -194,7 +197,7 @@ export function AddToCartSheet({ visible, item, onClose, onConfirm }: AddToCartS
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <View style={styles.productSummary}>
               <Text style={styles.productName} numberOfLines={1}>
-                {item.brand || 'Lens'}
+                {formatLensProductCardTitle(item)}
               </Text>
               <Text style={styles.summaryMeta} numberOfLines={2}>
                 {formatLensItemCoatingSummary(item)}

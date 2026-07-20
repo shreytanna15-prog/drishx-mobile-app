@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { formatLensProductCardDetail } from '@/lib/lens-display';
+import { formatLensProductCardDetail, formatLensProductCardTitle } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import type { LensItem } from '@/lib/types/lens';
 
@@ -15,7 +15,7 @@ type LensProductListCardProps = {
 
 export function LensProductListCard({ item, onPress }: LensProductListCardProps) {
   const styles = useThemedStyles(createStyles);
-  const brand = item.brand?.trim() ? item.brand.trim() : 'Lens';
+  const title = formatLensProductCardTitle(item);
   const detailLine = formatLensProductCardDetail(item);
 
   const content = (
@@ -23,7 +23,7 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
       <View style={styles.compactTopRow}>
         <View style={styles.compactTopLeft}>
           <Text style={styles.brandText} numberOfLines={2}>
-            {brand}
+            {title}
           </Text>
           <Text style={styles.powerText} numberOfLines={2}>
             {detailLine}
