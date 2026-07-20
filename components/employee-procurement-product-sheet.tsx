@@ -22,12 +22,17 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { appAlert } from '@/lib/app-alert';
 import {
   formatMoneyInput,
+  formatPowerLabel,
   parseNumericInput,
   roundMoney,
   sanitizePositiveDecimalInput,
   sanitizePositiveIntegerInput,
 } from '@/lib/cart-utils';
-import { formatSphCylSlash } from '@/lib/lens-display';
+import {
+  formatAddValue,
+  formatAxisValue,
+  formatSphCylSlash,
+} from '@/lib/lens-display';
 import {
   getOrderLensRef,
   getOrderPowerDisplayLines,
@@ -37,7 +42,14 @@ import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import type { OrderRecord } from '@/lib/orders-api';
 import { recordStockIntake } from '@/lib/procurement-api';
+import { formatLensType } from '@/lib/types/lens';
 
+function formatPowerCell(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+  return formatPowerLabel(Number(value));
+}
 type EmployeeProcurementProductSheetProps = {
   visible: boolean;
   order: OrderRecord | null;
@@ -204,21 +216,53 @@ export function EmployeeProcurementProductSheet({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {powerLines.length > 0 ? (
+            {lensItem ? (
               <View style={styles.powersBox}>
+                <Text style={styles.powersLabel}>Product details</Text>
+                <Text style={styles.productName} numberOfLines={2}>
+                  {productLabel || 'Lens product'}
+                </Text>
+                <Text style={styles.productMeta}>
+                  {formatLensType(order.lensType ?? '')}
+                  {lensItem.index != null ? ` · Index ${lensItem.index}` : ''}
+                  {lensItem.eye ? ` · ${lensItem.eye}` : ''}
+                </Text>
+                <Text style={styles.productPrice}>₹{lensItem.price} / pr</Text>
+              </View>
+            ) : null}
+
+            {powerLines.length > 0 ? (
+              <View style={styles.powersSection}>
                 <Text style={styles.powersLabel}>Ordered powers</Text>
                 {powerLines.map((line) => (
-                  <View key={line.key} style={styles.powerRow}>
-                    <Text style={styles.powerText}>
-                      {formatSphCylSlash({
-                        sph: line.sph,
-                        cyl: line.cyl,
-                        crossPower: line.crossPower,
-                      })}
-                    </Text>
-                    <Text style={styles.powerQty}>
-                      {formatPairQuantity(pairsFromPieces(line.quantity))} pr
-                    </Text>
+                  <View key={line.key} style={styles.powersBox}>
+                    <View style={styles.powerRow}>
+                      <Text style={styles.powerText}>
+                        {formatSphCylSlash({
+                          sph: line.sph,
+                          cyl: line.cyl,
+                          crossPower: line.crossPower,
+                        })}
+                      </Text>
+                      <Text style={styles.powerQty}>
+                        {formatPairQuantity(pairsFromPieces(line.quantity))} pr
+                      </Text>
+                    </View>
+                    <View style={styles.detailGrid}>
+                      {(
+                        [
+                          ['SPH', formatPowerCell(line.sph)],
+                          ['CYL', formatPowerCell(line.cyl)],
+                          ['ADD', formatAddValue(line.add)],
+                          ['AXIS', formatAxisValue(line.axis)],
+                        ] as const
+                      ).map(([label, value]) => (
+                        <View key={label} style={styles.detailCell}>
+                          <Text style={styles.detailLabel}>{label}</Text>
+                          <Text style={styles.detailValue}>{value}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
                 ))}
               </View>
@@ -322,6 +366,7 @@ const createStyles = (c: BrandColorScheme) =>
     sheetHeaderText: { flex: 1, minWidth: 0 },
     sheetTitle: { color: c.text, fontSize: 20, fontWeight: '800' },
     sheetSubtitle: { marginTop: 4, color: c.textMuted, fontSize: 14, fontWeight: '600' },
+    powersSection: { marginBottom: 8, gap: 8 },
     powersBox: {
       marginBottom: 8,
       padding: 12,
@@ -338,6 +383,9 @@ const createStyles = (c: BrandColorScheme) =>
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
+    productName: { color: c.text, fontSize: 16, fontWeight: '800' },
+    productMeta: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
+    productPrice: { color: c.primary, fontSize: 14, fontWeight: '800' },
     powerRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -346,6 +394,31 @@ const createStyles = (c: BrandColorScheme) =>
     },
     powerText: { color: c.text, fontSize: 14, fontWeight: '700', flex: 1 },
     powerQty: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
+    detailGrid: { flexDirection: 'row', gap: 6 },
+    detailCell: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+      alignItems: 'center',
+    },
+    detailLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: c.textMuted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    detailValue: {
+      marginTop: 4,
+      color: c.text,
+      fontSize: 14,
+      fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+    },
     fieldLabel: {
       fontSize: 12,
       fontWeight: '700',
