@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -18,7 +19,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
-import { fetchLensesPage, LOAD_MORE_AT_INDEX, mapApiLens, PAGE_SIZE } from '@/lib/lenses-api';
+import {
+  DEFAULT_LENS_SORT,
+  fetchLensesPage,
+  LENS_SORT_OPTIONS,
+  LOAD_MORE_AT_INDEX,
+  mapApiLens,
+  PAGE_SIZE,
+  type LensSortOption,
+} from '@/lib/lenses-api';
 import type { LensItem } from '@/lib/types/lens';
 import { LensProductListCard } from '@/components/lens-product-list-card';
 import {
@@ -54,13 +63,20 @@ export default function WholesaleProductsScreen() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [sort, setSort] = useState<LensSortOption>(DEFAULT_LENS_SORT);
+  const [sortOpen, setSortOpen] = useState(false);
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const requestIdRef = useRef(0);
   const debouncedSearchRef = useRef('');
+  const sortRef = useRef(sort);
   debouncedSearchRef.current = debouncedSearch;
+  sortRef.current = sort;
+
+  const sortLabel =
+    LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 450);
@@ -85,6 +101,7 @@ export default function WholesaleProductsScreen() {
           type: filter,
           search: debouncedSearchRef.current,
           item: selectedItem || undefined,
+          sort: sortRef.current,
         });
 
         if (currentRequestId !== requestIdRef.current) return;
@@ -117,7 +134,7 @@ export default function WholesaleProductsScreen() {
     hasMoreRef.current = true;
     setInitialLoading(true);
     loadPage(1, true);
-  }, [filter, selectedItem, debouncedSearch, loadPage]);
+  }, [filter, selectedItem, debouncedSearch, sort, loadPage]);
 
   useFocusEffect(
     useCallback(() => {
@@ -186,6 +203,14 @@ export default function WholesaleProductsScreen() {
           {isRefreshing && searchQuery.length > 0 ? <ActivityIndicator size="small" color={colors.primary} /> : null}
         </View>
 
+        <Pressable style={styles.sortButton} onPress={() => setSortOpen(true)}>
+          <MaterialIcons name="sort" size={18} color={colors.primary} />
+          <Text style={styles.sortButtonText} numberOfLines={1}>
+            {sortLabel}
+          </Text>
+          <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
+        </Pressable>
+
         {initialLoading ? (
           <View style={styles.centeredState}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -241,6 +266,37 @@ export default function WholesaleProductsScreen() {
           </>
         )}
       </SafeAreaView>
+
+      <Modal visible={sortOpen} animationType="slide" onRequestClose={() => setSortOpen(false)}>
+        <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Sort by</Text>
+            <Pressable onPress={() => setSortOpen(false)} hitSlop={8} style={styles.modalCloseBtn}>
+              <MaterialIcons name="close" size={22} color={colors.text} />
+            </Pressable>
+          </View>
+          {LENS_SORT_OPTIONS.map((option) => {
+            const selected = option.value === sort;
+            return (
+              <Pressable
+                key={option.value}
+                style={[styles.sortOption, selected && styles.sortOptionSelected]}
+                onPress={() => {
+                  setSort(option.value);
+                  setSortOpen(false);
+                }}
+              >
+                <Text style={[styles.sortOptionText, selected && styles.sortOptionTextSelected]}>
+                  {option.label}
+                </Text>
+                {selected ? (
+                  <MaterialIcons name="check" size={20} color={colors.primary} />
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -268,9 +324,22 @@ const createStyles = (c: BrandColorScheme) =>
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: c.card,
-      marginBottom: 10,
+      marginBottom: 8,
     },
     searchInput: { flex: 1, fontSize: 15, color: c.text, padding: 0 },
+    sortButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      marginBottom: 10,
+    },
+    sortButtonText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
     countHint: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
     listContent: { paddingBottom: 24 },
     separator: { height: 12 },
@@ -292,27 +361,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     retryText: { color: c.primaryText, fontWeight: '800' },
-    productCard: {
-      padding: 12,
-      borderRadius: 16,
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-    },
-    compactTopRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      marginBottom: 6,
-      gap: 8,
-    },
-    compactTopLeft: { flex: 1, gap: 0 },
-    compactTitle: { fontSize: 16, color: c.text, fontWeight: '700' },
-    powerMetaText: { fontSize: 12, color: c.textMuted, fontWeight: '600', marginTop: 2 },
-    priceBlock: { flexDirection: 'row', alignItems: 'flex-start' },
-    priceCurrency: { fontSize: 13, fontWeight: '700', color: c.primary, marginTop: 1, marginRight: 1 },
-    priceAmount: { fontSize: 17, fontWeight: '800', color: c.primary, lineHeight: 21 },
-    itemText: { fontSize: 11, color: c.textMuted, fontWeight: '600' },
     footerLoader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -321,5 +369,31 @@ const createStyles = (c: BrandColorScheme) =>
       paddingVertical: 18,
     },
     footerText: { fontSize: 14, color: c.textMuted },
+    modalSafe: { flex: 1, backgroundColor: c.background, paddingHorizontal: 16 },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+    },
+    modalTitle: { color: c.text, fontSize: 18, fontWeight: '800' },
+    modalCloseBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    sortOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+      paddingHorizontal: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      marginBottom: 8,
+    },
+    sortOptionSelected: {
+      borderColor: c.primary,
+      backgroundColor: c.primary + '14',
+    },
+    sortOptionText: { color: c.text, fontSize: 15, fontWeight: '600' },
+    sortOptionTextSelected: { color: c.primary, fontWeight: '800' },
   });
-
