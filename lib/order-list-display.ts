@@ -148,7 +148,10 @@ export function orderPowerLineToLensItem(line: OrderPowerDisplayLine): LensItem 
     crossPower: line.crossPower ?? null,
     axis: line.axis,
     add: line.add,
-    eye: order.eye ?? (catalog && 'eye' in catalog ? catalog.eye ?? undefined : undefined),
+    eye:
+      order.eye ??
+      (catalog && 'eye' in catalog ? catalog.eye ?? undefined : undefined) ??
+      undefined,
     quantity: Math.max(1, Number(line.quantity) || 1),
     createdAt: order.createdAt,
     lensType,

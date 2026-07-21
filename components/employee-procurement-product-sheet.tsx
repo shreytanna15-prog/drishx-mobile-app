@@ -42,6 +42,7 @@ import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import type { OrderRecord } from '@/lib/orders-api';
 import { recordStockIntake } from '@/lib/procurement-api';
+import { formatProgressiveEyeLabel } from '@/lib/progressive-eye';
 import { formatLensType } from '@/lib/types/lens';
 
 function formatPowerCell(value: number | null | undefined): string {
@@ -85,6 +86,7 @@ export function EmployeeProcurementProductSheet({
         .filter(Boolean)
         .join(' · ')
     : '';
+  const eyeLabel = formatProgressiveEyeLabel(lensItem?.eye);
 
   useEffect(() => {
     if (!visible || !order) {
@@ -225,8 +227,12 @@ export function EmployeeProcurementProductSheet({
                 <Text style={styles.productMeta}>
                   {formatLensType(order.lensType ?? '')}
                   {lensItem.index != null ? ` · Index ${lensItem.index}` : ''}
-                  {lensItem.eye ? ` · ${lensItem.eye}` : ''}
                 </Text>
+                {eyeLabel ? (
+                  <View style={styles.eyeBadge}>
+                    <Text style={styles.eyeBadgeText}>{eyeLabel}</Text>
+                  </View>
+                ) : null}
                 <Text style={styles.productPrice}>₹{lensItem.price} / pr</Text>
               </View>
             ) : null}
@@ -263,6 +269,9 @@ export function EmployeeProcurementProductSheet({
                         </View>
                       ))}
                     </View>
+                    {eyeLabel ? (
+                      <Text style={styles.eyeOrderedText}>Ordered for: {eyeLabel}</Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
@@ -386,6 +395,27 @@ const createStyles = (c: BrandColorScheme) =>
     productName: { color: c.text, fontSize: 16, fontWeight: '800' },
     productMeta: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
     productPrice: { color: c.primary, fontSize: 14, fontWeight: '800' },
+    eyeBadge: {
+      alignSelf: 'flex-start',
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(240, 161, 50, 0.35)',
+      backgroundColor: 'rgba(240, 161, 50, 0.14)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    eyeBadgeText: {
+      color: c.primary,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    eyeOrderedText: {
+      color: c.primary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
     powerRow: {
       flexDirection: 'row',
       alignItems: 'center',
