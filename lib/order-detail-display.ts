@@ -5,6 +5,7 @@ import {
   isRxOrder,
   type OrderPowerDisplayLine,
 } from '@/lib/order-list-display';
+import { pairsFromPieces } from '@/lib/order-quantity';
 import { normalizeOrderStatus, type OrderTrackingStatus } from '@/lib/order-tracking';
 import { formatProgressiveEyeLabel } from '@/lib/progressive-eye';
 import { formatLensType } from '@/lib/types/lens';
@@ -34,8 +35,90 @@ export type OrderProductSection = {
   lines: PowerLineRow[];
 };
 
-function joinParts(parts: (string | null | undefined)[]): string {
-  return parts.map((part) => part?.trim()).filter(Boolean).join(' · ');
+function normalizeLabelKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function isGenericBrand(brand: string | null | undefined): boolean {
+  const trimmed = brand?.trim() ?? '';
+  return !trimmed || trimmed.toLowerCase() === 'lens';
+}
+
+/** Strip a leading lens-type prefix from item names like "single vision hard coat". */
+function stripLeadingLensType(text: string, lensTypeLabel: string): string {
+  const trimmed = text.trim();
+  if (!trimmed || !lensTypeLabel.trim()) return trimmed;
+  const lensKey = normalizeLabelKey(lensTypeLabel);
+  const textKey = normalizeLabelKey(trimmed);
+  if (!textKey.startsWith(lensKey) || textKey === lensKey) {
+    return trimmed;
+  }
+  const withoutPrefix = trimmed
+    .replace(
+      new RegExp(
+        `^${lensTypeLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[·\\-:,]*\\s*`,
+        'i'
+      ),
+      ''
+    )
+    .trim();
+  return withoutPrefix || trimmed;
+}
+
+function uniqueJoinParts(
+  parts: (string | null | undefined)[],
+  exclude: (string | null | undefined)[] = []
+): string {
+  const excluded = new Set(
+    exclude
+      .map((part) => part?.trim())
+      .filter(Boolean)
+      .map((part) => normalizeLabelKey(part as string))
+  );
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const part of parts) {
+    const trimmed = part?.trim();
+    if (!trimmed) continue;
+    const key = normalizeLabelKey(trimmed);
+    if (!key || excluded.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+
+  return out.join(' · ');
+}
+
+function buildLensProductMeta(input: {
+  key: string;
+  lensTypeLabel: string;
+  brand?: string | null;
+  item?: string | null;
+  coating?: string | null;
+  category?: string | null;
+  titleFallback?: string | null;
+}): { key: string; title: string; subtitle: string } {
+  const lensLabel = input.lensTypeLabel;
+  const brand = input.brand?.trim() ?? '';
+  const title =
+    (!isGenericBrand(brand) ? brand : null) ||
+    input.titleFallback?.trim() ||
+    lensLabel;
+
+  const cleanedItem = stripLeadingLensType(input.item?.trim() ?? '', lensLabel);
+  const coating = input.coating?.trim() ?? '';
+  const category = input.category?.trim() ?? '';
+
+  const subtitle =
+    uniqueJoinParts([cleanedItem, coating, category], [title, lensLabel, brand]) ||
+    (title === lensLabel ? '' : lensLabel);
+
+  return {
+    key: input.key,
+    title,
+    subtitle: subtitle || (title === lensLabel ? '' : lensLabel),
+  };
 }
 
 function getProductMeta(order: OrderRecord): { key: string; title: string; subtitle: string } {
@@ -43,29 +126,38 @@ function getProductMeta(order: OrderRecord): { key: string; title: string; subti
 
   if (order.singleVisionLens?.id) {
     const lens = order.singleVisionLens;
-    return {
+    return buildLensProductMeta({
       key: `sv-${lens.id}`,
-      title: lens.brand?.trim() || lensLabel,
-      subtitle: joinParts([lensLabel, lens.item, lens.coating, lens.category]) || lensLabel,
-    };
+      lensTypeLabel: lensLabel,
+      brand: lens.brand,
+      item: lens.item,
+      coating: lens.coating,
+      category: lens.category,
+    });
   }
 
   if (order.kryptokLens?.id) {
     const lens = order.kryptokLens;
-    return {
+    return buildLensProductMeta({
       key: `kr-${lens.id}`,
-      title: lens.brand?.trim() || lensLabel,
-      subtitle: joinParts([lensLabel, lens.coating, lens.category]) || lensLabel,
-    };
+      lensTypeLabel: lensLabel,
+      brand: lens.brand,
+      coating: lens.coating,
+      category: lens.category,
+    });
   }
 
   if (order.progressiveLens?.id) {
     const lens = order.progressiveLens;
-    return {
+    return buildLensProductMeta({
       key: `pr-${lens.id}`,
-      title: lens.brand?.trim() || lens.item?.trim() || lensLabel,
-      subtitle: joinParts([lensLabel, lens.item, lens.coating, lens.category]) || lensLabel,
-    };
+      lensTypeLabel: lensLabel,
+      brand: lens.brand,
+      item: lens.item,
+      coating: lens.coating,
+      category: lens.category,
+      titleFallback: lens.item,
+    });
   }
 
   if (isRxOrder(order)) {
@@ -80,17 +172,19 @@ function getProductMeta(order: OrderRecord): { key: string; title: string; subti
       ?.slice('Feature: '.length)
       .trim();
 
+    const title = productName || `${lensLabel} RX`;
     return {
       key: `rx-${order.id}`,
-      title: productName || `${lensLabel} RX`,
-      subtitle: joinParts([lensLabel, feature, 'Custom RX order']) || 'Custom RX order',
+      title,
+      subtitle:
+        uniqueJoinParts([feature, 'Custom RX order'], [title, lensLabel]) || 'Custom RX order',
     };
   }
 
   return {
     key: `order-${order.id}`,
     title: lensLabel,
-    subtitle: lensLabel,
+    subtitle: '',
   };
 }
 
@@ -313,8 +407,8 @@ export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSe
       const existing = sections.get(meta.key);
       if (existing) {
         existing.lines.push(line);
-        existing.totalPairs += pick.ordered;
-        existing.pickedPairs += pick.picked;
+        existing.totalPairs += pairsFromPieces(pick.ordered);
+        existing.pickedPairs += pairsFromPieces(pick.picked);
         continue;
       }
 
@@ -322,8 +416,8 @@ export function buildOrderProductSections(orders: OrderRecord[]): OrderProductSe
         key: meta.key,
         title: meta.title,
         subtitle: meta.subtitle,
-        totalPairs: pick.ordered,
-        pickedPairs: pick.picked,
+        totalPairs: pairsFromPieces(pick.ordered),
+        pickedPairs: pairsFromPieces(pick.picked),
         lines: [line],
       });
     }

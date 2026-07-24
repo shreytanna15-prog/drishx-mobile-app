@@ -24,6 +24,7 @@ import {
   isRxOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
+import { formatPairQuantity } from '@/lib/order-quantity';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 
 type CustomerOrderGroupDetailProps = {
@@ -151,13 +152,17 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
             <Text style={styles.productTitle} numberOfLines={1}>
               {section.title}
             </Text>
-            <Text style={styles.productSubtitle} numberOfLines={2}>
-              {section.subtitle}
-            </Text>
+            {section.subtitle ? (
+              <Text style={styles.productSubtitle} numberOfLines={2}>
+                {section.subtitle}
+              </Text>
+            ) : null}
           </View>
         </View>
         <View style={styles.productHeaderRight}>
-          <Text style={styles.productPairs}>{section.totalPairs} Pairs</Text>
+          <Text style={styles.productPairs}>
+            {formatPairQuantity(section.totalPairs)} Pairs
+          </Text>
           <MaterialIcons
             name={expanded ? 'expand-less' : 'expand-more'}
             size={22}
@@ -169,7 +174,8 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
       <View style={styles.progressBlock}>
         <View style={styles.progressLabels}>
           <Text style={styles.progressText}>
-            {section.pickedPairs} / {section.totalPairs} Picked
+            {formatPairQuantity(section.pickedPairs)} /{' '}
+            {formatPairQuantity(section.totalPairs)} Picked
           </Text>
           <Text style={styles.progressPercent}>{progress}%</Text>
         </View>
@@ -197,9 +203,12 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
               <Text style={[styles.tableHeadText, styles.tableHeadTextRight]}>Packed</Text>
             </View>
           </View>
-          {section.lines.map((line) => (
-            <PowerTableRow key={line.orderIds?.join(':') ?? line.orderId} line={line} />
-          ))}
+            {section.lines.map((line, index) => (
+              <PowerTableRow
+                key={`${line.orderIds?.join(':') ?? line.orderId}:${line.sphCylLabel}:${line.addLabel}:${line.axisLabel}:${line.eye ?? ''}:${index}`}
+                line={line}
+              />
+            ))}
         </View>
       ) : null}
     </View>

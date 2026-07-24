@@ -129,23 +129,21 @@ export function EmployeeOrderListRow({
 
   const productCards = (
     <View style={[styles.productCards, styles.productCardsExpanded]}>
-      {visibleOrders.flatMap((order) =>
-        getOrderPowerDisplayLines(order).map((line) =>
-          onProductPress ? (
+      {visibleOrders.flatMap((order, orderIndex) =>
+        getOrderPowerDisplayLines(order).map((line, lineIndex) => {
+          const rowKey = `${line.key}:${orderIndex}:${lineIndex}`;
+          return onProductPress ? (
             <LensProductListCard
-              key={line.key}
+              key={rowKey}
               item={orderPowerLineToLensItem(line)}
               onPress={() => onProductPress(order)}
             />
           ) : (
-            <Pressable
-              key={line.key}
-              onPress={onPress}
-              disabled={!onPress}>
+            <Pressable key={rowKey} onPress={onPress} disabled={!onPress}>
               <LensProductListCard item={orderPowerLineToLensItem(line)} />
             </Pressable>
-          )
-        )
+          );
+        })
       )}
     </View>
   );

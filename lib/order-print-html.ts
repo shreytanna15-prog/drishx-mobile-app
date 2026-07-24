@@ -1,6 +1,7 @@
 import { buildOrderProductSections } from '@/lib/order-detail-display';
 import { parseColorHexFromNotesLine } from '@/lib/color-lens-notes';
 import { formatOrderDateTime, type OrderListGroup } from '@/lib/order-list-display';
+import { formatPairQuantity } from '@/lib/order-quantity';
 import { formatOrderStatusLabel } from '@/lib/order-tracking';
 
 function escapeHtml(value: string): string {
@@ -52,9 +53,15 @@ export function buildEmployeeOrderPrintHtml(group: OrderListGroup): string {
           <div class="product-head">
             <div>
               <div class="product-title">${escapeHtml(section.title)}</div>
-              <div class="product-sub">${escapeHtml(section.subtitle)}</div>
+              ${
+                section.subtitle
+                  ? `<div class="product-sub">${escapeHtml(section.subtitle)}</div>`
+                  : ''
+              }
             </div>
-            <div class="product-pairs">${section.totalPairs} Pair${section.totalPairs === 1 ? '' : 's'}</div>
+            <div class="product-pairs">${formatPairQuantity(section.totalPairs)} Pair${
+              section.totalPairs === 1 ? '' : 's'
+            }</div>
           </div>
           <table>
             <thead>
