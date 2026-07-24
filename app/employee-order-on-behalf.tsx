@@ -9,12 +9,12 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -89,6 +89,7 @@ export default function EmployeeOrderOnBehalfScreen() {
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [productError, setProductError] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All');
@@ -97,6 +98,9 @@ export default function EmployeeOrderOnBehalfScreen() {
   const [debouncedProductSearch, setDebouncedProductSearch] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
   const productsPageRef = useRef(1);
+  const hasMoreProductsRef = useRef(true);
+  const loadingMoreProductsRef = useRef(false);
+  const productsRequestIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -133,47 +137,64 @@ export default function EmployeeOrderOnBehalfScreen() {
     return () => clearTimeout(timer);
   }, [productSearch]);
 
-  const loadProducts = useCallback(
-    async (page: number, replace: boolean) => {
+  const loadProducts = useCallback(async (page: number, replace: boolean) => {
+    if (replace) {
+      setLoadingProducts(true);
+      setProductError(null);
+    } else {
+      if (loadingMoreProductsRef.current || !hasMoreProductsRef.current) return;
+      loadingMoreProductsRef.current = true;
+      setLoadingMoreProducts(true);
+    }
+
+    const requestId = ++productsRequestIdRef.current;
+
+    try {
+      const data = await fetchLensesPage({
+        page,
+        type: activeFilter,
+        search: debouncedProductSearch,
+      });
+      if (requestId !== productsRequestIdRef.current) return;
+
+      const mapped = data.items.map(mapApiLens);
+      setProducts((current) => {
+        const merged = replace ? mapped : [...current, ...mapped];
+        const deduped = new Map<string, LensItem>();
+        for (const lens of merged) {
+          deduped.set(getLensStableKey(lens), lens);
+        }
+        return [...deduped.values()];
+      });
+      setTotalProducts(data.total);
+      hasMoreProductsRef.current = data.hasMore;
+      setHasMoreProducts(data.hasMore);
+      productsPageRef.current = data.page;
+      setProductError(null);
+    } catch (e) {
+      if (requestId !== productsRequestIdRef.current) return;
+      setProductError(e instanceof Error ? e.message : 'Failed to load products.');
       if (replace) {
-        setLoadingProducts(true);
-      } else {
-        if (loadingMoreProducts || !hasMoreProducts) return;
-        setLoadingMoreProducts(true);
+        setProducts([]);
+        setTotalProducts(0);
+        hasMoreProductsRef.current = false;
+        setHasMoreProducts(false);
       }
-      try {
-        const data = await fetchLensesPage({
-          page,
-          type: activeFilter,
-          search: debouncedProductSearch,
-        });
-        const mapped = data.items.map(mapApiLens);
-        setProducts((current) => {
-          const merged = replace ? mapped : [...current, ...mapped];
-          const deduped = new Map<string, LensItem>();
-          for (const lens of merged) {
-            deduped.set(getLensStableKey(lens), lens);
-          }
-          return [...deduped.values()];
-        });
-        setTotalProducts(data.total);
-        setHasMoreProducts(data.hasMore);
-        productsPageRef.current = data.page;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load products.');
-      } finally {
+    } finally {
+      if (requestId === productsRequestIdRef.current) {
+        loadingMoreProductsRef.current = false;
         setLoadingProducts(false);
         setLoadingMoreProducts(false);
       }
-    },
-    [activeFilter, debouncedProductSearch, hasMoreProducts, loadingMoreProducts]
-  );
+    }
+  }, [activeFilter, debouncedProductSearch]);
 
   useEffect(() => {
     if (step !== 'shop') return;
     productsPageRef.current = 1;
+    hasMoreProductsRef.current = true;
     setHasMoreProducts(true);
-    loadProducts(1, true);
+    void loadProducts(1, true);
   }, [step, activeFilter, debouncedProductSearch, loadProducts]);
 
   const totalAmount = useMemo(
@@ -271,21 +292,29 @@ export default function EmployeeOrderOnBehalfScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.stateText}>Loading customers and products...</Text>
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.stateText}>Loading customers and products...</Text>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centered}>
-        <MaterialIcons name="error-outline" size={44} color={colors.danger} />
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryBtn} onPress={loadData}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+          <View style={styles.centered}>
+            <MaterialIcons name="error-outline" size={44} color={colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryBtn} onPress={loadData}>
+              <Text style={styles.retryText}>Retry</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
       </View>
     );
   }
@@ -295,7 +324,7 @@ export default function EmployeeOrderOnBehalfScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Pressable
             onPress={() => {
@@ -512,7 +541,7 @@ export default function EmployeeOrderOnBehalfScreen() {
             onEndReachedThreshold={0.4}
             onEndReached={() => {
               if (!hasMoreProducts || loadingProducts || loadingMoreProducts) return;
-              loadProducts(productsPageRef.current + 1, false);
+              void loadProducts(productsPageRef.current + 1, false);
             }}
             ListFooterComponent={
               loadingMoreProducts ? (
@@ -527,6 +556,14 @@ export default function EmployeeOrderOnBehalfScreen() {
                 <View style={styles.emptyState}>
                   <ActivityIndicator color={colors.primary} />
                   <Text style={styles.stateText}>Loading products...</Text>
+                </View>
+              ) : productError ? (
+                <View style={styles.emptyState}>
+                  <MaterialIcons name="cloud-off" size={36} color={colors.danger} />
+                  <Text style={styles.errorText}>{productError}</Text>
+                  <Pressable style={styles.retryBtn} onPress={() => void loadProducts(1, true)}>
+                    <Text style={styles.retryText}>Retry</Text>
+                  </Pressable>
                 </View>
               ) : (
                 <View style={styles.emptyState}>

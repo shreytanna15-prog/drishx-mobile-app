@@ -8,6 +8,7 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -27,27 +28,33 @@ import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
 
-type StaffOrderFilter = 'ALL' | 'IN_PROGRESS' | 'COMPLETED';
+type StaffOrderFilter = 'ALL' | 'PENDING' | 'PICKING' | 'PACKED' | 'COMPLETED';
 
 const FILTERS: { key: StaffOrderFilter; label: string }[] = [
   { key: 'ALL', label: 'All' },
-  { key: 'IN_PROGRESS', label: 'In Progress' },
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'PICKING', label: 'Picking' },
+  { key: 'PACKED', label: 'Packed' },
   { key: 'COMPLETED', label: 'Completed' },
 ];
 
-function isInProgressStatus(status: string): boolean {
-  const normalized = normalizeOrderStatus(status);
-  return normalized !== 'COMPLETED' && normalized !== 'CANCELLED';
-}
+/** Statuses that belong under each staff filter tab. */
+const FILTER_STATUSES: Record<
+  Exclude<StaffOrderFilter, 'ALL'>,
+  ReturnType<typeof normalizeOrderStatus>[]
+> = {
+  PENDING: ['PENDING'],
+  PICKING: ['PICKING', 'PARTIALLY_FULFILLED'],
+  PACKED: ['PACKED', 'DISPATCHED'],
+  COMPLETED: ['COMPLETED'],
+};
 
 function groupMatchesStaffFilter(group: OrderListGroup, filter: StaffOrderFilter): boolean {
   if (filter === 'ALL') {
     return true;
   }
-  if (filter === 'COMPLETED') {
-    return group.orders.some((order) => normalizeOrderStatus(order.status) === 'COMPLETED');
-  }
-  return group.orders.some((order) => isInProgressStatus(order.status));
+  const allowed = FILTER_STATUSES[filter];
+  return group.orders.some((order) => allowed.includes(normalizeOrderStatus(order.status)));
 }
 
 export default function EmployeeOrdersScreen() {
@@ -113,18 +120,25 @@ export default function EmployeeOrdersScreen() {
           <Text style={styles.subtitle}>Manage and update customer orders</Text>
         </View>
 
-        <View style={styles.filterRow}>
-          {FILTERS.map((filter) => {
-            const active = filter.key === activeFilter;
-            return (
-              <Pressable
-                key={filter.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
-                onPress={() => setActiveFilter(filter.key)}>
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{filter.label}</Text>
-              </Pressable>
-            );
-          })}
+        <View style={styles.filterWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}>
+            {FILTERS.map((filter) => {
+              const active = filter.key === activeFilter;
+              return (
+                <Pressable
+                  key={filter.key}
+                  style={[styles.filterChip, active && styles.filterChipActive]}
+                  onPress={() => setActiveFilter(filter.key)}>
+                  <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {loading ? (
@@ -204,11 +218,25 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     newOrderButtonText: { color: c.primaryText, fontSize: 12, fontWeight: '700' },
-    filterRow: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 6, marginBottom: 8, gap: 10 },
-    filterChip: {
-      flex: 1,
+    filterWrap: {
+      minHeight: 52,
+      marginTop: 8,
+      marginBottom: 10,
+      justifyContent: 'center',
+    },
+    filterRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      paddingVertical: 6,
+      gap: 8,
       alignItems: 'center',
+    },
+    filterChip: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 40,
       paddingVertical: 10,
+      paddingHorizontal: 14,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardBorder,

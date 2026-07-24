@@ -136,7 +136,7 @@ async function fetchAllLensesPages({
   let page = 1;
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && page <= 200) {
     const data = await fetchLensesPageRaw({
       page,
       limit: 50,
@@ -144,6 +144,7 @@ async function fetchAllLensesPages({
       search,
       item,
     });
+    if (data.items.length === 0) break;
     collected.push(...data.items);
     hasMore = data.hasMore;
     if (!hasMore) break;
@@ -240,12 +241,39 @@ async function fetchLensesPageRaw({
     params.set('item', trimmedItem);
   }
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/lenses?${params.toString()}`);
-  if (!response.ok) {
-    throw new Error('Failed to load lenses');
+  const url = `${BACKEND_BASE_URL}/api/lenses?${params.toString()}`;
+  const maxAttempts = 3;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const retryable = response.status >= 500 || response.status === 429;
+        lastError = new Error(
+          response.status === 0
+            ? 'Failed to load lenses'
+            : `Failed to load lenses (${response.status})`
+        );
+        if (retryable && attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+          continue;
+        }
+        throw lastError;
+      }
+      return (await response.json()) as LensesPageResponse;
+    } catch (cause) {
+      lastError =
+        cause instanceof Error ? cause : new Error('Failed to load lenses');
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, 350 * attempt));
+        continue;
+      }
+      throw lastError;
+    }
   }
 
-  return response.json();
+  throw lastError ?? new Error('Failed to load lenses');
 }
 
 /** Frontend-only: load pages until enough plano products are collected. */
