@@ -221,21 +221,11 @@ export function EmployeeOrderListRow({
 
           {expanded ? productCards : null}
 
-          {!procurementOnly &&
-          (group.readyProductCount > 0 || group.procurementProductCount > 0) ? (
+          {!procurementOnly && group.readyProductCount > 0 ? (
             <View style={styles.fulfillmentRow}>
-              {group.readyProductCount > 0 ? (
-                <View style={styles.readyPill}>
-                  <Text style={styles.readyPillText}>{group.readyProductCount} Ready</Text>
-                </View>
-              ) : null}
-              {group.procurementProductCount > 0 ? (
-                <View style={styles.procurementPill}>
-                  <Text style={styles.procurementPillText}>
-                    {group.procurementProductCount} Need Procurement
-                  </Text>
-                </View>
-              ) : null}
+              <View style={styles.readyPill}>
+                <Text style={styles.readyPillText}>{group.readyProductCount} Ready</Text>
+              </View>
             </View>
           ) : null}
         </>
@@ -311,15 +301,6 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: 'rgba(34, 197, 94, 0.3)',
     },
     readyPillText: { color: '#4ade80', fontSize: 11, fontWeight: '700' },
-    procurementPill: {
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 8,
-      backgroundColor: 'rgba(248, 113, 113, 0.12)',
-      borderWidth: 1,
-      borderColor: 'rgba(248, 113, 113, 0.3)',
-    },
-    procurementPillText: { color: c.danger, fontSize: 11, fontWeight: '700' },
     photoOrderNote: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
     photoThumb: {
       marginTop: 10,

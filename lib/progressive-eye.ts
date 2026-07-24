@@ -54,7 +54,7 @@ export function validateProgressivePairQuantity(
   });
 }
 
-/** Cart / order eye label (e.g. BOTH → "Both eyes"). */
+/** Cart / order eye label (e.g. BOTH → "BOTH EYES"). */
 export function formatProgressiveEyeLabel(
   eye: string | null | undefined
 ): string | undefined {
@@ -68,7 +68,9 @@ export function formatProgressiveEyeLabel(
     case 'RIGHT':
       return 'RIGHT';
     case 'BOTH':
-      return 'Both eyes';
+    case 'BOTH EYES':
+    case 'BOTH_EYES':
+      return 'BOTH EYES';
     default:
       return normalized;
   }

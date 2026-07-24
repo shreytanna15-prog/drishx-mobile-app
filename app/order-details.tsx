@@ -22,7 +22,7 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { appAlert } from '@/lib/app-alert';
 import { isOfflineQueuedError } from '@/lib/api-request';
-import { groupOrdersForList } from '@/lib/order-list-display';
+import { filterStaffFulfillmentOrders, groupOrdersForList } from '@/lib/order-list-display';
 import { downloadEmployeeOrderPdf, printEmployeeOrder } from '@/lib/order-print';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
@@ -71,21 +71,24 @@ export default function OrderDetailsScreen() {
       return null;
     }
 
+    // Match Orders list: never include procurement lines in fulfillment detail.
+    const staffOrders = filterStaffFulfillmentOrders(orders);
+
     const targetKey =
       groupKeyParam ||
-      orders.find((order) => order.id === orderIdParam)?.checkoutBatchId?.trim() ||
+      staffOrders.find((order) => order.id === orderIdParam)?.checkoutBatchId?.trim() ||
       orderIdParam;
 
     if (!targetKey) {
       return null;
     }
 
-    const batch = orders.filter(
+    const batch = staffOrders.filter(
       (order) => (order.checkoutBatchId?.trim() || order.id) === targetKey
     );
 
     if (batch.length === 0 && orderIdParam) {
-      const single = orders.find((order) => order.id === orderIdParam);
+      const single = staffOrders.find((order) => order.id === orderIdParam);
       if (!single) {
         return null;
       }

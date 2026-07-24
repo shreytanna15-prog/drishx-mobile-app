@@ -21,6 +21,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import {
+  filterStaffFulfillmentOrders,
   groupOrdersForList,
   type OrderListGroup,
 } from '@/lib/order-list-display';
@@ -91,12 +92,10 @@ export default function EmployeeOrdersScreen() {
     });
   }, [loadOrders]);
 
-  const orderGroups = useMemo(() => {
-    const staffOrders = orders.filter(
-      (order) => normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
-    );
-    return groupOrdersForList(staffOrders);
-  }, [orders]);
+  const orderGroups = useMemo(
+    () => groupOrdersForList(filterStaffFulfillmentOrders(orders)),
+    [orders]
+  );
 
   const filteredGroups = useMemo(
     () => orderGroups.filter((group) => groupMatchesStaffFilter(group, activeFilter)),

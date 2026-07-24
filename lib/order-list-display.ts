@@ -176,6 +176,13 @@ function isProcurementLine(status: OrderTrackingStatus): boolean {
   return status === 'AWAITING_PROCUREMENT' || status === 'PARTIALLY_FULFILLED';
 }
 
+/** Orders screen excludes lines that belong on the Procurement tab. */
+export function filterStaffFulfillmentOrders(orders: OrderRecord[]): OrderRecord[] {
+  return orders.filter(
+    (order) => normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
+  );
+}
+
 /** Order batch waiting for stock purchase (Procurement tab). */
 export function hasAwaitingProcurementOrder(group: OrderListGroup): boolean {
   if (group.isPhotoOrder) {
@@ -267,17 +274,18 @@ export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDis
     return { label: 'Cancelled', variant: 'cancelled' };
   }
 
-  const procurementLines = orders.filter((order) =>
-    isProcurementLine(normalizeOrderStatus(order.status))
+  const awaitingProcurement = orders.filter(
+    (order) => normalizeOrderStatus(order.status) === 'AWAITING_PROCUREMENT'
   ).length;
-  const readyLines = orders.length - procurementLines;
+  const nonAwaiting = orders.length - awaitingProcurement;
 
-  if (procurementLines > 0 && readyLines > 0) {
-    return { label: 'Partial', variant: 'partial' };
+  // Pure procurement batches belong on the Procurement tab.
+  if (awaitingProcurement > 0 && nonAwaiting === 0) {
+    return { label: 'Procurement', variant: 'procurement' };
   }
 
-  if (procurementLines === orders.length) {
-    return { label: 'Procurement', variant: 'procurement' };
+  if (awaitingProcurement > 0 && nonAwaiting > 0) {
+    return { label: 'Partial', variant: 'partial' };
   }
 
   if (active.every((status) => status === 'COMPLETED')) {
@@ -290,10 +298,6 @@ export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDis
 
   if (active.every((status) => status === 'PENDING')) {
     return { label: 'Ready to Pick', variant: 'ready' };
-  }
-
-  if (active.some((status) => status === 'AWAITING_PROCUREMENT')) {
-    return { label: 'Procurement', variant: 'procurement' };
   }
 
   if (active.some((status) => status === 'PARTIALLY_FULFILLED')) {
@@ -364,7 +368,9 @@ export function groupOrdersForList(
     const readyProductCount = activeOrders.filter(
       (order) => !isProcurementLine(normalizeOrderStatus(order.status))
     ).length;
-    const procurementProductCount = activeOrders.length - readyProductCount;
+    const procurementProductCount = activeOrders.filter(
+      (order) => normalizeOrderStatus(order.status) === 'AWAITING_PROCUREMENT'
+    ).length;
 
     groups.push({
       key,
