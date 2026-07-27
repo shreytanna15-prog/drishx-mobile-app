@@ -14,6 +14,13 @@ export type OrderUser = {
   businessName?: string | null;
 };
 
+export type OrderAssignee = {
+  id: string;
+  name: string | null;
+  email: string;
+  role?: string;
+};
+
 /** Max length for order notes — must match backend `ORDER_NOTES_MAX_LENGTH`. */
 export const ORDER_NOTES_MAX_LENGTH = 2000;
 
@@ -58,6 +65,9 @@ export type OrderRecord = {
   createdAt: string;
   updatedAt?: string;
   user?: OrderUser;
+  assignedToId?: string | null;
+  assignedAt?: string | null;
+  assignedTo?: OrderAssignee | null;
   singleVisionLens?: {
     id: string;
     brand?: string | null;

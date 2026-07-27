@@ -193,7 +193,7 @@ export default function OrderDetailsScreen() {
         ) : error || !orderGroup ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="error-outline" size={44} color={colors.danger} />
-            <Text style={styles.errorText}>{error || 'Order not found.'}</Text>
+            <Text style={styles.errorText}>{error || 'Order not found or not assigned to you.'}</Text>
             <Pressable style={styles.retryButton} onPress={loadOrders}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>

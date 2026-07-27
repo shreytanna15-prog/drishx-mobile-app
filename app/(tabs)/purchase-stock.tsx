@@ -618,7 +618,7 @@ export default function PurchaseStockScreen() {
                     <MaterialIcons name="inventory-2" size={48} color={colors.textMuted} />
                     <Text style={styles.emptyTitle}>No procurement orders</Text>
                     <Text style={styles.stateText}>
-                      Orders waiting for stock will appear here. Tap a product to add purchase details.
+                      Procurement orders assigned to you will appear here. Tap a product to add purchase details.
                     </Text>
                   </View>
                 }

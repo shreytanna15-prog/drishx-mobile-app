@@ -116,7 +116,7 @@ export default function EmployeeOrdersScreen() {
               <Text style={styles.newOrderButtonText}>Order on Behalf</Text>
             </Pressable>
           </View>
-          <Text style={styles.subtitle}>Manage and update customer orders</Text>
+          <Text style={styles.subtitle}>Orders assigned to you</Text>
         </View>
 
         <View style={styles.filterWrap}>
@@ -172,7 +172,7 @@ export default function EmployeeOrdersScreen() {
             ListEmptyComponent={
               <View style={styles.centeredState}>
                 <MaterialIcons name="receipt-long" size={48} color={colors.textMuted} />
-                <Text style={styles.emptyTitle}>No orders found</Text>
+                <Text style={styles.emptyTitle}>No orders assigned to you</Text>
                 <Text style={styles.stateText}>Try switching filters or refresh the list.</Text>
               </View>
             }
