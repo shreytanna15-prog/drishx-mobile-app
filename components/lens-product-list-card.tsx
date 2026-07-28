@@ -23,7 +23,11 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
   const content = (
     <View style={styles.row}>
       {item.imageUrl ? (
-        <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+        <Image
+          source={{ uri: item.imageUrl }}
+          style={styles.thumb}
+          resizeMode="contain"
+        />
       ) : (
         <View style={[styles.thumb, styles.thumbFallback]} />
       )}
@@ -85,7 +89,8 @@ const createStyles = (c: BrandColorScheme) =>
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardBorder,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+      backgroundColor: 'rgba(240, 161, 50, 0.08)',
+      padding: 4,
     },
     thumbFallback: {
       backgroundColor: 'rgba(240, 161, 50, 0.14)',

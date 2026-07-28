@@ -530,7 +530,13 @@ export default function LensProductScreen() {
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
             {item.imageUrl ? (
-              <Image source={{ uri: item.imageUrl }} style={styles.summaryImage} />
+              <View style={styles.summaryImageWrap}>
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={styles.summaryImage}
+                  resizeMode="contain"
+                />
+              </View>
             ) : null}
             <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
@@ -764,12 +770,22 @@ const createStyles = (c: BrandColorScheme) =>
       padding: 14,
       marginBottom: 18,
     },
-    summaryImage: {
+    summaryImageWrap: {
       width: '100%',
-      height: 160,
+      height: 180,
       borderRadius: 12,
       marginBottom: 10,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+      backgroundColor: 'rgba(240, 161, 50, 0.08)',
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 10,
+    },
+    summaryImage: {
+      width: '100%',
+      height: '100%',
     },
     summaryBrand: { color: c.text, fontSize: 22, fontWeight: '700' },
     summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
