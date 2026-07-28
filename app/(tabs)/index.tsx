@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,11 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
+import {
+  catalogImageForHomeCategory,
+  fetchCatalogImages,
+  type CatalogImagesResponse,
+} from '@/lib/catalog-images-api';
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
@@ -101,14 +107,19 @@ export default function HomeScreen() {
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
+  const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
     setOrdersLoading(true);
     try {
-      const orders = await fetchOrders(getAuthHeaders());
+      const [orders, images] = await Promise.all([
+        fetchOrders(getAuthHeaders()),
+        fetchCatalogImages().catch(() => null),
+      ]);
       setOrderCounts(computeCustomerOrderOverview(orders));
       setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
+      setCatalogImages(images);
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
       setMostOrderedProducts([]);
@@ -419,17 +430,23 @@ export default function HomeScreen() {
 
           <Text style={styles.sectionTitleOutside}>Product categories</Text>
           <View style={styles.categoryGrid}>
-            {CLIENT_HOME_CATEGORIES.map((cat) => (
-              <Pressable
-                key={cat.id}
-                style={styles.categoryCard}
-                onPress={() => goToCategory(router, cat.id, cat.filter)}>
-                <Text style={styles.categoryCardText} numberOfLines={3}>
-                  {cat.label}
-                </Text>
-                <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
-              </Pressable>
-            ))}
+            {CLIENT_HOME_CATEGORIES.map((cat) => {
+              const imageUrl = catalogImageForHomeCategory(catalogImages, cat.id);
+              return (
+                <Pressable
+                  key={cat.id}
+                  style={styles.categoryCard}
+                  onPress={() => goToCategory(router, cat.id, cat.filter)}>
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.categoryImage} />
+                  ) : null}
+                  <Text style={styles.categoryCardText} numberOfLines={3}>
+                    {cat.label}
+                  </Text>
+                  <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
+                </Pressable>
+              );
+            })}
           </View>
 
           <Text style={[styles.sectionTitleOutside, styles.mostOrderedSectionTitle]}>
@@ -670,6 +687,13 @@ const createStyles = (c: BrandColorScheme) =>
     paddingHorizontal: 16,
     paddingVertical: 14,
     justifyContent: 'space-between',
+  },
+  categoryImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    marginBottom: 8,
+    backgroundColor: 'rgba(240, 161, 50, 0.1)',
   },
   categoryCardText: {
     color: c.text,

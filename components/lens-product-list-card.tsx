@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -21,7 +21,12 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
   const eyeLabel = formatProgressiveEyeLabel(item.eye);
 
   const content = (
-    <>
+    <View style={styles.row}>
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+      ) : (
+        <View style={[styles.thumb, styles.thumbFallback]} />
+      )}
       <View style={styles.compactTopRow}>
         <View style={styles.compactTopLeft}>
           <View style={styles.titleRow}>
@@ -46,7 +51,7 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
           </Text>
         </View>
       </View>
-    </>
+    </View>
   );
 
   if (onPress) {
@@ -69,7 +74,24 @@ const createStyles = (c: BrandColorScheme) =>
       borderWidth: 1,
       borderColor: c.cardBorder,
     },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    thumb: {
+      width: 56,
+      height: 56,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+    },
+    thumbFallback: {
+      backgroundColor: 'rgba(240, 161, 50, 0.14)',
+    },
     compactTopRow: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'flex-start',
       justifyContent: 'space-between',

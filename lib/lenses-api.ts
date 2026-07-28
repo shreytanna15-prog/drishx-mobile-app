@@ -39,6 +39,7 @@ export type LensesPageResponse = {
     coating: string | null;
     index?: number | null;
     selectableRange?: SelectableRange | null;
+    imageUrl?: string | null;
   }>;
   total: number;
   page: number;
@@ -97,6 +98,7 @@ export function mapApiLens(item: LensesPageResponse['items'][number]): LensItem 
     coating: item.coating,
     index: item.index ?? null,
     selectableRange: item.selectableRange ?? null,
+    imageUrl: item.imageUrl ?? null,
   };
 }
 

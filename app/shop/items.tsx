@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +17,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
+import {
+  catalogImageForShopCategory,
+  fetchCatalogImages,
+  type CatalogImagesResponse,
+} from '@/lib/catalog-images-api';
 import { fetchLensCatalogItems, type LensCatalogItem } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
 import {
@@ -28,10 +34,12 @@ function ItemCard({
   item,
   onPress,
   uppercase,
+  imageUrl,
 }: {
   item: LensCatalogItem;
   onPress: () => void;
   uppercase?: boolean;
+  imageUrl?: string | null;
 }) {
   const styles = useThemedStyles(createStyles);
   const disabled = item.productCount < 1;
@@ -41,6 +49,7 @@ function ItemCard({
       style={[styles.card, disabled && styles.cardDisabled]}
       onPress={onPress}
       disabled={disabled}>
+      {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.cardImage} /> : null}
       <Text style={[styles.cardTitle, uppercase && styles.cardTitleUpper]} numberOfLines={3}>
         {item.name}
       </Text>
@@ -64,6 +73,7 @@ export default function ShopItemsScreen() {
   const categoryTitle = catalogCategoryDisplayTitle(category);
 
   const [items, setItems] = useState<LensCatalogItem[]>([]);
+  const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +85,12 @@ export default function ShopItemsScreen() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchLensCatalogItems(wholesaleCategoryToApiType(category));
+      const [data, images] = await Promise.all([
+        fetchLensCatalogItems(wholesaleCategoryToApiType(category)),
+        fetchCatalogImages().catch(() => null),
+      ]);
       setItems(data);
+      setCatalogImages(images);
     } catch (err) {
       setItems([]);
       const detail = err instanceof Error ? err.message : 'Network request failed';
@@ -134,6 +148,7 @@ export default function ShopItemsScreen() {
               <ItemCard
                 item={item}
                 uppercase
+                imageUrl={catalogImageForShopCategory(catalogImages, category)}
                 onPress={() =>
                   router.push({
                     pathname: '/shop/products',
@@ -187,6 +202,13 @@ const createStyles = (c: BrandColorScheme) =>
       alignItems: 'center',
     },
     cardDisabled: { opacity: 0.55 },
+    cardImage: {
+      width: 56,
+      height: 56,
+      borderRadius: 12,
+      marginBottom: 10,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+    },
     cardTitle: {
       color: c.text,
       fontSize: 15,

@@ -3,8 +3,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { appAlert } from '@/lib/app-alert';
@@ -14,6 +14,11 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
+import {
+  catalogImageForShopCategory,
+  fetchCatalogImages,
+  type CatalogImagesResponse,
+} from '@/lib/catalog-images-api';
 import { useOrderMode } from '@/lib/order-mode';
 import { getCartBadgeCount } from '@/lib/order-quantity';
 import { uploadPhotoOrder } from '@/lib/photo-orders-api';
@@ -27,6 +32,7 @@ export default function ShopScreen() {
   const { mode: orderMode, setMode } = useOrderMode();
   const { getAuthHeaders } = useAuth();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
 
   const cartBadgeCount = getCartBadgeCount(
     cartItems.reduce((sum, entry) => sum + entry.cartQuantity, 0),
@@ -38,6 +44,20 @@ export default function ShopScreen() {
       setMode('retail');
     }, [setMode])
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCatalogImages()
+      .then((data) => {
+        if (!cancelled) setCatalogImages(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogImages(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const submitPhotoOrder = useCallback(
     async (asset: ImagePicker.ImagePickerAsset) => {
@@ -94,7 +114,7 @@ export default function ShopScreen() {
         onPress: async () => {
           const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (!permission.granted) {
-            appAlert('Permission needed', 'Photo library access is required.');
+            appAlert('Permission needed', 'Photo library access is required to choose an image.');
             return;
           }
           const result = await ImagePicker.launchImageLibraryAsync({
@@ -130,26 +150,33 @@ export default function ShopScreen() {
         </View>
 
         <View style={styles.grid}>
-          {LENS_CATALOG_CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: '/shop/items',
-                  params: { category: cat.id },
-                })
-              }>
-              <View style={styles.cardTop}>
-                <View style={styles.iconWrap}>
-                  <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
+          {LENS_CATALOG_CATEGORIES.map((cat) => {
+            const imageUrl = catalogImageForShopCategory(catalogImages, cat.id);
+            return (
+              <Pressable
+                key={cat.id}
+                style={styles.card}
+                onPress={() =>
+                  router.push({
+                    pathname: '/shop/items',
+                    params: { category: cat.id },
+                  })
+                }>
+                <View style={styles.cardTop}>
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.iconWrap}>
+                      <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
+                    </View>
+                  )}
+                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
                 </View>
-                <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-              </View>
-              <Text style={styles.cardTitle}>{cat.title}</Text>
-              <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
-            </Pressable>
-          ))}
+                <Text style={styles.cardTitle}>{cat.title}</Text>
+                <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Pressable
@@ -236,6 +263,12 @@ const createStyles = (c: BrandColorScheme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    cardImage: {
+      width: 48,
+      height: 48,
+      borderRadius: 12,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
     },
     iconWrap: {
       width: 40,

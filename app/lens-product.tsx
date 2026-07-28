@@ -3,7 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -529,6 +529,9 @@ export default function LensProductScreen() {
 
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.summaryImage} />
+            ) : null}
             <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
             <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
             <Text style={styles.summaryType}>{lensType}</Text>
@@ -760,6 +763,13 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: c.cardBorder,
       padding: 14,
       marginBottom: 18,
+    },
+    summaryImage: {
+      width: '100%',
+      height: 160,
+      borderRadius: 12,
+      marginBottom: 10,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
     },
     summaryBrand: { color: c.text, fontSize: 22, fontWeight: '700' },
     summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },

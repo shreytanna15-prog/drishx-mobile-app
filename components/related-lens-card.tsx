@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -33,6 +33,11 @@ export function RelatedLensCard({
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.topRow}>
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.thumb} />
+        ) : (
+          <View style={[styles.thumb, styles.thumbFallback]} />
+        )}
         <View style={styles.leftBlock}>
           <Text style={styles.brandText} numberOfLines={2}>
             {`${indexLabel}${title}`.trim()}
@@ -70,6 +75,17 @@ const createStyles = (c: BrandColorScheme) =>
       alignItems: 'flex-start',
       justifyContent: 'space-between',
       gap: 10,
+    },
+    thumb: {
+      width: 48,
+      height: 48,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+    },
+    thumbFallback: {
+      backgroundColor: 'rgba(240, 161, 50, 0.14)',
     },
     leftBlock: {
       flex: 1,

@@ -2,13 +2,18 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
+import {
+  catalogImageForShopCategory,
+  fetchCatalogImages,
+  type CatalogImagesResponse,
+} from '@/lib/catalog-images-api';
 import { useOrderMode } from '@/lib/order-mode';
 import { LENS_CATALOG_CATEGORIES } from '@/lib/wholesale-navigation';
 
@@ -17,11 +22,25 @@ export default function WholesaleCategoryScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { setMode } = useOrderMode();
+  const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
 
   useEffect(() => {
-    // Ensure wholesale rules (pairs, etc) apply in later screens.
     setMode('wholesale');
   }, [setMode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCatalogImages()
+      .then((data) => {
+        if (!cancelled) setCatalogImages(data);
+      })
+      .catch(() => {
+        if (!cancelled) setCatalogImages(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <View style={styles.root}>
@@ -36,26 +55,33 @@ export default function WholesaleCategoryScreen() {
 
         <Text style={styles.hint}>Select a category</Text>
         <View style={styles.grid}>
-          {LENS_CATALOG_CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: '/wholesale/items',
-                  params: { category: cat.id },
-                })
-              }>
-              <View style={styles.cardTop}>
-                <View style={styles.iconWrap}>
-                  <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
+          {LENS_CATALOG_CATEGORIES.map((cat) => {
+            const imageUrl = catalogImageForShopCategory(catalogImages, cat.id);
+            return (
+              <Pressable
+                key={cat.id}
+                style={styles.card}
+                onPress={() =>
+                  router.push({
+                    pathname: '/wholesale/items',
+                    params: { category: cat.id },
+                  })
+                }>
+                <View style={styles.cardTop}>
+                  {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.iconWrap}>
+                      <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
+                    </View>
+                  )}
+                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
                 </View>
-                <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-              </View>
-              <Text style={styles.cardTitle}>{cat.title}</Text>
-              <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
-            </Pressable>
-          ))}
+                <Text style={styles.cardTitle}>{cat.title}</Text>
+                <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
+              </Pressable>
+            );
+          })}
         </View>
       </SafeAreaView>
     </View>
@@ -88,6 +114,12 @@ const createStyles = (c: BrandColorScheme) =>
       justifyContent: 'space-between',
     },
     cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    cardImage: {
+      width: 48,
+      height: 48,
+      borderRadius: 12,
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+    },
     iconWrap: {
       width: 40,
       height: 40,
@@ -98,7 +130,6 @@ const createStyles = (c: BrandColorScheme) =>
       alignItems: 'center',
       justifyContent: 'center',
     },
-    cardTitle: { color: c.text, fontSize: 16, fontWeight: '800', marginTop: 10 },
-    cardSubtitle: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginTop: 4 },
+    cardTitle: { color: c.text, fontSize: 16, fontWeight: '800', marginTop: 14 },
+    cardSubtitle: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
   });
-
