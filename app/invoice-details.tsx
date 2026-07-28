@@ -136,6 +136,32 @@ export default function InvoiceDetailsScreen() {
               <DetailRow label="Unit Price" value={`₹${formatMoney(invoice.order?.unitPrice ?? 0)}`} />
               <DetailRow label="Total" value={`₹${formatMoney(invoice.amount)}`} />
             </View>
+
+            {invoice.orderId ? (
+              <Pressable
+                style={styles.returnBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: '/return-request',
+                    params: {
+                      displayOrderId: invoice.invoiceNumber,
+                      orders: JSON.stringify([
+                        {
+                          id: invoice.orderId,
+                          quantity: Number(invoice.order?.quantity ?? 1) || 1,
+                          eye: invoice.order?.progressiveLens?.eye ?? null,
+                          label: invoice.order?.lensType
+                            ? String(formatLensType(invoice.order.lensType))
+                            : 'Order item',
+                        },
+                      ]),
+                    },
+                  } as never)
+                }>
+                <MaterialIcons name="assignment-return" size={18} color={colors.primaryText} />
+                <Text style={styles.returnBtnText}>Return / Replacement</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -173,4 +199,18 @@ const createStyles = (c: BrandColorScheme) =>
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 24 },
   helperText: { color: c.textMuted, fontSize: 14 },
   errorText: { color: c.danger, textAlign: 'center' },
+  returnBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: c.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
+  },
+  returnBtnText: {
+    color: c.primaryText,
+    fontSize: 14,
+    fontWeight: '800',
+  },
 });

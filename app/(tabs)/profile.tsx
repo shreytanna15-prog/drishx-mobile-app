@@ -134,9 +134,17 @@ export default function ProfileScreen() {
 
               <View style={styles.menuCard}>
                 <MenuRow
+                  icon="assignment-return"
+                  label="Returns"
+                  variant="base"
+                  onPress={() => router.push('/returns' as never)}
+                  styles={styles}
+                  colors={colors}
+                />
+                <MenuRow
                   icon="logout"
                   label="Logout"
-                  variant="base"
+                  variant="alt"
                   danger
                   onPress={handleStaffLogout}
                   styles={styles}
@@ -209,11 +217,19 @@ export default function ProfileScreen() {
                 styles={styles}
                 colors={colors}
               />
-              <MenuRow icon="history" label="Recent Orders" variant="alt" onPress={() => router.push('/my-orders')} styles={styles} colors={colors} />
+              <MenuRow
+                icon="assignment-return"
+                label="My Returns"
+                variant="alt"
+                onPress={() => router.push('/returns' as never)}
+                styles={styles}
+                colors={colors}
+              />
+              <MenuRow icon="history" label="Recent Orders" variant="base" onPress={() => router.push('/my-orders')} styles={styles} colors={colors} />
               <MenuRow
                 icon="payments"
                 label="Outstanding/Payments"
-                variant="base"
+                variant="alt"
                 onPress={() =>
                   router.push({ pathname: '/profile-placeholder', params: { title: 'Outstanding/Payments' } })
                 }

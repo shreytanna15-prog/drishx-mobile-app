@@ -2,6 +2,7 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -26,10 +27,27 @@ import {
 } from '@/lib/order-list-display';
 import { formatPairQuantity } from '@/lib/order-quantity';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
+import { formatLensType } from '@/lib/types/lens';
 
 type CustomerOrderGroupDetailProps = {
   group: OrderListGroup;
 };
+
+function buildReturnOrderParams(group: OrderListGroup) {
+  return group.orders.map((order) => {
+    const brand =
+      order.progressiveLens?.brand ||
+      order.kryptokLens?.brand ||
+      order.singleVisionLens?.brand ||
+      '';
+    return {
+      id: order.id,
+      quantity: Number(order.quantity) || 1,
+      eye: order.eye ?? null,
+      label: [formatLensType(order.lensType), brand].filter(Boolean).join(' · '),
+    };
+  });
+}
 
 function PackedStatusCell({
   state,
@@ -218,6 +236,7 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
 export function CustomerOrderGroupDetail({
   group,
 }: CustomerOrderGroupDetailProps) {
+  const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
@@ -225,6 +244,16 @@ export function CustomerOrderGroupDetail({
   const trackingStatus = useMemo(() => getBatchTrackingStatus(group.orders), [group.orders]);
   const [photoLoadFailed, setPhotoLoadFailed] = useState(false);
   const [referenceLoadFailed, setReferenceLoadFailed] = useState(false);
+
+  function openReturnRequest() {
+    router.push({
+      pathname: '/return-request',
+      params: {
+        displayOrderId: group.displayOrderId,
+        orders: JSON.stringify(buildReturnOrderParams(group)),
+      },
+    } as never);
+  }
 
   const orderReferenceUrl = useMemo(() => {
     const orderWithImage = group.orders.find(
@@ -283,6 +312,11 @@ export function CustomerOrderGroupDetail({
         <View style={styles.trackingCard}>
           <OrderTrackingHorizontal status={trackingStatus} />
         </View>
+
+        <Pressable style={styles.returnBtn} onPress={openReturnRequest}>
+          <MaterialIcons name="assignment-return" size={18} color={colors.primaryText} />
+          <Text style={styles.returnBtnText}>Return / Replacement</Text>
+        </Pressable>
       </View>
     );
   }
@@ -352,6 +386,11 @@ export function CustomerOrderGroupDetail({
       <View style={styles.trackingCard}>
         <OrderTrackingHorizontal status={trackingStatus} />
       </View>
+
+      <Pressable style={styles.returnBtn} onPress={openReturnRequest}>
+        <MaterialIcons name="assignment-return" size={18} color={colors.primaryText} />
+        <Text style={styles.returnBtnText}>Return / Replacement</Text>
+      </Pressable>
     </View>
   );
 }
@@ -360,6 +399,20 @@ const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
   wrap: {
     gap: 14,
+  },
+  returnBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: c.primary,
+    borderRadius: 12,
+    paddingVertical: 13,
+  },
+  returnBtnText: {
+    color: c.primaryText,
+    fontSize: 14,
+    fontWeight: '800',
   },
   heroCard: {
     backgroundColor: c.card,

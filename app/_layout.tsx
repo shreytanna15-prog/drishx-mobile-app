@@ -42,6 +42,9 @@ function RootNavigation() {
             <Stack.Screen name="profile-placeholder" options={{ headerShown: false }} />
             <Stack.Screen name="invoices" options={{ headerShown: false }} />
             <Stack.Screen name="invoice-details" options={{ headerShown: false }} />
+            <Stack.Screen name="return-request" options={{ headerShown: false }} />
+            <Stack.Screen name="returns" options={{ headerShown: false }} />
+            <Stack.Screen name="return-details" options={{ headerShown: false }} />
             <Stack.Screen name="order-details" options={{ headerShown: false }} />
             <Stack.Screen name="inventory" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
