@@ -529,6 +529,31 @@ export function EmployeeOrderGroupDetail({
         </View>
       ) : null}
 
+      {group.orders.some((order) => order.internalNotes?.trim()) ? (
+        <View style={styles.notesBox}>
+          <Text style={styles.notesLabel}>Internal ops notes</Text>
+          <Text style={styles.notesText}>
+            {group.orders.find((o) => o.internalNotes?.trim())?.internalNotes}
+          </Text>
+        </View>
+      ) : null}
+
+      {group.orders.some((order) => order.courierName?.trim() || order.trackingNumber?.trim()) ? (
+        <View style={styles.notesBox}>
+          <Text style={styles.notesLabel}>Shipping</Text>
+          <Text style={styles.notesText}>
+            Courier:{' '}
+            {group.orders.find((o) => o.courierName?.trim() || o.trackingNumber?.trim())?.courierName?.trim() ||
+              '—'}
+          </Text>
+          <Text style={styles.notesText}>
+            Tracking:{' '}
+            {group.orders.find((o) => o.courierName?.trim() || o.trackingNumber?.trim())?.trackingNumber?.trim() ||
+              '—'}
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.trackingCard}>
         <OrderTrackingHorizontal
           status={trackingStatus}

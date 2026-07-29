@@ -56,6 +56,11 @@ export type OrderRecord = {
   totalAmount: number | string;
   status: OrderTrackingStatus;
   notes?: string | null;
+  /** Staff-only — never sent to CUSTOMER role by the API. */
+  internalNotes?: string | null;
+  cancelReason?: string | null;
+  courierName?: string | null;
+  trackingNumber?: string | null;
   /** Customer-selected prescription at checkout (preferred over catalog lens). */
   sph?: number | string | null;
   cyl?: number | string | null;
