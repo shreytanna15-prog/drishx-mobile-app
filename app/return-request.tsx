@@ -15,6 +15,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import {
+  ReplacementPowerFields,
+  type ReplacementPowerValue,
+  type ReturnOrderPowerParam,
+} from '@/components/replacement-power-fields';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { appAlert } from '@/lib/app-alert';
@@ -28,12 +33,7 @@ import {
 } from '@/lib/returns-api';
 import { useBrandColors } from '@/lib/theme-provider';
 
-type OrderParam = {
-  id: string;
-  quantity: number;
-  eye?: string | null;
-  label: string;
-};
+type OrderParam = ReturnOrderPowerParam;
 
 type PickedImage = {
   uri: string;
@@ -47,6 +47,7 @@ type ItemState = {
   eye: string;
   reason: ReturnReason;
   itemRemarks: string;
+  power: ReplacementPowerValue;
 };
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -59,14 +60,21 @@ function parseOrders(raw: string | string[] | undefined): OrderParam[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .map((item) => {
-        const id = String((item as OrderParam)?.id ?? '').trim();
-        const quantity = Number((item as OrderParam)?.quantity ?? 1);
+        const row = item as OrderParam;
+        const id = String(row?.id ?? '').trim();
+        const quantity = Number(row?.quantity ?? 1);
         if (!id) return null;
         return {
           id,
           quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
-          eye: (item as OrderParam)?.eye ?? null,
-          label: String((item as OrderParam)?.label ?? id),
+          eye: row?.eye ?? null,
+          label: String(row?.label ?? id),
+          lensType: row?.lensType ?? null,
+          lensId: row?.lensId ?? null,
+          sph: row?.sph != null ? Number(row.sph) : null,
+          cyl: row?.cyl != null ? Number(row.cyl) : null,
+          add: row?.add != null ? Number(row.add) : null,
+          axis: row?.axis ?? null,
         } satisfies OrderParam;
       })
       .filter((item): item is OrderParam => Boolean(item));
@@ -100,6 +108,12 @@ export default function ReturnRequestScreen() {
             eye: order.eye ?? '',
             reason: 'WRONG_POWER' as ReturnReason,
             itemRemarks: '',
+            power: {
+              sph: order.sph ?? null,
+              cyl: order.cyl ?? null,
+              add: order.add ?? null,
+              axis: order.axis ?? null,
+            },
           },
         ])
       )
@@ -107,6 +121,7 @@ export default function ReturnRequestScreen() {
   }, [orders]);
 
   const selectedCount = Object.values(itemState).filter((item) => item.selected).length;
+  const isReplacement = requestType === 'REPLACEMENT';
 
   async function pickPhoto(fromCamera: boolean) {
     const permission = fromCamera
@@ -149,12 +164,33 @@ export default function ReturnRequestScreen() {
           eye: state.eye.trim() || null,
           reason: state.reason,
           itemRemarks: state.itemRemarks.trim(),
+          ...(isReplacement
+            ? {
+                requestedSph: state.power.sph,
+                requestedCyl: state.power.cyl,
+                requestedAxis: state.power.axis,
+                requestedAdd: state.power.add,
+              }
+            : {}),
         };
       });
 
     if (items.length === 0) {
       appAlert('Select items', 'Choose at least one item to return or replace.');
       return;
+    }
+
+    if (isReplacement) {
+      const catalogSelected = orders.some(
+        (order) => itemState[order.id]?.selected && Boolean(order.lensId)
+      );
+      const missingPower = items.some(
+        (item) => item.requestedSph === null || item.requestedSph === undefined
+      );
+      if (catalogSelected && missingPower) {
+        appAlert('Select power', 'Choose a replacement power for each catalog product.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -304,6 +340,18 @@ export default function ReturnRequestScreen() {
                           );
                         })}
                       </View>
+
+                      <ReplacementPowerFields
+                        order={order}
+                        enabled={isReplacement}
+                        value={state.power}
+                        onChange={(power) =>
+                          setItemState((current) => ({
+                            ...current,
+                            [order.id]: { ...current[order.id], power },
+                          }))
+                        }
+                      />
 
                       <Text style={styles.label}>Item remarks</Text>
                       <TextInput

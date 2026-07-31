@@ -25,6 +25,7 @@ import {
   isRxOrder,
   type OrderListGroup,
 } from '@/lib/order-list-display';
+import { getOrderLensDetails } from '@/lib/orders-api';
 import { formatPairQuantity } from '@/lib/order-quantity';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 import { formatLensType } from '@/lib/types/lens';
@@ -43,11 +44,22 @@ function buildReturnOrderParams(group: OrderListGroup) {
       order.kryptokLens?.brand ||
       order.singleVisionLens?.brand ||
       '';
+    const details = getOrderLensDetails(order);
     return {
       id: order.id,
       quantity: Number(order.quantity) || 1,
       eye: order.eye ?? null,
       label: [formatLensType(order.lensType), brand].filter(Boolean).join(' · '),
+      lensType: order.lensType,
+      lensId:
+        order.singleVisionLens?.id ??
+        order.kryptokLens?.id ??
+        order.progressiveLens?.id ??
+        null,
+      sph: details?.sph != null ? Number(details.sph) : null,
+      cyl: details?.cyl != null ? Number(details.cyl) : null,
+      add: details?.add != null ? Number(details.add) : null,
+      axis: details?.axis ?? null,
     };
   });
 }

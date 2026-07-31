@@ -21,6 +21,7 @@ import { appAlert } from '@/lib/app-alert';
 import { useAuth } from '@/lib/auth';
 import {
   fetchReturnRequest,
+  formatReturnPowerLine,
   formatReturnStatus,
   updateReturnRequest,
   type ReturnRequestRecord,
@@ -137,6 +138,26 @@ export default function ReturnDetailsScreen() {
                     Qty {item.quantity}
                     {item.eye ? ` · ${item.eye}` : ''} · {formatReturnStatus(item.reason)}
                   </Text>
+                  <Text style={styles.meta}>
+                    Original:{' '}
+                    {formatReturnPowerLine({
+                      sph: item.originalSph,
+                      cyl: item.originalCyl,
+                      add: item.originalAdd,
+                      axis: item.originalAxis,
+                    })}
+                  </Text>
+                  {item.requestedSph != null || item.requestedCyl != null ? (
+                    <Text style={styles.bodyText}>
+                      Requested:{' '}
+                      {formatReturnPowerLine({
+                        sph: item.requestedSph,
+                        cyl: item.requestedCyl,
+                        add: item.requestedAdd,
+                        axis: item.requestedAxis,
+                      })}
+                    </Text>
+                  ) : null}
                   {item.itemRemarks ? (
                     <Text style={styles.bodyText}>{item.itemRemarks}</Text>
                   ) : null}
