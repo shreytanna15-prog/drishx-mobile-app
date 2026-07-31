@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CatalogSearchBar } from '@/components/catalog-search-bar';
 import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -149,6 +150,10 @@ export default function ShopScreen() {
           </Pressable>
         </View>
 
+        <View style={styles.searchWrap}>
+          <CatalogSearchBar />
+        </View>
+
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
             const imageUrl = catalogImageForShopCategory(catalogImages, cat.id);
@@ -220,6 +225,7 @@ const createStyles = (c: BrandColorScheme) =>
       marginTop: 4,
       fontWeight: '600',
     },
+    searchWrap: { marginBottom: 16 },
     iconButton: {
       width: 44,
       height: 44,

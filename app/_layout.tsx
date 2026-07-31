@@ -47,6 +47,7 @@ function RootNavigation() {
             <Stack.Screen name="return-details" options={{ headerShown: false }} />
             <Stack.Screen name="order-details" options={{ headerShown: false }} />
             <Stack.Screen name="rx-orders" options={{ headerShown: false }} />
+            <Stack.Screen name="shop/search" options={{ headerShown: false }} />
             <Stack.Screen name="inventory" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>

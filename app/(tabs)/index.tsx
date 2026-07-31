@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CatalogSearchBar } from '@/components/catalog-search-bar';
 import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -382,6 +383,10 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          <View style={styles.homeSearchWrap}>
+            <CatalogSearchBar />
+          </View>
+
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Order overview</Text>
@@ -539,6 +544,7 @@ const createStyles = (c: BrandColorScheme) =>
   root: { flex: 1, backgroundColor: c.background },
   safeTop: { flex: 1 },
   scrollPad: { paddingHorizontal: 18, paddingBottom: 32 },
+  homeSearchWrap: { marginBottom: 14 },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
