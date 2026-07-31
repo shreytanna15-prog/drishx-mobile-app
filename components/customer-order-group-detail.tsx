@@ -28,9 +28,12 @@ import {
 import { formatPairQuantity } from '@/lib/order-quantity';
 import { resolvePhotoOrderImageUrl } from '@/lib/photo-orders-api';
 import { formatLensType } from '@/lib/types/lens';
+import { AlternatePowerPanel } from '@/components/alternate-power-panel';
 
 type CustomerOrderGroupDetailProps = {
   group: OrderListGroup;
+  getAuthHeaders: () => Record<string, string>;
+  onAlternateChanged?: () => void;
 };
 
 function buildReturnOrderParams(group: OrderListGroup) {
@@ -235,6 +238,8 @@ function ProductSectionCard({ section }: { section: OrderProductSection }) {
 
 export function CustomerOrderGroupDetail({
   group,
+  getAuthHeaders,
+  onAlternateChanged,
 }: CustomerOrderGroupDetailProps) {
   const router = useRouter();
   const colors = useBrandColors();
@@ -375,6 +380,18 @@ export function CustomerOrderGroupDetail({
       {productSections.map((section) => (
         <ProductSectionCard key={section.key} section={section} />
       ))}
+
+      {group.orders
+        .filter((order) => (order.lineType ?? 'RETAIL') === 'RETAIL')
+        .map((order) => (
+          <AlternatePowerPanel
+            key={`alt-${order.id}`}
+            order={order}
+            mode="customer"
+            getAuthHeaders={getAuthHeaders}
+            onChanged={onAlternateChanged}
+          />
+        ))}
 
       {group.orders.some((order) => order.notes?.trim()) ? (
         <View style={styles.notesBox}>

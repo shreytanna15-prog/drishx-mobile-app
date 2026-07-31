@@ -230,7 +230,11 @@ export default function MyOrdersScreen() {
                 tintColor={colors.primary}
               />
             }>
-            <CustomerOrderGroupDetail group={selectedGroup} />
+            <CustomerOrderGroupDetail
+              group={selectedGroup}
+              getAuthHeaders={getAuthHeaders}
+              onAlternateChanged={() => void loadOrders()}
+            />
           </ScrollView>
         ) : (
           <>

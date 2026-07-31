@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { EmployeeOrderRangeSheet } from '@/components/employee-order-range-sheet';
 import { OrderNotesDisplay } from '@/components/order-notes-display';
 import { OrderTrackingHorizontal } from '@/components/order-tracking-horizontal';
+import { AlternatePowerPanel } from '@/components/alternate-power-panel';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -44,6 +45,8 @@ type EmployeeOrderGroupDetailProps = {
     payload: { status: OrderTrackingStatus; pickedQuantity: number }
   ) => Promise<void>;
   updatingOrderId: string | null;
+  getAuthHeaders: () => Record<string, string>;
+  onAlternateChanged?: () => void;
 };
 
 function PackedStatusCell({
@@ -273,6 +276,8 @@ export function EmployeeOrderGroupDetail({
   group,
   onUpdateLine,
   updatingOrderId,
+  getAuthHeaders,
+  onAlternateChanged,
 }: EmployeeOrderGroupDetailProps) {
   const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
@@ -564,6 +569,18 @@ export function EmployeeOrderGroupDetail({
           <Text style={styles.trackingHint}>Tap a step to update tracking for this order.</Text>
         ) : null}
       </View>
+
+      {group.orders
+        .filter((order) => (order.lineType ?? 'RETAIL') === 'RETAIL')
+        .map((order) => (
+          <AlternatePowerPanel
+            key={`alt-${order.id}`}
+            order={order}
+            mode="staff"
+            getAuthHeaders={getAuthHeaders}
+            onChanged={onAlternateChanged}
+          />
+        ))}
 
       <EmployeeOrderRangeSheet
         visible={sheetVisible}

@@ -231,6 +231,8 @@ export default function OrderDetailsScreen() {
                 group={orderGroup}
                 onUpdateLine={handleUpdateLine}
                 updatingOrderId={updatingOrderId}
+                getAuthHeaders={getAuthHeaders}
+                onAlternateChanged={() => void loadOrders()}
               />
             )}
           </ScrollView>
