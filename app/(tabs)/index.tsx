@@ -471,15 +471,27 @@ export default function HomeScreen() {
               return (
                 <Pressable
                   key={cat.id}
-                  style={styles.categoryCard}
+                  style={[styles.categoryCard, { borderColor: colors.cardBorder }]}
                   onPress={() => goToCategory(router, cat.id, cat.filter)}>
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.categoryImage} />
-                  ) : null}
-                  <Text style={styles.categoryCardText} numberOfLines={3}>
-                    {label}
-                  </Text>
-                  <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
+                  <View style={[styles.categoryMedia, { backgroundColor: colors.background }]}>
+                    {imageUrl ? (
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={styles.categoryImage}
+                        resizeMode="contain"
+                      />
+                    ) : (
+                      <View style={styles.categoryImagePlaceholder} />
+                    )}
+                  </View>
+                  <View style={styles.categoryScrim} pointerEvents="none">
+                    <View style={styles.categoryScrimFade} />
+                    <View style={styles.categoryLabelRow}>
+                      <Text style={styles.categoryCardText} numberOfLines={1}>
+                        {label}
+                      </Text>
+                    </View>
+                  </View>
                 </Pressable>
               );
             })}
@@ -757,26 +769,54 @@ const createStyles = (c: BrandColorScheme) =>
   },
   categoryCard: {
     width: '48%',
-    backgroundColor: c.card,
+    height: 148,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: c.cardBorder,
-    minHeight: 128,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    justifyContent: 'space-between',
+    overflow: 'hidden',
+    backgroundColor: c.card,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  categoryMedia: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    marginBottom: 8,
+    width: '100%',
+    height: '100%',
+  },
+  categoryImagePlaceholder: {
+    width: '70%',
+    height: '70%',
+    borderRadius: 16,
     backgroundColor: 'rgba(240, 161, 50, 0.1)',
   },
+  categoryScrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 56,
+    justifyContent: 'flex-end',
+  },
+  categoryScrimFade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(8, 10, 14, 0.55)',
+  },
+  categoryLabelRow: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    paddingTop: 8,
+  },
   categoryCardText: {
-    color: c.text,
-    fontSize: 15,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.1,
   },
   mostOrderedSectionTitle: {
     marginTop: 8,
