@@ -10,7 +10,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -97,10 +96,8 @@ export default function HomeScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
   const { user, isStaff, getAuthHeaders } = useAuth();
   const { setMode } = useOrderMode();
-  const heroStacked = windowWidth < 390;
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
   const [staffOverview, setStaffOverview] = useState({
@@ -381,32 +378,31 @@ export default function HomeScreen() {
     <View style={styles.root}>
       <SafeAreaView style={styles.safeTop} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerActionsRow}>
-            <View style={styles.headerIcons}>
-              <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </Pressable>
-              <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
-                <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
-              </Pressable>
-            </View>
-          </View>
+          <View style={styles.heroBlock}>
+            <View style={styles.heroAmbient} pointerEvents="none" />
 
-          <View style={[styles.heroRow, heroStacked && styles.heroRowStacked]}>
-            <View style={[styles.heroTextCol, heroStacked && styles.heroTextColStacked]}>
-              <Text style={[styles.helloSmall, heroStacked && styles.heroTextCentered]}>
-                {greeting},
-              </Text>
-              <Text style={[styles.customerName, heroStacked && styles.heroTextCentered]}>
-                {companyName}
-              </Text>
-              <Text style={[styles.heroTagline, heroStacked && styles.heroTextCentered]}>
+            <View style={styles.headerActionsRow}>
+              <View style={styles.headerIcons}>
+                <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </Pressable>
+                <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
+                  <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.heroTextCol}>
+              <Text style={styles.helloSmall}>{greeting},</Text>
+              <Text style={styles.customerName}>{companyName}</Text>
+              <Text style={styles.heroTagline}>
                 A new day. New orders. Let's grow your business.
               </Text>
-              <Text style={[styles.clientId, heroStacked && styles.heroTextCentered]}>
+              <Text style={styles.clientId} numberOfLines={1}>
                 Client ID: {clientId}
               </Text>
             </View>
+
             <LensHeroCarousel
               images={catalogImages}
               active={homeFocused}
@@ -579,7 +575,21 @@ const createStyles = (c: BrandColorScheme) =>
   root: { flex: 1, backgroundColor: c.background },
   safeTop: { flex: 1 },
   scrollPad: { paddingHorizontal: 18, paddingBottom: 32 },
-  homeSearchWrap: { marginBottom: 14 },
+  homeSearchWrap: { marginTop: 18, marginBottom: 16 },
+  heroBlock: {
+    position: 'relative',
+    marginTop: 4,
+    gap: 14,
+  },
+  heroAmbient: {
+    position: 'absolute',
+    top: -20,
+    left: -8,
+    right: -8,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: 'rgba(240, 161, 50, 0.08)',
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -591,78 +601,65 @@ const createStyles = (c: BrandColorScheme) =>
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  heroRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 20,
-  },
-  heroRowStacked: {
-    flexDirection: 'column',
-    alignItems: 'center',
+    zIndex: 1,
   },
   heroTextCol: {
-    flex: 1,
-    minWidth: 0,
-    paddingRight: 4,
-  },
-  heroTextColStacked: {
     width: '100%',
-    paddingRight: 0,
-    marginBottom: 8,
-    alignItems: 'center',
-  },
-  heroTextCentered: {
-    textAlign: 'center',
+    zIndex: 1,
   },
   headerTextCol: { flex: 1, paddingRight: 12 },
   helloSmall: {
     color: c.textMuted,
     fontSize: 14,
     fontWeight: '500',
+    letterSpacing: 0.2,
   },
   customerName: {
     color: c.text,
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     marginTop: 4,
+    letterSpacing: -0.3,
   },
   heroTagline: {
     color: c.textMuted,
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
     marginTop: 8,
+    maxWidth: 320,
   },
   clientId: {
-    color: c.primary,
-    fontSize: 13,
-    fontWeight: '600',
+    color: c.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
     marginTop: 10,
+    opacity: 0.85,
   },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: c.card,
     borderWidth: 1,
     borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: c.primary, fontWeight: '800', fontSize: 14 },
+  avatarText: { color: c.primary, fontWeight: '800', fontSize: 13 },
   bellBtn: { padding: 4 },
   sectionCard: {
     backgroundColor: c.card,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 22,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -692,6 +689,10 @@ const createStyles = (c: BrandColorScheme) =>
     flex: 1,
     alignItems: 'center',
     minWidth: 0,
+    backgroundColor: 'rgba(240, 161, 50, 0.06)',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
   },
   overviewValue: {
     color: c.text,
@@ -718,12 +719,10 @@ const createStyles = (c: BrandColorScheme) =>
     width: '22%',
   },
   quickIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     backgroundColor: 'rgba(240, 161, 50, 0.12)',
-    borderWidth: 1,
-    borderColor: c.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -740,7 +739,7 @@ const createStyles = (c: BrandColorScheme) =>
     justifyContent: 'center',
     gap: 10,
     backgroundColor: c.primary,
-    borderRadius: 14,
+    borderRadius: 16,
     paddingVertical: 16,
     marginBottom: 24,
   },
@@ -759,7 +758,7 @@ const createStyles = (c: BrandColorScheme) =>
   categoryCard: {
     width: '48%',
     backgroundColor: c.card,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: c.cardBorder,
     minHeight: 128,
@@ -770,7 +769,7 @@ const createStyles = (c: BrandColorScheme) =>
   categoryImage: {
     width: 56,
     height: 56,
-    borderRadius: 12,
+    borderRadius: 14,
     marginBottom: 8,
     backgroundColor: 'rgba(240, 161, 50, 0.1)',
   },
@@ -788,7 +787,7 @@ const createStyles = (c: BrandColorScheme) =>
   },
   mostOrderedEmpty: {
     backgroundColor: c.card,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: c.cardBorder,
     paddingHorizontal: 16,
@@ -807,7 +806,7 @@ const createStyles = (c: BrandColorScheme) =>
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: c.card,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
     paddingHorizontal: 14,
