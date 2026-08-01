@@ -10,11 +10,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
+import { LensHeroCarousel } from '@/components/lens-hero-carousel';
 import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -27,6 +29,10 @@ import {
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
+import {
+  getCompanyDisplayName,
+  getTimeOfDayGreeting,
+} from '@/lib/home-greeting';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
@@ -91,8 +97,10 @@ export default function HomeScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { user, isStaff, getAuthHeaders } = useAuth();
   const { setMode } = useOrderMode();
+  const heroStacked = windowWidth < 390;
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
   const [staffOverview, setStaffOverview] = useState({
@@ -109,6 +117,7 @@ export default function HomeScreen() {
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
   const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
+  const [homeFocused, setHomeFocused] = useState(true);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
@@ -141,10 +150,14 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setHomeFocused(true);
       void refreshStaffUnreadCount();
       if (!isStaff && user) {
         void loadOrders();
       }
+      return () => {
+        setHomeFocused(false);
+      };
     }, [refreshStaffUnreadCount, loadOrders, isStaff, user])
   );
 
@@ -360,19 +373,15 @@ export default function HomeScreen() {
     );
   }
 
-  const displayName = getDisplayNameFull(user.name, user.email);
+  const companyName = getCompanyDisplayName(user.businessName, user.name, user.email);
+  const greeting = getTimeOfDayGreeting();
   const initials = getInitials(user.name, user.email);
 
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safeTop} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerTextCol}>
-              <Text style={styles.helloSmall}>Hello,</Text>
-              <Text style={styles.customerName}>{displayName}</Text>
-              <Text style={styles.clientId}>Client ID: {clientId}</Text>
-            </View>
+          <View style={styles.headerActionsRow}>
             <View style={styles.headerIcons}>
               <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
                 <Text style={styles.avatarText}>{initials}</Text>
@@ -383,13 +392,38 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          <View style={[styles.heroRow, heroStacked && styles.heroRowStacked]}>
+            <View style={[styles.heroTextCol, heroStacked && styles.heroTextColStacked]}>
+              <Text style={[styles.helloSmall, heroStacked && styles.heroTextCentered]}>
+                {greeting},
+              </Text>
+              <Text style={[styles.customerName, heroStacked && styles.heroTextCentered]}>
+                {companyName}
+              </Text>
+              <Text style={[styles.heroTagline, heroStacked && styles.heroTextCentered]}>
+                A new day. New orders. Let's grow your business.
+              </Text>
+              <Text style={[styles.clientId, heroStacked && styles.heroTextCentered]}>
+                Client ID: {clientId}
+              </Text>
+            </View>
+            <LensHeroCarousel
+              images={catalogImages}
+              active={homeFocused}
+              onSelectCategory={(categoryId) => {
+                const cat = CLIENT_HOME_CATEGORIES.find((c) => c.id === categoryId);
+                goToCategory(router, categoryId, cat?.filter ?? 'All');
+              }}
+            />
+          </View>
+
           <View style={styles.homeSearchWrap}>
             <CatalogSearchBar />
           </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Order overview</Text>
+              <Text style={styles.sectionTitle}>At a glance</Text>
               <Pressable onPress={() => router.push('/my-orders')} hitSlop={8}>
                 <Text style={styles.viewAll}>View all</Text>
               </Pressable>
@@ -433,10 +467,11 @@ export default function HomeScreen() {
             <Text style={styles.wholesaleBtnText}>Place wholesale order</Text>
           </Pressable>
 
-          <Text style={styles.sectionTitleOutside}>Product categories</Text>
+          <Text style={styles.sectionTitleOutside}>Shop by category</Text>
           <View style={styles.categoryGrid}>
             {CLIENT_HOME_CATEGORIES.map((cat) => {
               const imageUrl = catalogImageForHomeCategory(catalogImages, cat.id);
+              const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
               return (
                 <Pressable
                   key={cat.id}
@@ -446,7 +481,7 @@ export default function HomeScreen() {
                     <Image source={{ uri: imageUrl }} style={styles.categoryImage} />
                   ) : null}
                   <Text style={styles.categoryCardText} numberOfLines={3}>
-                    {cat.label}
+                    {label}
                   </Text>
                   <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
                 </Pressable>
@@ -552,6 +587,38 @@ const createStyles = (c: BrandColorScheme) =>
     marginTop: 8,
     marginBottom: 22,
   },
+  headerActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  heroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 20,
+  },
+  heroRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  heroTextCol: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 4,
+  },
+  heroTextColStacked: {
+    width: '100%',
+    paddingRight: 0,
+    marginBottom: 8,
+    alignItems: 'center',
+  },
+  heroTextCentered: {
+    textAlign: 'center',
+  },
   headerTextCol: { flex: 1, paddingRight: 12 },
   helloSmall: {
     color: c.textMuted,
@@ -564,11 +631,17 @@ const createStyles = (c: BrandColorScheme) =>
     fontWeight: '800',
     marginTop: 4,
   },
+  heroTagline: {
+    color: c.textMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 8,
+  },
   clientId: {
     color: c.primary,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
-    marginTop: 8,
+    marginTop: 10,
   },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatarCircle: {
@@ -689,15 +762,15 @@ const createStyles = (c: BrandColorScheme) =>
     borderRadius: 14,
     borderWidth: 1,
     borderColor: c.cardBorder,
-    minHeight: 120,
+    minHeight: 128,
     paddingHorizontal: 16,
     paddingVertical: 14,
     justifyContent: 'space-between',
   },
   categoryImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     marginBottom: 8,
     backgroundColor: 'rgba(240, 161, 50, 0.1)',
   },
