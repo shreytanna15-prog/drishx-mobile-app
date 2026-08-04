@@ -25,8 +25,39 @@ import {
   formatReturnStatus,
   updateReturnRequest,
   type ReturnRequestRecord,
+  type ReturnRequestStatus,
 } from '@/lib/returns-api';
 import { useBrandColors } from '@/lib/theme-provider';
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function statusTone(status: ReturnRequestStatus, colors: BrandColorScheme) {
+  switch (status) {
+    case 'SUBMITTED':
+    case 'ESCALATED_TO_ADMIN':
+      return { border: 'rgba(251, 191, 36, 0.4)', bg: 'rgba(245, 158, 11, 0.16)', text: '#FBBF24' };
+    case 'MORE_INFO_REQUIRED':
+      return { border: 'rgba(56, 189, 248, 0.4)', bg: 'rgba(14, 165, 233, 0.16)', text: '#7DD3FC' };
+    case 'AWAITING_MATERIAL':
+    case 'APPROVED_REPLACEMENT':
+    case 'APPROVED_CREDIT':
+      return { border: 'rgba(52, 211, 153, 0.4)', bg: 'rgba(16, 185, 129, 0.16)', text: colors.success };
+    case 'REJECTED':
+      return { border: 'rgba(248, 113, 113, 0.45)', bg: 'rgba(239, 68, 68, 0.14)', text: colors.danger };
+    default:
+      return { border: colors.cardBorder, bg: colors.card, text: colors.textMuted };
+  }
+}
 
 export default function ReturnDetailsScreen() {
   const router = useRouter();
@@ -89,15 +120,24 @@ export default function ReturnDetailsScreen() {
       request?.status === 'APPROVED_REPLACEMENT' ||
       request?.status === 'MORE_INFO_REQUIRED');
 
+  const tone = request ? statusTone(request.status, colors) : null;
+
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerBtn}>
             <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>{request?.requestNumber ?? 'Return details'}</Text>
-          <View style={{ width: 22 }} />
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {request?.requestNumber ?? 'Return details'}
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {isStaff ? 'Assigned request details' : 'Status and history'}
+            </Text>
+          </View>
+          <View style={styles.headerBtnPlaceholder} />
         </View>
 
         {loading ? (
@@ -106,25 +146,65 @@ export default function ReturnDetailsScreen() {
           </View>
         ) : error || !request ? (
           <View style={styles.centered}>
+            <MaterialIcons name="error-outline" size={36} color={colors.danger} />
             <Text style={styles.errorText}>{error || 'Return request not found.'}</Text>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.content}>
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>
-                {request.customer?.businessName ||
-                  request.customer?.name ||
-                  request.customer?.email ||
-                  'Customer'}
-              </Text>
-              <Text style={styles.meta}>
-                {request.requestType} · {formatReturnStatus(request.status)}
-              </Text>
+              <View style={styles.summaryTop}>
+                <View style={styles.summaryLeft}>
+                  <Text style={styles.typeEyebrow}>
+                    {request.requestType === 'REPLACEMENT' ? 'Replacement' : 'Return'}
+                  </Text>
+                  <Text style={styles.summaryStatus}>{formatReturnStatus(request.status)}</Text>
+                  <Text style={styles.meta}>Submitted {formatDate(request.createdAt)}</Text>
+                </View>
+                {tone ? (
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { borderColor: tone.border, backgroundColor: tone.bg },
+                    ]}>
+                    <Text style={[styles.statusBadgeText, { color: tone.text }]}>
+                      {formatReturnStatus(request.status)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {isStaff ? (
+                <View style={styles.rowMeta}>
+                  <MaterialIcons name="person-outline" size={16} color={colors.primary} />
+                  <Text style={styles.rowMetaText}>
+                    {request.customer?.businessName ||
+                      request.customer?.name ||
+                      request.customer?.email ||
+                      'Customer'}
+                  </Text>
+                </View>
+              ) : null}
+
               {request.customerRemarks ? (
-                <Text style={styles.bodyText}>{request.customerRemarks}</Text>
+                <Text style={styles.bodyText}>
+                  <Text style={styles.labelInline}>Your remarks: </Text>
+                  {request.customerRemarks}
+                </Text>
+              ) : null}
+              {request.adminRemarks ? (
+                <Text style={styles.bodyText}>
+                  <Text style={styles.labelInline}>Admin notes: </Text>
+                  {request.adminRemarks}
+                </Text>
+              ) : null}
+              {request.employeeRemarks ? (
+                <Text style={styles.bodyText}>
+                  <Text style={styles.labelInline}>Staff notes: </Text>
+                  {request.employeeRemarks}
+                </Text>
               ) : null}
               {request.rejectionReason ? (
-                <Text style={styles.errorText}>{request.rejectionReason}</Text>
+                <Text style={styles.rejectText}>{request.rejectionReason}</Text>
               ) : null}
             </View>
 
@@ -132,10 +212,13 @@ export default function ReturnDetailsScreen() {
               <Text style={styles.sectionTitle}>Items</Text>
               {request.items.map((item) => (
                 <View key={item.id} style={styles.itemCard}>
-                  <Text style={styles.itemTitle}>{item.lensLabel}</Text>
+                  <View style={styles.itemHeader}>
+                    <Text style={styles.itemTitle}>{item.lensLabel}</Text>
+                    <Text style={styles.meta}>Qty {item.quantity}</Text>
+                  </View>
                   <Text style={styles.meta}>
-                    Qty {item.quantity}
-                    {item.eye ? ` · ${item.eye}` : ''} · {formatReturnStatus(item.reason)}
+                    {formatReturnStatus(item.reason)}
+                    {item.eye ? ` · ${item.eye}` : ''}
                   </Text>
                   <Text style={styles.meta}>
                     Original:{' '}
@@ -190,19 +273,25 @@ export default function ReturnDetailsScreen() {
                   style={[styles.input, styles.textArea]}
                   multiline
                   placeholder="Remarks for customer"
-                  placeholderTextColor={colors.textMuted}
+                  placeholderTextColor={colors.placeholder}
                   value={remarks}
                   editable={canAct && !submitting}
                   onChangeText={setRemarks}
                 />
-                <View style={styles.actions}>
-                  <Pressable
-                    style={[styles.actionBtn, styles.primaryBtn, (!canAct || submitting) && styles.disabled]}
-                    disabled={!canAct || submitting}
-                    onPress={() => void runAction('more-info')}>
+                <Pressable
+                  style={[
+                    styles.actionBtn,
+                    styles.primaryBtn,
+                    (!canAct || submitting) && styles.disabled,
+                  ]}
+                  disabled={!canAct || submitting}
+                  onPress={() => void runAction('more-info')}>
+                  {submitting ? (
+                    <ActivityIndicator color={colors.primaryText} />
+                  ) : (
                     <Text style={styles.primaryBtnText}>Ask for more photos</Text>
-                  </Pressable>
-                </View>
+                  )}
+                </Pressable>
                 {!canAct ? (
                   <Text style={styles.meta}>
                     This request is {formatReturnStatus(request.status)}.
@@ -213,12 +302,19 @@ export default function ReturnDetailsScreen() {
 
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>Timeline</Text>
-              {request.timelineEvents.map((event) => (
-                <View key={event.id} style={styles.itemCard}>
-                  <Text style={styles.itemTitle}>{event.message}</Text>
-                  <Text style={styles.meta}>{formatReturnStatus(event.eventType)}</Text>
-                </View>
-              ))}
+              {request.timelineEvents.length === 0 ? (
+                <Text style={styles.meta}>No events yet.</Text>
+              ) : (
+                request.timelineEvents.map((event) => (
+                  <View key={event.id} style={styles.itemCard}>
+                    <View style={styles.timelineTop}>
+                      <Text style={styles.itemTitle}>{event.message}</Text>
+                      <Text style={styles.dateSm}>{formatDate(event.createdAt)}</Text>
+                    </View>
+                    <Text style={styles.meta}>{formatReturnStatus(event.eventType)}</Text>
+                  </View>
+                ))
+              )}
             </View>
           </ScrollView>
         )}
@@ -234,23 +330,50 @@ const createStyles = (c: BrandColorScheme) =>
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 16,
+      gap: 8,
+      paddingHorizontal: 12,
       paddingVertical: 12,
       borderBottomWidth: 1,
       borderBottomColor: c.cardBorder,
     },
-    headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
-    content: { padding: 16, gap: 12, paddingBottom: 40 },
-    card: {
-      borderRadius: 14,
+    headerBtn: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: c.card,
-      padding: 14,
+    },
+    headerBtnPlaceholder: { width: 36, height: 36 },
+    headerCenter: { flex: 1, minWidth: 0 },
+    headerTitle: { color: c.text, fontSize: 17, fontWeight: '800' },
+    headerSubtitle: { color: c.textMuted, fontSize: 12, marginTop: 2, fontWeight: '500' },
+    content: { padding: 16, gap: 12, paddingBottom: 40 },
+    card: {
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      padding: 16,
       gap: 10,
     },
-    cardTitle: { color: c.text, fontSize: 17, fontWeight: '800' },
+    summaryTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    summaryLeft: { flex: 1, minWidth: 0, gap: 4 },
+    typeEyebrow: {
+      color: c.primary,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.7,
+    },
+    summaryStatus: { color: c.text, fontSize: 18, fontWeight: '800' },
     sectionTitle: {
       color: c.primary,
       fontSize: 12,
@@ -258,48 +381,70 @@ const createStyles = (c: BrandColorScheme) =>
       textTransform: 'uppercase',
       letterSpacing: 0.6,
     },
-    meta: { color: c.textMuted, fontSize: 13 },
+    meta: { color: c.textMuted, fontSize: 13, fontWeight: '500' },
+    labelInline: { color: c.textMuted, fontWeight: '700' },
     bodyText: { color: c.text, fontSize: 14, lineHeight: 20 },
+    statusBadge: {
+      borderRadius: 8,
+      borderWidth: 1,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      maxWidth: 130,
+    },
+    statusBadgeText: { fontSize: 11, fontWeight: '800' },
+    rowMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    rowMetaText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
     itemCard: {
-      borderRadius: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardBorder,
-      padding: 10,
+      padding: 12,
       gap: 4,
+      backgroundColor: c.background,
     },
-    itemTitle: { color: c.text, fontWeight: '700', fontSize: 14 },
+    itemHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 8,
+    },
+    itemTitle: { flex: 1, color: c.text, fontWeight: '700', fontSize: 14 },
     imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     image: {
       width: '48%',
       aspectRatio: 1,
-      borderRadius: 10,
+      borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: c.background,
     },
     input: {
       borderWidth: 1,
-      borderColor: c.cardBorder,
-      borderRadius: 10,
+      borderColor: c.inputBorder,
+      borderRadius: 12,
       paddingHorizontal: 12,
       paddingVertical: 10,
       color: c.text,
-      backgroundColor: c.background,
+      backgroundColor: c.inputBg,
     },
     textArea: { minHeight: 90, textAlignVertical: 'top' },
-    actions: { gap: 8 },
     actionBtn: {
-      borderRadius: 10,
-      paddingVertical: 12,
+      borderRadius: 12,
+      paddingVertical: 13,
       alignItems: 'center',
     },
     primaryBtn: { backgroundColor: c.primary },
     primaryBtnText: { color: c.primaryText, fontWeight: '800' },
-    secondaryBtn: { borderWidth: 1, borderColor: c.cardBorder },
-    secondaryBtnText: { color: c.text, fontWeight: '700' },
-    dangerBtn: { backgroundColor: `${c.danger}22`, borderWidth: 1, borderColor: c.danger },
-    dangerBtnText: { color: c.danger, fontWeight: '800' },
     disabled: { opacity: 0.55 },
-    centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    errorText: { color: c.danger, textAlign: 'center' },
+    rejectText: { color: c.danger, fontSize: 13, fontWeight: '600' },
+    timelineTop: { gap: 4 },
+    dateSm: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
+    centered: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 10,
+    },
+    errorText: { color: c.danger, textAlign: 'center', fontWeight: '600' },
   });
