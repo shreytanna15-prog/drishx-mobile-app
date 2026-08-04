@@ -8,6 +8,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +23,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   DEFAULT_LENS_SORT,
+  fetchLensCoatings,
   fetchLensesPage,
   LENS_SORT_OPTIONS,
   LOAD_MORE_AT_INDEX,
@@ -66,6 +68,8 @@ export default function ShopProductsScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sort, setSort] = useState<LensSortOption>(DEFAULT_LENS_SORT);
   const [sortOpen, setSortOpen] = useState(false);
+  const [coatings, setCoatings] = useState<string[]>([]);
+  const [selectedCoating, setSelectedCoating] = useState('');
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -73,8 +77,10 @@ export default function ShopProductsScreen() {
   const requestIdRef = useRef(0);
   const debouncedSearchRef = useRef('');
   const sortRef = useRef(sort);
+  const coatingRef = useRef(selectedCoating);
   debouncedSearchRef.current = debouncedSearch;
   sortRef.current = sort;
+  coatingRef.current = selectedCoating;
 
   const sortLabel =
     LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
@@ -89,6 +95,30 @@ export default function ShopProductsScreen() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 450);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    setSelectedCoating('');
+    coatingRef.current = '';
+    setCoatings([]);
+    if (!selectedItem) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const list = await fetchLensCoatings({
+          type: filter,
+          item: selectedItem,
+        });
+        if (!cancelled) setCoatings(list);
+      } catch {
+        if (!cancelled) setCoatings([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, selectedItem]);
 
   const loadPage = useCallback(
     async (pageToLoad: number, replace: boolean) => {
@@ -108,6 +138,7 @@ export default function ShopProductsScreen() {
           type: filter,
           search: debouncedSearchRef.current,
           item: selectedItem || undefined,
+          coating: coatingRef.current || undefined,
           sort: sortRef.current,
         });
 
@@ -141,7 +172,7 @@ export default function ShopProductsScreen() {
     hasMoreRef.current = true;
     setInitialLoading(true);
     loadPage(1, true);
-  }, [filter, selectedItem, debouncedSearch, sort, loadPage]);
+  }, [filter, selectedItem, debouncedSearch, sort, selectedCoating, loadPage]);
 
   const loadNextPage = useCallback(() => {
     if (!hasMoreRef.current || loadingMoreRef.current || isRefreshing) return;
@@ -170,6 +201,10 @@ export default function ShopProductsScreen() {
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
 
   const title = selectedItem || 'Products';
+
+  const emptyMessage = selectedCoating
+    ? 'No products found for this coating.'
+    : 'No products found.';
 
   return (
     <View style={styles.root}>
@@ -213,6 +248,49 @@ export default function ShopProductsScreen() {
           </Text>
           <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
         </Pressable>
+
+        {coatings.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.coatingRow}
+            style={styles.coatingScroll}
+          >
+            <Pressable
+              onPress={() => setSelectedCoating('')}
+              style={[styles.coatingChip, !selectedCoating && styles.coatingChipActive]}
+            >
+              <Text
+                style={[
+                  styles.coatingChipText,
+                  !selectedCoating && styles.coatingChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </Pressable>
+            {coatings.map((coating) => {
+              const active =
+                selectedCoating.toLowerCase() === coating.toLowerCase();
+              return (
+                <Pressable
+                  key={coating}
+                  onPress={() => setSelectedCoating(coating)}
+                  style={[styles.coatingChip, active && styles.coatingChipActive]}
+                >
+                  <Text
+                    style={[
+                      styles.coatingChipText,
+                      active && styles.coatingChipTextActive,
+                    ]}
+                  >
+                    {coating}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {initialLoading ? (
           <View style={styles.centeredState}>
@@ -266,7 +344,7 @@ export default function ShopProductsScreen() {
               ListEmptyComponent={
                 <View style={styles.centeredState}>
                   <MaterialIcons name="search-off" size={40} color={colors.textMuted} />
-                  <Text style={styles.stateText}>No products found.</Text>
+                  <Text style={styles.stateText}>{emptyMessage}</Text>
                 </View>
               }
             />
@@ -347,6 +425,27 @@ const createStyles = (c: BrandColorScheme) =>
       marginBottom: 10,
     },
     sortButtonText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
+    coatingScroll: { maxHeight: 44, marginBottom: 10 },
+    coatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingRight: 8,
+    },
+    coatingChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+    },
+    coatingChipActive: {
+      borderColor: c.primary,
+      backgroundColor: c.primary + '14',
+    },
+    coatingChipText: { color: c.textMuted, fontSize: 13, fontWeight: '700' },
+    coatingChipTextActive: { color: c.primary, fontWeight: '800' },
     countHint: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
     listContent: { paddingBottom: 24 },
     separator: { height: 12 },

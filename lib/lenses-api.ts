@@ -125,14 +125,47 @@ export async function fetchLensCatalogItems(type: string): Promise<LensCatalogIt
   return data.items ?? [];
 }
 
+/** Distinct coating labels for a catalog subcategory (type + item). */
+export async function fetchLensCoatings({
+  type,
+  item,
+}: {
+  type: FilterOption;
+  item?: string;
+}): Promise<string[]> {
+  const params = new URLSearchParams({
+    type: filterToApiType(type),
+  });
+  const trimmedItem = item?.trim();
+  if (trimmedItem) {
+    params.set('item', trimmedItem);
+  }
+
+  const url = `${BACKEND_BASE_URL}/api/lenses/coatings?${params.toString()}`;
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : 'Network request failed';
+    throw new Error(`Cannot reach backend at ${BACKEND_BASE_URL} (${detail})`);
+  }
+  if (!response.ok) {
+    throw new Error(`Backend returned ${response.status} for lens coatings`);
+  }
+  const data = (await response.json()) as { coatings?: string[] };
+  return data.coatings ?? [];
+}
+
 async function fetchAllLensesPages({
   type,
   search,
   item,
+  coating,
 }: {
   type: FilterOption;
   search?: string;
   item?: string;
+  coating?: string;
 }): Promise<LensesPageResponse['items']> {
   const collected: LensesPageResponse['items'] = [];
   let page = 1;
@@ -145,6 +178,7 @@ async function fetchAllLensesPages({
       type,
       search,
       item,
+      coating,
     });
     if (data.items.length === 0) break;
     collected.push(...data.items);
@@ -162,6 +196,7 @@ export async function fetchLensesPage({
   type,
   search,
   item,
+  coating,
   sort = DEFAULT_LENS_SORT,
 }: {
   page: number;
@@ -169,13 +204,14 @@ export async function fetchLensesPage({
   type: FilterOption;
   search: string;
   item?: string;
+  coating?: string;
   sort?: LensSortOption;
 }): Promise<LensesPageResponse> {
   const trimmedSearch = search.trim();
   const planoSearch = isPlanoSearchQuery(trimmedSearch);
 
   if (planoSearch) {
-    return fetchPlanoLensesPage({ page, limit, type, item, sort });
+    return fetchPlanoLensesPage({ page, limit, type, item, coating, sort });
   }
 
   if (isCustomLensSort(sort)) {
@@ -183,6 +219,7 @@ export async function fetchLensesPage({
       type,
       search: trimmedSearch,
       item,
+      coating,
     });
     const sorted = sortApiLenses(allItems, sort);
     return paginateItems(sorted, page, limit);
@@ -194,6 +231,7 @@ export async function fetchLensesPage({
     type,
     search: trimmedSearch,
     item,
+    coating,
   });
 }
 
@@ -220,12 +258,14 @@ async function fetchLensesPageRaw({
   type,
   search,
   item,
+  coating,
 }: {
   page: number;
   limit: number;
   type: FilterOption;
   search?: string;
   item?: string;
+  coating?: string;
 }): Promise<LensesPageResponse> {
   const params = new URLSearchParams({
     page: String(page),
@@ -241,6 +281,11 @@ async function fetchLensesPageRaw({
   const trimmedItem = item?.trim();
   if (trimmedItem) {
     params.set('item', trimmedItem);
+  }
+
+  const trimmedCoating = coating?.trim();
+  if (trimmedCoating) {
+    params.set('coating', trimmedCoating);
   }
 
   const url = `${BACKEND_BASE_URL}/api/lenses?${params.toString()}`;
@@ -284,16 +329,18 @@ async function fetchPlanoLensesPage({
   limit,
   type,
   item,
+  coating,
   sort = DEFAULT_LENS_SORT,
 }: {
   page: number;
   limit: number;
   type: FilterOption;
   item?: string;
+  coating?: string;
   sort?: LensSortOption;
 }): Promise<LensesPageResponse> {
   if (isCustomLensSort(sort)) {
-    const allItems = await fetchAllLensesPages({ type, item });
+    const allItems = await fetchAllLensesPages({ type, item, coating });
     const planoItems = sortApiLenses(allItems.filter(isPlanoApiLens), sort);
     return paginateItems(planoItems, page, limit);
   }
@@ -310,6 +357,7 @@ async function fetchPlanoLensesPage({
       limit,
       type,
       item,
+      coating,
     });
     total = data.total;
     lastLimit = data.limit;
