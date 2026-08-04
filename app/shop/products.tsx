@@ -23,13 +23,15 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   DEFAULT_LENS_SORT,
-  fetchLensCoatings,
+  fetchLensFacets,
   fetchLensesPage,
   LENS_SORT_OPTIONS,
   LOAD_MORE_AT_INDEX,
   mapApiLens,
   PAGE_SIZE,
+  POWER_SHAPE_OPTIONS,
   type LensSortOption,
+  type PowerShapeFilter,
 } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
 import type { LensItem } from '@/lib/types/lens';
@@ -69,7 +71,9 @@ export default function ShopProductsScreen() {
   const [sort, setSort] = useState<LensSortOption>(DEFAULT_LENS_SORT);
   const [sortOpen, setSortOpen] = useState(false);
   const [coatings, setCoatings] = useState<string[]>([]);
+  const [powerShapes, setPowerShapes] = useState<PowerShapeFilter[]>([]);
   const [selectedCoating, setSelectedCoating] = useState('');
+  const [selectedPowerShape, setSelectedPowerShape] = useState<PowerShapeFilter | ''>('');
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -78,9 +82,13 @@ export default function ShopProductsScreen() {
   const debouncedSearchRef = useRef('');
   const sortRef = useRef(sort);
   const coatingRef = useRef(selectedCoating);
+  const powerShapeRef = useRef(selectedPowerShape);
   debouncedSearchRef.current = debouncedSearch;
   sortRef.current = sort;
   coatingRef.current = selectedCoating;
+  powerShapeRef.current = selectedPowerShape;
+
+  const usePowerFilters = coatings.length === 0 && powerShapes.length > 0;
 
   const sortLabel =
     LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
@@ -99,19 +107,28 @@ export default function ShopProductsScreen() {
   useEffect(() => {
     setSelectedCoating('');
     coatingRef.current = '';
+    setSelectedPowerShape('');
+    powerShapeRef.current = '';
     setCoatings([]);
+    setPowerShapes([]);
     if (!selectedItem) return;
 
     let cancelled = false;
     void (async () => {
       try {
-        const list = await fetchLensCoatings({
+        const facets = await fetchLensFacets({
           type: filter,
           item: selectedItem,
         });
-        if (!cancelled) setCoatings(list);
+        if (!cancelled) {
+          setCoatings(facets.coatings);
+          setPowerShapes(facets.powerShapes);
+        }
       } catch {
-        if (!cancelled) setCoatings([]);
+        if (!cancelled) {
+          setCoatings([]);
+          setPowerShapes([]);
+        }
       }
     })();
 
@@ -133,12 +150,16 @@ export default function ShopProductsScreen() {
       const currentRequestId = ++requestIdRef.current;
       setError(null);
       try {
+        const powerShape = powerShapeRef.current || undefined;
+        const coating = powerShape ? undefined : coatingRef.current || undefined;
+
         const data = await fetchLensesPage({
           page: pageToLoad,
           type: filter,
           search: debouncedSearchRef.current,
           item: selectedItem || undefined,
-          coating: coatingRef.current || undefined,
+          coating,
+          powerShape,
           sort: sortRef.current,
         });
 
@@ -172,7 +193,7 @@ export default function ShopProductsScreen() {
     hasMoreRef.current = true;
     setInitialLoading(true);
     loadPage(1, true);
-  }, [filter, selectedItem, debouncedSearch, sort, selectedCoating, loadPage]);
+  }, [filter, selectedItem, debouncedSearch, sort, selectedCoating, selectedPowerShape, loadPage]);
 
   const loadNextPage = useCallback(() => {
     if (!hasMoreRef.current || loadingMoreRef.current || isRefreshing) return;
@@ -202,9 +223,11 @@ export default function ShopProductsScreen() {
 
   const title = selectedItem || 'Products';
 
-  const emptyMessage = selectedCoating
-    ? 'No products found for this coating.'
-    : 'No products found.';
+  const emptyMessage = selectedPowerShape
+    ? 'No products found for this power filter.'
+    : selectedCoating
+      ? 'No products found for this coating.'
+      : 'No products found.';
 
   return (
     <View style={styles.root}>
@@ -249,7 +272,49 @@ export default function ShopProductsScreen() {
           <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
         </Pressable>
 
-        {coatings.length > 0 ? (
+        {usePowerFilters ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.coatingRow}
+            style={styles.coatingScroll}
+          >
+            <Pressable
+              onPress={() => setSelectedPowerShape('')}
+              style={[styles.coatingChip, !selectedPowerShape && styles.coatingChipActive]}
+            >
+              <Text
+                style={[
+                  styles.coatingChipText,
+                  !selectedPowerShape && styles.coatingChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </Pressable>
+            {POWER_SHAPE_OPTIONS.filter((option) => powerShapes.includes(option.value)).map(
+              (option) => {
+                const active = selectedPowerShape === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setSelectedPowerShape(option.value)}
+                    style={[styles.coatingChip, active && styles.coatingChipActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.coatingChipText,
+                        active && styles.coatingChipTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
+          </ScrollView>
+        ) : coatings.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
