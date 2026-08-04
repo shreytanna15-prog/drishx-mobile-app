@@ -78,6 +78,17 @@ export const RETURN_REASON_OPTIONS: Array<{ value: ReturnReason; label: string }
 ];
 
 export function formatReturnStatus(status: string) {
+  const labels: Record<string, string> = {
+    SUBMITTED: 'Pending Admin Review',
+    MORE_INFO_REQUIRED: 'More Info Needed',
+    ESCALATED_TO_ADMIN: 'Pending Admin Review',
+    AWAITING_MATERIAL: 'Replacement Approved',
+    APPROVED_CREDIT: 'Credit Approved',
+    APPROVED_REPLACEMENT: 'Replacement Approved',
+    REJECTED: 'Rejected',
+    CLOSED: 'Closed',
+  };
+  if (labels[status]) return labels[status];
   return status
     .toLowerCase()
     .split('_')
@@ -161,7 +172,7 @@ export async function createReturnRequest(
 
 export async function updateReturnRequest(
   id: string,
-  action: 'more-info' | 'escalate' | 'reject',
+  action: 'more-info',
   remarks: string | undefined,
   headers: Record<string, string>
 ): Promise<ReturnRequestRecord> {

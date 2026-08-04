@@ -29,10 +29,12 @@ type FilterKey = 'ALL' | ReturnRequestStatus;
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'ALL', label: 'All' },
-  { key: 'SUBMITTED', label: 'Submitted' },
+  { key: 'SUBMITTED', label: 'Pending review' },
   { key: 'MORE_INFO_REQUIRED', label: 'More info' },
-  { key: 'ESCALATED_TO_ADMIN', label: 'Escalated' },
+  { key: 'APPROVED_CREDIT', label: 'Credit' },
+  { key: 'AWAITING_MATERIAL', label: 'Replacement' },
   { key: 'REJECTED', label: 'Rejected' },
+  { key: 'CLOSED', label: 'Closed' },
 ];
 
 function formatDate(value: string) {
@@ -129,8 +131,8 @@ export default function ReturnsScreen() {
                 <Text style={styles.emptyText}>
                   {error ||
                     (isStaff
-                      ? 'No return requests assigned to you.'
-                      : 'No return requests yet.')}
+                      ? 'Returns appear here after admin approval and assignment.'
+                      : 'No return or replacement requests yet.')}
                 </Text>
               </View>
             }

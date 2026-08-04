@@ -62,12 +62,8 @@ export default function ReturnDetailsScreen() {
     void load();
   }, [load]);
 
-  async function runAction(action: 'more-info' | 'escalate' | 'reject') {
+  async function runAction(action: 'more-info') {
     if (!request) return;
-    if (action === 'reject' && !remarks.trim()) {
-      appAlert('Remarks required', 'Please add a rejection reason.');
-      return;
-    }
     setSubmitting(true);
     try {
       const updated = await updateReturnRequest(
@@ -88,7 +84,10 @@ export default function ReturnDetailsScreen() {
 
   const canAct =
     isStaff &&
-    (request?.status === 'SUBMITTED' || request?.status === 'MORE_INFO_REQUIRED');
+    (request?.status === 'APPROVED_CREDIT' ||
+      request?.status === 'AWAITING_MATERIAL' ||
+      request?.status === 'APPROVED_REPLACEMENT' ||
+      request?.status === 'MORE_INFO_REQUIRED');
 
   return (
     <View style={styles.container}>
@@ -183,11 +182,14 @@ export default function ReturnDetailsScreen() {
 
             {isStaff ? (
               <View style={styles.card}>
-                <Text style={styles.sectionTitle}>Employee actions</Text>
+                <Text style={styles.sectionTitle}>Request more info</Text>
+                <Text style={styles.meta}>
+                  Ask the customer for additional photos or details if needed.
+                </Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   multiline
-                  placeholder="Remarks"
+                  placeholder="Remarks for customer"
                   placeholderTextColor={colors.textMuted}
                   value={remarks}
                   editable={canAct && !submitting}
@@ -200,22 +202,10 @@ export default function ReturnDetailsScreen() {
                     onPress={() => void runAction('more-info')}>
                     <Text style={styles.primaryBtnText}>Ask for more photos</Text>
                   </Pressable>
-                  <Pressable
-                    style={[styles.actionBtn, styles.secondaryBtn, (!canAct || submitting) && styles.disabled]}
-                    disabled={!canAct || submitting}
-                    onPress={() => void runAction('escalate')}>
-                    <Text style={styles.secondaryBtnText}>Escalate to admin</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.actionBtn, styles.dangerBtn, (!canAct || submitting) && styles.disabled]}
-                    disabled={!canAct || submitting}
-                    onPress={() => void runAction('reject')}>
-                    <Text style={styles.dangerBtnText}>Reject</Text>
-                  </Pressable>
                 </View>
                 {!canAct ? (
                   <Text style={styles.meta}>
-                    This request is already {formatReturnStatus(request.status)}.
+                    This request is {formatReturnStatus(request.status)}.
                   </Text>
                 ) : null}
               </View>
