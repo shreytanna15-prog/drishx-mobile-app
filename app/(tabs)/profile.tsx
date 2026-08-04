@@ -236,6 +236,16 @@ export default function ProfileScreen() {
                 styles={styles}
                 colors={colors}
               />
+              <MenuRow
+                icon="headset-mic"
+                label="Support"
+                variant="base"
+                onPress={() =>
+                  router.push({ pathname: '/profile-placeholder', params: { title: 'Support' } })
+                }
+                styles={styles}
+                colors={colors}
+              />
               <MenuRow icon="logout" label="Logout" variant="alt" danger onPress={handleLogout} styles={styles} colors={colors} />
             </View>
           </View>

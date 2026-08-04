@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
 import { LensHeroCarousel } from '@/components/lens-hero-carousel';
-import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -230,9 +229,6 @@ export default function HomeScreen() {
   }, [getAuthHeaders, isStaff, user]);
 
   const clientId = useMemo(() => (user ? user.id : ''), [user]);
-  const comingSoon = () => {
-    appAlert('Coming soon', 'This feature will be available in a future update.');
-  };
 
   if (isStaff) {
     const staffDisplayName = user ? getDisplayNameFull(user.name, user.email) : 'Team';
@@ -450,7 +446,11 @@ export default function HomeScreen() {
             />
             <QuickIcon icon="receipt-long" label="My orders" onPress={() => router.push('/my-orders')} />
             <QuickIcon icon="description" label="Invoices" onPress={() => router.push('/invoices' as never)} />
-            <QuickIcon icon="headset-mic" label="Support" onPress={comingSoon} />
+            <QuickIcon
+              icon="assignment-return"
+              label="Returns"
+              onPress={() => router.push('/returns' as never)}
+            />
           </View>
 
           <Pressable
