@@ -40,7 +40,6 @@ export function HomeHero({
   const source = getTimeOfDayHeroImage(date);
 
   const circleSize = Math.min(158, Math.max(132, width * 0.38));
-  const ringSize = circleSize + 10;
 
   return (
     <View style={styles.row}>
@@ -62,49 +61,40 @@ export function HomeHero({
             accessibilityLabel={`Continue last order: ${lastOrder.label}`}
           >
             <View style={styles.continueTextCol}>
-              <Text style={styles.continueTitle}>Continue last order</Text>
-              <Text style={styles.continueSubtitle} numberOfLines={1}>
+              <Text style={styles.continueTitle} numberOfLines={1}>
+                Continue last order
+              </Text>
+              <Text style={styles.continueSubtitle} numberOfLines={1} ellipsizeMode="tail">
                 {lastOrder.label}
               </Text>
             </View>
             <View style={styles.continueChevron}>
-              <MaterialIcons name="arrow-forward" size={16} color={colors.primaryText} />
+              <MaterialIcons name="arrow-forward" size={14} color={colors.primaryText} />
             </View>
           </Pressable>
         ) : null}
       </View>
 
-      <View style={[styles.rightCol, { width: ringSize + 8 }]}>
+      <View style={[styles.rightCol, { width: circleSize + 8 }]}>
         <View
           style={[
-            styles.outerRing,
+            styles.heroCircle,
             {
-              width: ringSize,
-              height: ringSize,
-              borderRadius: ringSize / 2,
+              width: circleSize,
+              height: circleSize,
+              borderRadius: circleSize / 2,
             },
           ]}
+          accessibilityRole="image"
+          accessibilityLabel={`${greeting} mood image`}
         >
-          <View
-            style={[
-              styles.innerCircle,
-              {
-                width: circleSize,
-                height: circleSize,
-                borderRadius: circleSize / 2,
-              },
-            ]}
-            accessibilityRole="image"
-            accessibilityLabel={`${greeting} mood image`}
-          >
-            <Image
-              source={source}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              contentPosition="center"
-              transition={200}
-            />
-          </View>
+          <Image
+            source={source}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            contentPosition="center"
+            transition={200}
+          />
         </View>
 
         <View style={styles.weatherChip} pointerEvents="none">
@@ -160,59 +150,49 @@ const createStyles = (c: BrandColorScheme) =>
       marginTop: 14,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      minHeight: 48,
-      paddingVertical: 8,
-      paddingLeft: 12,
-      paddingRight: 8,
-      borderRadius: 14,
+      gap: 8,
+      minHeight: 44,
+      paddingVertical: 7,
+      paddingLeft: 10,
+      paddingRight: 7,
+      borderRadius: 12,
       borderWidth: 1,
-      borderColor: 'rgba(240, 161, 50, 0.55)',
+      borderColor: 'rgba(240, 161, 50, 0.45)',
       backgroundColor: 'rgba(18, 18, 20, 0.92)',
+      maxWidth: '100%',
     },
     continueTextCol: {
       flex: 1,
       minWidth: 0,
+      marginRight: 2,
     },
     continueTitle: {
       color: c.primary,
-      fontSize: 12,
+      fontSize: 11,
       fontWeight: '700',
     },
     continueSubtitle: {
       color: c.textMuted,
-      fontSize: 11,
-      marginTop: 2,
+      fontSize: 9,
+      marginTop: 1,
+      lineHeight: 12,
     },
     continueChevron: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
+      width: 28,
+      height: 28,
+      borderRadius: 8,
       backgroundColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexShrink: 0,
     },
     rightCol: {
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
     },
-    outerRing: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderWidth: 2,
-      borderColor: 'rgba(240, 161, 50, 0.75)',
-      backgroundColor: 'rgba(240, 161, 50, 0.08)',
-      shadowColor: '#F0A132',
-      shadowOpacity: 0.35,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 0 },
-      elevation: 8,
-    },
-    innerCircle: {
+    heroCircle: {
       overflow: 'hidden',
-      borderWidth: 2,
-      borderColor: 'rgba(240, 161, 50, 0.9)',
       backgroundColor: c.background,
     },
     weatherChip: {

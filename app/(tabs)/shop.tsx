@@ -16,7 +16,7 @@ import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import {
-  catalogImageForShopCategory,
+  catalogImageSourceForShopCategory,
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
@@ -156,7 +156,7 @@ export default function ShopScreen() {
 
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
-            const imageUrl = catalogImageForShopCategory(catalogImages, cat.id);
+            const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
             return (
               <Pressable
                 key={cat.id}
@@ -168,8 +168,8 @@ export default function ShopScreen() {
                   })
                 }>
                 <View style={styles.cardTop}>
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+                  {imageSource ? (
+                    <Image source={imageSource} style={styles.cardImage} />
                   ) : (
                     <View style={styles.iconWrap}>
                       <MaterialIcons name={cat.icon} size={22} color={colors.primary} />

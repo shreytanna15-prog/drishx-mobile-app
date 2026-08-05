@@ -23,7 +23,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import {
-  catalogImageForHomeCategory,
+  catalogImageSourceForHomeCategory,
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
@@ -136,13 +136,17 @@ export default function HomeScreen() {
       setOrderCounts(computeCustomerOrderOverview(orders));
       setOverviewTrends(computeCustomerOverviewTrends(orders));
       setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
-      setCatalogImages(images);
+      if (images) setCatalogImages(images);
       setLastOrderSummary(getLastOrderSummary(orders));
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
       setOverviewTrends(EMPTY_OVERVIEW_TRENDS);
       setMostOrderedProducts([]);
       setLastOrderSummary(null);
+      // Still try to load category images if order fetch failed.
+      void fetchCatalogImages()
+        .then((images) => setCatalogImages(images))
+        .catch(() => undefined);
     } finally {
       setOrdersLoading(false);
     }
@@ -496,7 +500,7 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitleOutside}>Shop by category</Text>
           <View style={styles.categoryGrid}>
             {CLIENT_HOME_CATEGORIES.map((cat) => {
-              const imageUrl = catalogImageForHomeCategory(catalogImages, cat.id);
+              const imageSource = catalogImageSourceForHomeCategory(catalogImages, cat.id);
               const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
               return (
                 <Pressable
@@ -504,11 +508,11 @@ export default function HomeScreen() {
                   style={[styles.categoryCard, { borderColor: colors.cardBorder }]}
                   onPress={() => goToCategory(router, cat.id, cat.filter)}>
                   <View style={[styles.categoryMedia, { backgroundColor: colors.background }]}>
-                    {imageUrl ? (
+                    {imageSource ? (
                       <Image
-                        source={{ uri: imageUrl }}
+                        source={imageSource}
                         style={styles.categoryImage}
-                        resizeMode="contain"
+                        resizeMode="cover"
                       />
                     ) : (
                       <View style={styles.categoryImagePlaceholder} />
@@ -607,7 +611,7 @@ function OverviewCell({
       {icon ? (
         <View style={styles.overviewCellTopRow}>
           <View style={[styles.overviewIconWrap, { backgroundColor: withAlpha(tint, 0.16) }]}>
-            <MaterialIcons name={icon} size={15} color={tint} />
+            <MaterialIcons name={icon} size={16} color={tint} />
           </View>
           <MaterialIcons name="more-vert" size={16} color={colors.textMuted} />
         </View>
@@ -615,18 +619,9 @@ function OverviewCell({
       <Text style={[styles.overviewValue, highlight && styles.overviewValueHighlight]}>{value}</Text>
       <Text style={styles.overviewLabel}>{label}</Text>
       {trend ? (
-        <View style={styles.overviewTrendRow}>
-          <MaterialIcons
-            name={trend.direction === 'down' ? 'arrow-downward' : 'arrow-upward'}
-            size={10}
-            color={tint}
-          />
-          <Text style={[styles.overviewTrendText, { color: tint }]}>{trend.percent}%</Text>
-          <Text style={styles.overviewTrendMuted} numberOfLines={1}>
-            {' '}
-            vs yesterday
-          </Text>
-        </View>
+        <Text style={[styles.overviewTrendText, { color: tint }]} numberOfLines={1}>
+          {trend.direction === 'down' ? '↓' : '↑'} {trend.percent}% vs yesterday
+        </Text>
       ) : null}
     </View>
   );
@@ -762,18 +757,21 @@ const createStyles = (c: BrandColorScheme) =>
   overviewLoading: { paddingVertical: 24, alignItems: 'center' },
   overviewRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 8,
+    rowGap: 10,
   },
   overviewCell: {
-    flex: 1,
+    width: '48.5%',
     minWidth: 0,
     backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: c.cardBorder,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 12,
+    overflow: 'hidden',
   },
   overviewCellTopRow: {
     flexDirection: 'row',
@@ -782,15 +780,15 @@ const createStyles = (c: BrandColorScheme) =>
     marginBottom: 10,
   },
   overviewIconWrap: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overviewValue: {
     color: c.text,
-    fontSize: 19,
+    fontSize: 22,
     fontWeight: '800',
   },
   overviewValueHighlight: {
@@ -798,23 +796,18 @@ const createStyles = (c: BrandColorScheme) =>
   },
   overviewLabel: {
     color: c.textMuted,
-    fontSize: 10,
+    fontSize: 12,
     marginTop: 3,
-    lineHeight: 13,
-  },
-  overviewTrendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 7,
+    lineHeight: 16,
   },
   overviewTrendText: {
-    fontSize: 9,
-    fontWeight: '700',
-    marginLeft: 2,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 8,
   },
   overviewTrendMuted: {
     color: c.textMuted,
-    fontSize: 9,
+    fontSize: 11,
   },
   quickRow: {
     flexDirection: 'row',
