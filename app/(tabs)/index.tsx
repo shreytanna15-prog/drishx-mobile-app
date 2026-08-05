@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -15,7 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
-import { LensHeroCarousel } from '@/components/lens-hero-carousel';
+import { HomeHero } from '@/components/home-hero';
+import { WholesalePromoBanner } from '@/components/wholesale-promo-banner';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
@@ -29,8 +30,11 @@ import {
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import {
   getCompanyDisplayName,
-  getTimeOfDayGreeting,
 } from '@/lib/home-greeting';
+import {
+  getLastOrderSummary,
+  type LastOrderSummary,
+} from '@/lib/last-order-summary';
 import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
@@ -113,7 +117,7 @@ export default function HomeScreen() {
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
   const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
-  const [homeFocused, setHomeFocused] = useState(true);
+  const [lastOrderSummary, setLastOrderSummary] = useState<LastOrderSummary | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
@@ -126,9 +130,11 @@ export default function HomeScreen() {
       setOrderCounts(computeCustomerOrderOverview(orders));
       setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
       setCatalogImages(images);
+      setLastOrderSummary(getLastOrderSummary(orders));
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
       setMostOrderedProducts([]);
+      setLastOrderSummary(null);
     } finally {
       setOrdersLoading(false);
     }
@@ -146,14 +152,10 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setHomeFocused(true);
       void refreshStaffUnreadCount();
       if (!isStaff && user) {
         void loadOrders();
       }
-      return () => {
-        setHomeFocused(false);
-      };
     }, [refreshStaffUnreadCount, loadOrders, isStaff, user])
   );
 
@@ -227,8 +229,6 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, [getAuthHeaders, isStaff, user]);
-
-  const clientId = useMemo(() => (user ? user.id : ''), [user]);
 
   if (isStaff) {
     const staffDisplayName = user ? getDisplayNameFull(user.name, user.email) : 'Team';
@@ -367,7 +367,6 @@ export default function HomeScreen() {
   }
 
   const companyName = getCompanyDisplayName(user.businessName, user.name, user.email);
-  const greeting = getTimeOfDayGreeting();
   const initials = getInitials(user.name, user.email);
 
   return (
@@ -388,24 +387,10 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <View style={styles.heroTextCol}>
-              <Text style={styles.helloSmall}>{greeting},</Text>
-              <Text style={styles.customerName}>{companyName}</Text>
-              <Text style={styles.heroTagline}>
-                A new day. New orders. Let's grow your business.
-              </Text>
-              <Text style={styles.clientId} numberOfLines={1}>
-                Client ID: {clientId}
-              </Text>
-            </View>
-
-            <LensHeroCarousel
-              images={catalogImages}
-              active={homeFocused}
-              onSelectCategory={(categoryId) => {
-                const cat = CLIENT_HOME_CATEGORIES.find((c) => c.id === categoryId);
-                goToCategory(router, categoryId, cat?.filter ?? 'All');
-              }}
+            <HomeHero
+              companyName={companyName}
+              lastOrder={lastOrderSummary}
+              onContinueLastOrder={() => router.push('/my-orders')}
             />
           </View>
 
@@ -434,6 +419,13 @@ export default function HomeScreen() {
             )}
           </View>
 
+          <WholesalePromoBanner
+            onPress={() => {
+              setMode('wholesale');
+              router.push('/wholesale');
+            }}
+          />
+
           <Text style={styles.sectionTitleOutside}>Quick actions</Text>
           <View style={styles.quickRow}>
             <QuickIcon
@@ -452,16 +444,6 @@ export default function HomeScreen() {
               onPress={() => router.push('/returns' as never)}
             />
           </View>
-
-          <Pressable
-            style={styles.wholesaleBtn}
-            onPress={() => {
-              setMode('wholesale');
-              router.push('/wholesale');
-            }}>
-            <MaterialIcons name="storefront" size={22} color={colors.primaryText} />
-            <Text style={styles.wholesaleBtnText}>Place wholesale order</Text>
-          </Pressable>
 
           <Text style={styles.sectionTitleOutside}>Shop by category</Text>
           <View style={styles.categoryGrid}>
@@ -615,38 +597,7 @@ const createStyles = (c: BrandColorScheme) =>
     alignItems: 'center',
     zIndex: 1,
   },
-  heroTextCol: {
-    width: '100%',
-    zIndex: 1,
-  },
   headerTextCol: { flex: 1, paddingRight: 12 },
-  helloSmall: {
-    color: c.textMuted,
-    fontSize: 14,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-  customerName: {
-    color: c.text,
-    fontSize: 28,
-    fontWeight: '800',
-    marginTop: 4,
-    letterSpacing: -0.3,
-  },
-  heroTagline: {
-    color: c.textMuted,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-    maxWidth: 320,
-  },
-  clientId: {
-    color: c.textMuted,
-    fontSize: 11,
-    fontWeight: '500',
-    marginTop: 10,
-    opacity: 0.85,
-  },
   headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatarCircle: {
     width: 42,
@@ -744,21 +695,6 @@ const createStyles = (c: BrandColorScheme) =>
     fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
-  },
-  wholesaleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    backgroundColor: c.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginBottom: 24,
-  },
-  wholesaleBtnText: {
-    color: c.primaryText,
-    fontSize: 16,
-    fontWeight: '800',
   },
   categoryGrid: {
     flexDirection: 'row',
