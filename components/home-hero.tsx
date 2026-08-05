@@ -9,7 +9,6 @@ import {
   getTimeOfDayGreeting,
   getTimeOfDayHeroImage,
   getTimeOfDayTagline,
-  type TimeOfDayGreeting,
 } from '@/lib/home-greeting';
 import type { LastOrderSummary } from '@/lib/last-order-summary';
 
@@ -19,12 +18,6 @@ type HomeHeroProps = {
   onContinueLastOrder?: () => void;
   date?: Date;
 };
-
-function timeChipIcon(greeting: TimeOfDayGreeting): keyof typeof MaterialIcons.glyphMap {
-  if (greeting === 'Good Morning') return 'wb-sunny';
-  if (greeting === 'Good Afternoon') return 'wb-sunny';
-  return 'nightlight-round';
-}
 
 export function HomeHero({
   companyName,
@@ -95,14 +88,6 @@ export function HomeHero({
             contentPosition="center"
             transition={200}
           />
-        </View>
-
-        <View style={styles.weatherChip} pointerEvents="none">
-          <View style={styles.weatherChipRow}>
-            <MaterialIcons name={timeChipIcon(greeting)} size={13} color={colors.primary} />
-            <Text style={styles.weatherChipTemp}>28°C</Text>
-          </View>
-          <Text style={styles.weatherChipCity}>New Delhi</Text>
         </View>
       </View>
     </View>
@@ -194,37 +179,5 @@ const createStyles = (c: BrandColorScheme) =>
     heroCircle: {
       overflow: 'hidden',
       backgroundColor: c.background,
-    },
-    weatherChip: {
-      position: 'absolute',
-      top: -8,
-      right: -6,
-      alignItems: 'flex-start',
-      paddingHorizontal: 9,
-      paddingVertical: 6,
-      borderRadius: 12,
-      backgroundColor: 'rgba(12, 12, 14, 0.9)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: 'rgba(240, 161, 50, 0.45)',
-      shadowColor: '#000',
-      shadowOpacity: 0.3,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 4,
-    },
-    weatherChipRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 3,
-    },
-    weatherChipTemp: {
-      color: c.text,
-      fontSize: 11,
-      fontWeight: '700',
-    },
-    weatherChipCity: {
-      color: c.textMuted,
-      fontSize: 8,
-      marginTop: 1,
     },
   });

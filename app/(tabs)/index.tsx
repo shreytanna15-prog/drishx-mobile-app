@@ -281,12 +281,17 @@ export default function HomeScreen() {
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : (
-                <View style={styles.overviewRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  nestedScrollEnabled
+                  contentContainerStyle={styles.overviewScrollContent}
+                >
                   <OverviewCell label="Task assigned" value={staffOverview.tasksAssigned} />
                   <OverviewCell label="Task completed" value={staffOverview.tasksCompleted} />
                   <OverviewCell label="Orders received" value={String(staffOverview.ordersReceived)} />
                   <OverviewCell label="Orders pending" value={String(staffOverview.ordersPending)} highlight />
-                </View>
+                </ScrollView>
               )}
             </View>
 
@@ -438,7 +443,12 @@ export default function HomeScreen() {
                 <ActivityIndicator color={colors.primary} />
               </View>
             ) : (
-              <View style={styles.overviewRow}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled
+                contentContainerStyle={styles.overviewScrollContent}
+              >
                 <OverviewCell
                   label="Total Orders"
                   value={String(orderCounts.total)}
@@ -467,7 +477,7 @@ export default function HomeScreen() {
                   accentColor="#4CC38A"
                   trend={overviewTrends.completed}
                 />
-              </View>
+              </ScrollView>
             )}
           </View>
 
@@ -757,13 +767,18 @@ const createStyles = (c: BrandColorScheme) =>
   overviewLoading: { paddingVertical: 24, alignItems: 'center' },
   overviewRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 10,
+    gap: 8,
+  },
+  overviewScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: 10,
+    paddingRight: 4,
   },
   overviewCell: {
-    width: '48.5%',
-    minWidth: 0,
+    width: 138,
+    flexShrink: 0,
     backgroundColor: c.card,
     borderRadius: 16,
     borderWidth: 1,
@@ -780,15 +795,15 @@ const createStyles = (c: BrandColorScheme) =>
     marginBottom: 10,
   },
   overviewIconWrap: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   overviewValue: {
     color: c.text,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   overviewValueHighlight: {
@@ -796,18 +811,18 @@ const createStyles = (c: BrandColorScheme) =>
   },
   overviewLabel: {
     color: c.textMuted,
-    fontSize: 12,
+    fontSize: 11,
     marginTop: 3,
-    lineHeight: 16,
+    lineHeight: 14,
   },
   overviewTrendText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     marginTop: 8,
   },
   overviewTrendMuted: {
     color: c.textMuted,
-    fontSize: 11,
+    fontSize: 10,
   },
   quickRow: {
     flexDirection: 'row',
