@@ -107,12 +107,12 @@ export function HomeHero({
           </View>
         </View>
 
-        <View style={styles.timeChip} pointerEvents="none">
-          <MaterialIcons
-            name={timeChipIcon(greeting)}
-            size={14}
-            color={colors.primary}
-          />
+        <View style={styles.weatherChip} pointerEvents="none">
+          <View style={styles.weatherChipRow}>
+            <MaterialIcons name={timeChipIcon(greeting)} size={13} color={colors.primary} />
+            <Text style={styles.weatherChipTemp}>28°C</Text>
+          </View>
+          <Text style={styles.weatherChipCity}>New Delhi</Text>
         </View>
       </View>
     </View>
@@ -185,9 +185,9 @@ const createStyles = (c: BrandColorScheme) =>
       marginTop: 2,
     },
     continueChevron: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 32,
+      height: 32,
+      borderRadius: 10,
       backgroundColor: c.primary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -215,18 +215,36 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: 'rgba(240, 161, 50, 0.9)',
       backgroundColor: c.background,
     },
-    timeChip: {
+    weatherChip: {
       position: 'absolute',
-      top: 6,
-      right: 0,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-      borderRadius: 999,
-      backgroundColor: 'rgba(12, 12, 14, 0.88)',
+      top: -8,
+      right: -6,
+      alignItems: 'flex-start',
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 12,
+      backgroundColor: 'rgba(12, 12, 14, 0.9)',
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: 'rgba(240, 161, 50, 0.45)',
+      shadowColor: '#000',
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 4,
+    },
+    weatherChipRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    weatherChipTemp: {
+      color: c.text,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    weatherChipCity: {
+      color: c.textMuted,
+      fontSize: 8,
+      marginTop: 1,
     },
   });

@@ -35,7 +35,12 @@ import {
   getLastOrderSummary,
   type LastOrderSummary,
 } from '@/lib/last-order-summary';
-import { computeCustomerOrderOverview } from '@/lib/home-order-stats';
+import {
+  computeCustomerOrderOverview,
+  computeCustomerOverviewTrends,
+  EMPTY_OVERVIEW_TRENDS,
+  type OverviewTrend,
+} from '@/lib/home-order-stats';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
 import { useOrderMode } from '@/lib/order-mode';
@@ -112,7 +117,8 @@ export default function HomeScreen() {
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
   const [staffPendingTasks, setStaffPendingTasks] = useState<TaskRecord[]>([]);
-  const [staffUnreadNotifications, setStaffUnreadNotifications] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [overviewTrends, setOverviewTrends] = useState(EMPTY_OVERVIEW_TRENDS);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
@@ -128,11 +134,13 @@ export default function HomeScreen() {
         fetchCatalogImages().catch(() => null),
       ]);
       setOrderCounts(computeCustomerOrderOverview(orders));
+      setOverviewTrends(computeCustomerOverviewTrends(orders));
       setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
       setCatalogImages(images);
       setLastOrderSummary(getLastOrderSummary(orders));
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
+      setOverviewTrends(EMPTY_OVERVIEW_TRENDS);
       setMostOrderedProducts([]);
       setLastOrderSummary(null);
     } finally {
@@ -140,23 +148,23 @@ export default function HomeScreen() {
     }
   }, [getAuthHeaders, isStaff, user]);
 
-  const refreshStaffUnreadCount = useCallback(async () => {
-    if (!isStaff || !user) return;
+  const refreshUnreadNotificationsCount = useCallback(async () => {
+    if (!user) return;
     try {
       const notifications = await fetchNotifications(getAuthHeaders());
-      setStaffUnreadNotifications(notifications.filter((item) => !item.isRead).length);
+      setUnreadNotificationsCount(notifications.filter((item) => !item.isRead).length);
     } catch {
-      setStaffUnreadNotifications(0);
+      setUnreadNotificationsCount(0);
     }
-  }, [getAuthHeaders, isStaff, user]);
+  }, [getAuthHeaders, user]);
 
   useFocusEffect(
     useCallback(() => {
-      void refreshStaffUnreadCount();
+      void refreshUnreadNotificationsCount();
       if (!isStaff && user) {
         void loadOrders();
       }
-    }, [refreshStaffUnreadCount, loadOrders, isStaff, user])
+    }, [refreshUnreadNotificationsCount, loadOrders, isStaff, user])
   );
 
   useEffect(() => {
@@ -209,14 +217,14 @@ export default function HomeScreen() {
           });
           setStaffPendingOrders(pendingOrders);
           setStaffPendingTasks(pendingTasks);
-          setStaffUnreadNotifications(notifications.filter((item) => !item.isRead).length);
+          setUnreadNotificationsCount(notifications.filter((item) => !item.isRead).length);
         }
       } catch {
         if (!cancelled) {
           setStaffOverview({ tasksAssigned: '0', tasksCompleted: '0', ordersReceived: 0, ordersPending: 0 });
           setStaffPendingOrders([]);
           setStaffPendingTasks([]);
-          setStaffUnreadNotifications(0);
+          setUnreadNotificationsCount(0);
         }
       } finally {
         if (!cancelled) {
@@ -249,10 +257,10 @@ export default function HomeScreen() {
                 </Pressable>
                 <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
                   <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
-                  {staffUnreadNotifications > 0 ? (
+                  {unreadNotificationsCount > 0 ? (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
-                        {staffUnreadNotifications > 99 ? '99+' : staffUnreadNotifications}
+                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
                       </Text>
                     </View>
                   ) : null}
@@ -376,13 +384,29 @@ export default function HomeScreen() {
           <View style={styles.heroBlock}>
             <View style={styles.heroAmbient} pointerEvents="none" />
 
-            <View style={styles.headerActionsRow}>
+            <View style={styles.topBrandRow}>
+              <View style={styles.topBrandLeft}>
+                <MaterialIcons name="menu" size={24} color={colors.text} />
+                <View style={styles.topBrandTextCol}>
+                  <Text style={styles.topBrandTitle}>DrishX</Text>
+                  <Text style={styles.topBrandTagline} numberOfLines={1}>
+                    One system. Endless possibilities
+                  </Text>
+                </View>
+              </View>
               <View style={styles.headerIcons}>
-                <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
-                  <Text style={styles.avatarText}>{initials}</Text>
-                </Pressable>
                 <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
                   <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
+                  {unreadNotificationsCount > 0 ? (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                      </Text>
+                    </View>
+                  ) : null}
+                </Pressable>
+                <Pressable style={styles.avatarCircle} onPress={() => router.push('/profile')} hitSlop={8}>
+                  <Text style={styles.avatarText}>{initials}</Text>
                 </Pressable>
               </View>
             </View>
@@ -398,7 +422,7 @@ export default function HomeScreen() {
             <CatalogSearchBar />
           </View>
 
-          <View style={styles.sectionCard}>
+          <View style={styles.overviewSection}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>At a glance</Text>
               <Pressable onPress={() => router.push('/my-orders')} hitSlop={8}>
@@ -411,10 +435,34 @@ export default function HomeScreen() {
               </View>
             ) : (
               <View style={styles.overviewRow}>
-                <OverviewCell label="Total orders" value={String(orderCounts.total)} highlight={false} />
-                <OverviewCell label="In progress" value={String(orderCounts.inProgress)} highlight />
-                <OverviewCell label="Ready to ship" value={String(orderCounts.readyToShip)} highlight={false} />
-                <OverviewCell label="Completed" value={String(orderCounts.completed)} highlight={false} />
+                <OverviewCell
+                  label="Total Orders"
+                  value={String(orderCounts.total)}
+                  icon="inventory-2"
+                  accentColor="#5B9BF0"
+                  trend={overviewTrends.total}
+                />
+                <OverviewCell
+                  label="In Progress"
+                  value={String(orderCounts.inProgress)}
+                  icon="trending-up"
+                  accentColor="#D782E0"
+                  trend={overviewTrends.inProgress}
+                />
+                <OverviewCell
+                  label="Ready to Ship"
+                  value={String(orderCounts.readyToShip)}
+                  icon="local-shipping"
+                  accentColor={colors.primary}
+                  trend={overviewTrends.readyToShip}
+                />
+                <OverviewCell
+                  label="Completed"
+                  value={String(orderCounts.completed)}
+                  icon="task-alt"
+                  accentColor="#4CC38A"
+                  trend={overviewTrends.completed}
+                />
               </View>
             )}
           </View>
@@ -525,20 +573,61 @@ export default function HomeScreen() {
   );
 }
 
+function withAlpha(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const normalized = clean.length === 3 ? clean.split('').map((ch) => ch + ch).join('') : clean;
+  const value = parseInt(normalized, 16);
+  if (Number.isNaN(value)) return hex;
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function OverviewCell({
   label,
   value,
   highlight,
+  icon,
+  accentColor,
+  trend,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  icon?: keyof typeof MaterialIcons.glyphMap;
+  accentColor?: string;
+  trend?: OverviewTrend;
 }) {
   const styles = useThemedStyles(createStyles);
+  const colors = useBrandColors();
+  const tint = accentColor ?? colors.primary;
   return (
     <View style={styles.overviewCell}>
+      {icon ? (
+        <View style={styles.overviewCellTopRow}>
+          <View style={[styles.overviewIconWrap, { backgroundColor: withAlpha(tint, 0.16) }]}>
+            <MaterialIcons name={icon} size={15} color={tint} />
+          </View>
+          <MaterialIcons name="more-vert" size={16} color={colors.textMuted} />
+        </View>
+      ) : null}
       <Text style={[styles.overviewValue, highlight && styles.overviewValueHighlight]}>{value}</Text>
       <Text style={styles.overviewLabel}>{label}</Text>
+      {trend ? (
+        <View style={styles.overviewTrendRow}>
+          <MaterialIcons
+            name={trend.direction === 'down' ? 'arrow-downward' : 'arrow-upward'}
+            size={10}
+            color={tint}
+          />
+          <Text style={[styles.overviewTrendText, { color: tint }]}>{trend.percent}%</Text>
+          <Text style={styles.overviewTrendMuted} numberOfLines={1}>
+            {' '}
+            vs yesterday
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -597,15 +686,42 @@ const createStyles = (c: BrandColorScheme) =>
     alignItems: 'center',
     zIndex: 1,
   },
+  topBrandRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+    zIndex: 1,
+  },
+  topBrandLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
+  },
+  topBrandTextCol: { minWidth: 0 },
+  topBrandTitle: {
+    color: c.primary,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  topBrandTagline: {
+    color: c.textMuted,
+    fontSize: 9,
+    marginTop: 1,
+  },
   headerTextCol: { flex: 1, paddingRight: 12 },
-  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerIcons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatarCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: c.card,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
+    borderWidth: 1.5,
+    borderColor: c.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -642,24 +758,39 @@ const createStyles = (c: BrandColorScheme) =>
     marginBottom: 12,
   },
   viewAll: { color: c.primary, fontSize: 14, fontWeight: '600' },
+  overviewSection: { marginBottom: 22 },
   overviewLoading: { paddingVertical: 24, alignItems: 'center' },
   overviewRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 6,
+    gap: 8,
   },
   overviewCell: {
     flex: 1,
-    alignItems: 'center',
     minWidth: 0,
-    backgroundColor: 'rgba(240, 161, 50, 0.06)',
-    borderRadius: 14,
+    backgroundColor: c.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.cardBorder,
     paddingVertical: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: 10,
+  },
+  overviewCellTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  overviewIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   overviewValue: {
     color: c.text,
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '800',
   },
   overviewValueHighlight: {
@@ -668,9 +799,22 @@ const createStyles = (c: BrandColorScheme) =>
   overviewLabel: {
     color: c.textMuted,
     fontSize: 10,
-    marginTop: 4,
-    textAlign: 'center',
+    marginTop: 3,
     lineHeight: 13,
+  },
+  overviewTrendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 7,
+  },
+  overviewTrendText: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginLeft: 2,
+  },
+  overviewTrendMuted: {
+    color: c.textMuted,
+    fontSize: 9,
   },
   quickRow: {
     flexDirection: 'row',
