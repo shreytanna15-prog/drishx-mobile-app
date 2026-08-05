@@ -8,6 +8,7 @@ import {
   FlatList,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -21,12 +22,15 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   DEFAULT_LENS_SORT,
+  fetchLensFacets,
   fetchLensesPage,
   LENS_SORT_OPTIONS,
   LOAD_MORE_AT_INDEX,
   mapApiLens,
   PAGE_SIZE,
+  POWER_SHAPE_OPTIONS,
   type LensSortOption,
+  type PowerShapeFilter,
 } from '@/lib/lenses-api';
 import type { LensItem } from '@/lib/types/lens';
 import { LensProductListCard } from '@/components/lens-product-list-card';
@@ -65,6 +69,10 @@ export default function WholesaleProductsScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sort, setSort] = useState<LensSortOption>(DEFAULT_LENS_SORT);
   const [sortOpen, setSortOpen] = useState(false);
+  const [coatings, setCoatings] = useState<string[]>([]);
+  const [powerShapes, setPowerShapes] = useState<PowerShapeFilter[]>([]);
+  const [selectedCoating, setSelectedCoating] = useState('');
+  const [selectedPowerShape, setSelectedPowerShape] = useState<PowerShapeFilter | ''>('');
 
   const pageRef = useRef(1);
   const hasMoreRef = useRef(true);
@@ -72,8 +80,14 @@ export default function WholesaleProductsScreen() {
   const requestIdRef = useRef(0);
   const debouncedSearchRef = useRef('');
   const sortRef = useRef(sort);
+  const coatingRef = useRef(selectedCoating);
+  const powerShapeRef = useRef(selectedPowerShape);
   debouncedSearchRef.current = debouncedSearch;
   sortRef.current = sort;
+  coatingRef.current = selectedCoating;
+  powerShapeRef.current = selectedPowerShape;
+
+  const usePowerFilters = coatings.length === 0 && powerShapes.length > 0;
 
   const sortLabel =
     LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
@@ -82,6 +96,39 @@ export default function WholesaleProductsScreen() {
     const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 450);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  useEffect(() => {
+    setSelectedCoating('');
+    coatingRef.current = '';
+    setSelectedPowerShape('');
+    powerShapeRef.current = '';
+    setCoatings([]);
+    setPowerShapes([]);
+    if (!selectedItem) return;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const facets = await fetchLensFacets({
+          type: filter,
+          item: selectedItem,
+        });
+        if (!cancelled) {
+          setCoatings(facets.coatings);
+          setPowerShapes(facets.powerShapes);
+        }
+      } catch {
+        if (!cancelled) {
+          setCoatings([]);
+          setPowerShapes([]);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, selectedItem]);
 
   const loadPage = useCallback(
     async (pageToLoad: number, replace: boolean) => {
@@ -96,11 +143,16 @@ export default function WholesaleProductsScreen() {
       const currentRequestId = ++requestIdRef.current;
       setError(null);
       try {
+        const powerShape = powerShapeRef.current || undefined;
+        const coating = powerShape ? undefined : coatingRef.current || undefined;
+
         const data = await fetchLensesPage({
           page: pageToLoad,
           type: filter,
           search: debouncedSearchRef.current,
           item: selectedItem || undefined,
+          coating,
+          powerShape,
           sort: sortRef.current,
         });
 
@@ -134,11 +186,10 @@ export default function WholesaleProductsScreen() {
     hasMoreRef.current = true;
     setInitialLoading(true);
     loadPage(1, true);
-  }, [filter, selectedItem, debouncedSearch, sort, loadPage]);
+  }, [filter, selectedItem, debouncedSearch, sort, selectedCoating, selectedPowerShape, loadPage]);
 
   useFocusEffect(
     useCallback(() => {
-      // On refocus, refresh quietly if list is empty.
       if (lenses.length === 0) {
         loadPage(1, true);
       }
@@ -160,7 +211,10 @@ export default function WholesaleProductsScreen() {
       if (entry.index === null || entry.index === undefined) return max;
       return Math.max(max, entry.index);
     }, -1);
-    const triggerIndex = Math.max(LOAD_MORE_AT_INDEX - 1, lensesLengthRef.current - (PAGE_SIZE - LOAD_MORE_AT_INDEX));
+    const triggerIndex = Math.max(
+      LOAD_MORE_AT_INDEX - 1,
+      lensesLengthRef.current - (PAGE_SIZE - LOAD_MORE_AT_INDEX)
+    );
     if (maxIndex >= triggerIndex) {
       loadNextPageRef.current();
     }
@@ -169,6 +223,14 @@ export default function WholesaleProductsScreen() {
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
 
   const title = selectedItem || `${wholesaleCategoryTitle(category)} • Wholesale`;
+
+  const emptyMessage = selectedPowerShape
+    ? 'No products found for this power filter.'
+    : selectedCoating
+      ? 'No products found for this coating.'
+      : debouncedSearch
+        ? 'No products found for this search.'
+        : 'No products found.';
 
   return (
     <View style={styles.root}>
@@ -188,7 +250,7 @@ export default function WholesaleProductsScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search sv, kt, v2, BRC, brand, power, plano..."
+            placeholder="Search power, coating, plano..."
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}
@@ -200,7 +262,9 @@ export default function WholesaleProductsScreen() {
               <MaterialIcons name="close" size={20} color={colors.textMuted} />
             </Pressable>
           ) : null}
-          {isRefreshing && searchQuery.length > 0 ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+          {isRefreshing && searchQuery.length > 0 ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : null}
         </View>
 
         <Pressable style={styles.sortButton} onPress={() => setSortOpen(true)}>
@@ -210,6 +274,90 @@ export default function WholesaleProductsScreen() {
           </Text>
           <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
         </Pressable>
+
+        {usePowerFilters ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.coatingRow}
+            style={styles.coatingScroll}
+          >
+            <Pressable
+              onPress={() => setSelectedPowerShape('')}
+              style={[styles.coatingChip, !selectedPowerShape && styles.coatingChipActive]}
+            >
+              <Text
+                style={[
+                  styles.coatingChipText,
+                  !selectedPowerShape && styles.coatingChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </Pressable>
+            {POWER_SHAPE_OPTIONS.filter((option) => powerShapes.includes(option.value)).map(
+              (option) => {
+                const active = selectedPowerShape === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setSelectedPowerShape(option.value)}
+                    style={[styles.coatingChip, active && styles.coatingChipActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.coatingChipText,
+                        active && styles.coatingChipTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
+          </ScrollView>
+        ) : coatings.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.coatingRow}
+            style={styles.coatingScroll}
+          >
+            <Pressable
+              onPress={() => setSelectedCoating('')}
+              style={[styles.coatingChip, !selectedCoating && styles.coatingChipActive]}
+            >
+              <Text
+                style={[
+                  styles.coatingChipText,
+                  !selectedCoating && styles.coatingChipTextActive,
+                ]}
+              >
+                All
+              </Text>
+            </Pressable>
+            {coatings.map((coating) => {
+              const active = selectedCoating.toLowerCase() === coating.toLowerCase();
+              return (
+                <Pressable
+                  key={coating}
+                  onPress={() => setSelectedCoating(coating)}
+                  style={[styles.coatingChip, active && styles.coatingChipActive]}
+                >
+                  <Text
+                    style={[
+                      styles.coatingChipText,
+                      active && styles.coatingChipTextActive,
+                    ]}
+                  >
+                    {coating}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        ) : null}
 
         {initialLoading ? (
           <View style={styles.centeredState}>
@@ -226,7 +374,9 @@ export default function WholesaleProductsScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.countHint}>{totalCount} product{totalCount === 1 ? '' : 's'}</Text>
+            <Text style={styles.countHint}>
+              {totalCount} product{totalCount === 1 ? '' : 's'}
+            </Text>
             <FlatList
               data={lenses}
               keyExtractor={(item) => item.id}
@@ -259,7 +409,7 @@ export default function WholesaleProductsScreen() {
               ListEmptyComponent={
                 <View style={styles.centeredState}>
                   <MaterialIcons name="search-off" size={40} color={colors.textMuted} />
-                  <Text style={styles.stateText}>No products found.</Text>
+                  <Text style={styles.stateText}>{emptyMessage}</Text>
                 </View>
               }
             />
@@ -340,6 +490,27 @@ const createStyles = (c: BrandColorScheme) =>
       marginBottom: 10,
     },
     sortButtonText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
+    coatingScroll: { maxHeight: 44, marginBottom: 10 },
+    coatingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingRight: 8,
+    },
+    coatingChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+    },
+    coatingChipActive: {
+      borderColor: c.primary,
+      backgroundColor: c.primary + '14',
+    },
+    coatingChipText: { color: c.textMuted, fontSize: 13, fontWeight: '700' },
+    coatingChipTextActive: { color: c.primary, fontWeight: '800' },
     countHint: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
     listContent: { paddingBottom: 24 },
     separator: { height: 12 },
