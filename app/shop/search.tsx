@@ -28,6 +28,7 @@ import {
   mapApiLens,
   PAGE_SIZE,
   type LensSortOption,
+  type PowerMatchMeta,
 } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
@@ -44,9 +45,48 @@ const TYPE_FILTERS: { key: 'all' | WholesaleCategoryId; label: string }[] = [
   { key: 'v2', label: 'Prog' },
 ];
 
+const CATEGORY_SHORTCUTS: Record<string, WholesaleCategoryId> = {
+  sv: 'sv',
+  kt: 'kt',
+  v2: 'v2',
+  prog: 'v2',
+  progressive: 'v2',
+  kryptok: 'kt',
+  'single-vision': 'sv',
+  singlevision: 'sv',
+};
+
 function typeToFilter(key: 'all' | WholesaleCategoryId): FilterOption {
   if (key === 'all') return 'All';
   return wholesaleCategoryToFilter(parseWholesaleCategory(key));
+}
+
+function formatDiopter(value: number): string {
+  if (Math.abs(value) < 1e-9) return '0';
+  return value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function formatPowerMatchLabel(match: PowerMatchMeta): string {
+  const sph = formatDiopter(match.querySph);
+  const cyl =
+    match.queryCyl === null || match.queryCyl === undefined
+      ? '—'
+      : formatDiopter(match.queryCyl);
+  return `${sph}/${cyl}`;
+}
+
+function powerMatchHint(match: PowerMatchMeta): string | null {
+  if (match.mode === 'exact') return null;
+  const label = formatPowerMatchLabel(match);
+  if (match.mode === 'range') {
+    return `No exact ${label} endpoint — showing products whose power range covers it.`;
+  }
+  return `No exact ${label} — showing closest available powers.`;
+}
+
+function syncTypeChipFromQuery(query: string): WholesaleCategoryId | null {
+  const normalized = query.trim().toLowerCase().replace(/\s+/g, '');
+  return CATEGORY_SHORTCUTS[normalized] ?? null;
 }
 
 export default function CatalogSearchScreen() {
@@ -60,6 +100,7 @@ export default function CatalogSearchScreen() {
   const [typeFilter, setTypeFilter] = useState<'all' | WholesaleCategoryId>('all');
   const [lenses, setLenses] = useState<LensItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [powerMatch, setPowerMatch] = useState<PowerMatchMeta | null>(null);
   const [initialLoading, setInitialLoading] = useState(Boolean(urlQuery));
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -81,6 +122,7 @@ export default function CatalogSearchScreen() {
   typeRef.current = typeFilter;
 
   const sortLabel = LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
+  const matchHint = powerMatch ? powerMatchHint(powerMatch) : null;
 
   useFocusEffect(
     useCallback(() => {
@@ -91,6 +133,10 @@ export default function CatalogSearchScreen() {
   useEffect(() => {
     setSearchQuery(urlQuery);
     setDebouncedSearch(urlQuery);
+    const synced = syncTypeChipFromQuery(urlQuery);
+    if (synced) {
+      setTypeFilter(synced);
+    }
   }, [urlQuery]);
 
   useEffect(() => {
@@ -98,11 +144,18 @@ export default function CatalogSearchScreen() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  useEffect(() => {
+    const synced = syncTypeChipFromQuery(debouncedSearch);
+    if (!synced) return;
+    setTypeFilter((current) => (current === 'all' ? synced : current));
+  }, [debouncedSearch]);
+
   const loadPage = useCallback(async (pageToLoad: number, replace: boolean) => {
     const q = debouncedSearchRef.current.trim();
     if (!q) {
       setLenses([]);
       setTotalCount(0);
+      setPowerMatch(null);
       hasMoreRef.current = false;
       setInitialLoading(false);
       setIsRefreshing(false);
@@ -132,6 +185,9 @@ export default function CatalogSearchScreen() {
       const mapped = data.items.map(mapApiLens);
       setLenses((current) => (replace ? mapped : [...current, ...mapped]));
       setTotalCount(data.total);
+      if (replace) {
+        setPowerMatch(data.powerMatch ?? null);
+      }
       pageRef.current = data.page;
       hasMoreRef.current = data.hasMore;
     } catch {
@@ -139,6 +195,7 @@ export default function CatalogSearchScreen() {
       if (pageToLoad === 1) {
         setLenses([]);
         setTotalCount(0);
+        setPowerMatch(null);
       }
       setError('Unable to load search results.');
     } finally {
@@ -201,7 +258,7 @@ export default function CatalogSearchScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search brand, coating, power, plano..."
+            placeholder="sv, kt, v2, coating, brand, or -0.25/-0.25…"
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}
@@ -247,7 +304,8 @@ export default function CatalogSearchScreen() {
           <View style={styles.centeredState}>
             <MaterialIcons name="search" size={40} color={colors.textMuted} />
             <Text style={styles.stateText}>
-              Type a brand, coating, power, or &quot;plano&quot; to search.
+              Try shortcuts like sv, kt, or v2; coating or item names; or power as SPH/CYL (e.g.
+              -0.25/-0.25).
             </Text>
           </View>
         ) : initialLoading ? (
@@ -265,10 +323,13 @@ export default function CatalogSearchScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.countHint}>
-              {totalCount} result{totalCount === 1 ? '' : 's'}
-              {hasQuery ? ` for "${debouncedSearch}"` : ''}
-            </Text>
+            <View style={styles.countBlock}>
+              <Text style={styles.countHint}>
+                {totalCount} result{totalCount === 1 ? '' : 's'}
+                {hasQuery ? ` for "${debouncedSearch}"` : ''}
+              </Text>
+              {matchHint ? <Text style={styles.powerMatchHint}>{matchHint}</Text> : null}
+            </View>
             <FlatList
               data={lenses}
               keyExtractor={(item) => item.id}
@@ -303,7 +364,13 @@ export default function CatalogSearchScreen() {
               ListEmptyComponent={
                 <View style={styles.centeredState}>
                   <MaterialIcons name="search-off" size={40} color={colors.textMuted} />
-                  <Text style={styles.stateText}>No products found.</Text>
+                  <Text style={styles.stateText}>
+                    No products found for &quot;{debouncedSearch}&quot;.
+                  </Text>
+                  <Text style={styles.stateHint}>
+                    Shortcuts: sv (Single Vision), kt (Kryptok), v2 (Progressive). Power search uses
+                    SPH/CYL like -1.00/-0.50.
+                  </Text>
                 </View>
               }
             />
@@ -397,7 +464,9 @@ const createStyles = (c: BrandColorScheme) =>
       marginBottom: 8,
     },
     sortButtonText: { color: c.text, fontSize: 13, fontWeight: '700', maxWidth: 180 },
-    countHint: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginBottom: 8 },
+    countBlock: { marginBottom: 8, gap: 4 },
+    countHint: { color: c.textMuted, fontSize: 13, fontWeight: '600' },
+    powerMatchHint: { color: c.primary, fontSize: 12, fontWeight: '600' },
     listContent: { paddingBottom: 24, flexGrow: 1 },
     separator: { height: 10 },
     centeredState: {
@@ -408,6 +477,7 @@ const createStyles = (c: BrandColorScheme) =>
       gap: 10,
     },
     stateText: { color: c.textMuted, fontSize: 14, textAlign: 'center' },
+    stateHint: { color: c.textMuted, fontSize: 12, textAlign: 'center', opacity: 0.9 },
     errorText: { color: c.danger, fontSize: 14, textAlign: 'center' },
     retryButton: {
       marginTop: 4,

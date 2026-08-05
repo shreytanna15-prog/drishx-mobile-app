@@ -15,7 +15,7 @@ type CatalogSearchBarProps = {
 };
 
 export function CatalogSearchBar({
-  placeholder = 'Search lenses, brand, coating, power…',
+  placeholder = 'sv, kt, v2, coating, brand, or -0.25/-0.25…',
   initialQuery = '',
 }: CatalogSearchBarProps) {
   const colors = useBrandColors();
