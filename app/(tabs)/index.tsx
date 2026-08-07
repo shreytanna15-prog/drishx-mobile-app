@@ -391,8 +391,6 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.safeTop} edges={['top']}>
         <ScrollView contentContainerStyle={styles.scrollPad} showsVerticalScrollIndicator={false}>
           <View style={styles.heroBlock}>
-            <View style={styles.heroAmbient} pointerEvents="none" />
-
             <View style={styles.topBrandRow}>
               <View style={styles.topBrandLeft}>
                 <MaterialIcons name="menu" size={24} color={colors.text} />
@@ -428,7 +426,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.homeSearchWrap}>
-            <CatalogSearchBar />
+            <CatalogSearchBar showFilter showAiAssistant />
           </View>
 
           <View style={styles.overviewSection}>
@@ -663,20 +661,10 @@ const createStyles = (c: BrandColorScheme) =>
   root: { flex: 1, backgroundColor: c.background },
   safeTop: { flex: 1 },
   scrollPad: { paddingHorizontal: 18, paddingBottom: 32 },
-  homeSearchWrap: { marginTop: 18, marginBottom: 16 },
+  homeSearchWrap: { marginTop: 14, marginBottom: 16 },
   heroBlock: {
-    position: 'relative',
     marginTop: 4,
     gap: 14,
-  },
-  heroAmbient: {
-    position: 'absolute',
-    top: -20,
-    left: -8,
-    right: -8,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: 'rgba(240, 161, 50, 0.08)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -695,8 +683,7 @@ const createStyles = (c: BrandColorScheme) =>
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
-    zIndex: 1,
+    marginBottom: 0,
   },
   topBrandLeft: {
     flexDirection: 'row',
