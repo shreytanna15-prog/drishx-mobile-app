@@ -276,32 +276,74 @@ export default function WholesaleProductsScreen() {
         </Pressable>
 
         {usePowerFilters ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.coatingRow}
-            style={styles.coatingScroll}
-          >
-            <Pressable
-              onPress={() => setSelectedPowerShape('')}
-              style={[styles.coatingChip, !selectedPowerShape && styles.coatingChipActive]}
+          <View style={styles.coatingWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.coatingRow}
             >
-              <Text
-                style={[
-                  styles.coatingChipText,
-                  !selectedPowerShape && styles.coatingChipTextActive,
-                ]}
+              <Pressable
+                onPress={() => setSelectedPowerShape('')}
+                style={[styles.coatingChip, !selectedPowerShape && styles.coatingChipActive]}
               >
-                All
-              </Text>
-            </Pressable>
-            {POWER_SHAPE_OPTIONS.filter((option) => powerShapes.includes(option.value)).map(
-              (option) => {
-                const active = selectedPowerShape === option.value;
+                <Text
+                  style={[
+                    styles.coatingChipText,
+                    !selectedPowerShape && styles.coatingChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </Pressable>
+              {POWER_SHAPE_OPTIONS.filter((option) => powerShapes.includes(option.value)).map(
+                (option) => {
+                  const active = selectedPowerShape === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      onPress={() => setSelectedPowerShape(option.value)}
+                      style={[styles.coatingChip, active && styles.coatingChipActive]}
+                    >
+                      <Text
+                        style={[
+                          styles.coatingChipText,
+                          active && styles.coatingChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                }
+              )}
+            </ScrollView>
+          </View>
+        ) : coatings.length > 0 ? (
+          <View style={styles.coatingWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.coatingRow}
+            >
+              <Pressable
+                onPress={() => setSelectedCoating('')}
+                style={[styles.coatingChip, !selectedCoating && styles.coatingChipActive]}
+              >
+                <Text
+                  style={[
+                    styles.coatingChipText,
+                    !selectedCoating && styles.coatingChipTextActive,
+                  ]}
+                >
+                  All
+                </Text>
+              </Pressable>
+              {coatings.map((coating) => {
+                const active = selectedCoating.toLowerCase() === coating.toLowerCase();
                 return (
                   <Pressable
-                    key={option.value}
-                    onPress={() => setSelectedPowerShape(option.value)}
+                    key={coating}
+                    onPress={() => setSelectedCoating(coating)}
                     style={[styles.coatingChip, active && styles.coatingChipActive]}
                   >
                     <Text
@@ -310,53 +352,13 @@ export default function WholesaleProductsScreen() {
                         active && styles.coatingChipTextActive,
                       ]}
                     >
-                      {option.label}
+                      {coating}
                     </Text>
                   </Pressable>
                 );
-              }
-            )}
-          </ScrollView>
-        ) : coatings.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.coatingRow}
-            style={styles.coatingScroll}
-          >
-            <Pressable
-              onPress={() => setSelectedCoating('')}
-              style={[styles.coatingChip, !selectedCoating && styles.coatingChipActive]}
-            >
-              <Text
-                style={[
-                  styles.coatingChipText,
-                  !selectedCoating && styles.coatingChipTextActive,
-                ]}
-              >
-                All
-              </Text>
-            </Pressable>
-            {coatings.map((coating) => {
-              const active = selectedCoating.toLowerCase() === coating.toLowerCase();
-              return (
-                <Pressable
-                  key={coating}
-                  onPress={() => setSelectedCoating(coating)}
-                  style={[styles.coatingChip, active && styles.coatingChipActive]}
-                >
-                  <Text
-                    style={[
-                      styles.coatingChipText,
-                      active && styles.coatingChipTextActive,
-                    ]}
-                  >
-                    {coating}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+              })}
+            </ScrollView>
+          </View>
         ) : null}
 
         {initialLoading ? (
@@ -373,11 +375,12 @@ export default function WholesaleProductsScreen() {
             </Pressable>
           </View>
         ) : (
-          <>
+          <View style={styles.listSection}>
             <Text style={styles.countHint}>
               {totalCount} product{totalCount === 1 ? '' : 's'}
             </Text>
             <FlatList
+              style={styles.list}
               data={lenses}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
@@ -413,7 +416,7 @@ export default function WholesaleProductsScreen() {
                 </View>
               }
             />
-          </>
+          </View>
         )}
       </SafeAreaView>
 
@@ -490,7 +493,11 @@ const createStyles = (c: BrandColorScheme) =>
       marginBottom: 10,
     },
     sortButtonText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700' },
-    coatingScroll: { maxHeight: 44, marginBottom: 10 },
+    coatingWrap: {
+      flexGrow: 0,
+      flexShrink: 0,
+      marginBottom: 10,
+    },
     coatingRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -504,14 +511,31 @@ const createStyles = (c: BrandColorScheme) =>
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: c.card,
+      justifyContent: 'center',
+      alignItems: 'center',
     },
     coatingChipActive: {
       borderColor: c.primary,
       backgroundColor: c.primary + '14',
     },
-    coatingChipText: { color: c.textMuted, fontSize: 13, fontWeight: '700' },
+    coatingChipText: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '700',
+      lineHeight: 18,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
     coatingChipTextActive: { color: c.primary, fontWeight: '800' },
-    countHint: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 8 },
+    listSection: { flex: 1, minHeight: 0 },
+    countHint: {
+      flexShrink: 0,
+      color: c.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 8,
+    },
+    list: { flex: 1 },
     listContent: { paddingBottom: 24 },
     separator: { height: 12 },
     centeredState: {
