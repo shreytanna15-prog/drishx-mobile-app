@@ -411,7 +411,9 @@ export default function HomeScreen() {
             />
           </View>
 
-          <Text style={styles.sectionTitleOutside}>Shop by category</Text>
+          <Text style={[styles.sectionTitleOutside, styles.categorySectionTitle]}>
+            Shop by category
+          </Text>
           <View style={styles.categoryGrid}>
             {CLIENT_HOME_CATEGORIES.map((cat) => {
               const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
@@ -723,6 +725,9 @@ const createStyles = (c: BrandColorScheme) =>
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 12,
+  },
+  categorySectionTitle: {
+    marginTop: 18,
   },
   viewAll: { color: c.primary, fontSize: 14, fontWeight: '600' },
   overviewSection: { marginBottom: 22 },
