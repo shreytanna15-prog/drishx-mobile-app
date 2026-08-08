@@ -411,6 +411,29 @@ export default function HomeScreen() {
             />
           </View>
 
+          <Text style={styles.sectionTitleOutside}>Shop by category</Text>
+          <View style={styles.categoryGrid}>
+            {CLIENT_HOME_CATEGORIES.map((cat) => {
+              const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
+              return (
+                <Pressable
+                  key={cat.id}
+                  style={styles.categoryCard}
+                  onPress={() => goToCategory(router, cat.id, cat.filter)}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                >
+                  <View style={styles.categoryIconWrap}>
+                    <HomeCategoryIcon id={cat.id} size={28} />
+                  </View>
+                  <Text style={styles.categoryCardText} numberOfLines={2}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <View style={styles.homeSearchWrap}>
             <CatalogSearchBar showFilter />
           </View>
@@ -489,29 +512,6 @@ export default function HomeScreen() {
               label="Returns"
               onPress={() => router.push('/returns' as never)}
             />
-          </View>
-
-          <Text style={styles.sectionTitleOutside}>Shop by category</Text>
-          <View style={styles.categoryGrid}>
-            {CLIENT_HOME_CATEGORIES.map((cat) => {
-              const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
-              return (
-                <Pressable
-                  key={cat.id}
-                  style={styles.categoryCard}
-                  onPress={() => goToCategory(router, cat.id, cat.filter)}
-                  accessibilityRole="button"
-                  accessibilityLabel={label}
-                >
-                  <View style={styles.categoryIconWrap}>
-                    <HomeCategoryIcon id={cat.id} size={42} />
-                  </View>
-                  <Text style={styles.categoryCardText} numberOfLines={1}>
-                    {label}
-                  </Text>
-                </Pressable>
-              );
-            })}
           </View>
 
           <Text style={[styles.sectionTitleOutside, styles.mostOrderedSectionTitle]}>
@@ -814,40 +814,40 @@ const createStyles = (c: BrandColorScheme) =>
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    rowGap: 12,
-    columnGap: 12,
+    rowGap: 10,
   },
   categoryCard: {
-    width: '48%',
-    minHeight: 118,
-    borderRadius: 18,
+    width: '31.5%',
+    minHeight: 96,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: c.cardBorder,
     backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 10,
-    gap: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    gap: 6,
     shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
   },
   categoryIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(240, 161, 50, 0.06)',
   },
   categoryCardText: {
     color: c.text,
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
     textAlign: 'center',
+    lineHeight: 14,
   },
   mostOrderedSectionTitle: {
     marginTop: 8,

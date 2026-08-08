@@ -6,7 +6,7 @@ export type HomeCategoryCard = {
   filter: FilterOption;
 };
 
-/** Fixed product categories on the client home screen (2×2 grid). */
+/** Fixed product categories on the client home screen (3×2 grid). */
 export const CLIENT_HOME_CATEGORIES: HomeCategoryCard[] = [
   { id: 'singlevision', label: 'Singlevision', filter: 'Single Vision' },
   { id: 'progressive', label: 'Progressive', filter: 'Progressive' },
