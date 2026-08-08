@@ -379,7 +379,6 @@ export default function HomeScreen() {
           <View style={styles.heroBlock}>
             <View style={styles.topBrandRow}>
               <View style={styles.topBrandLeft}>
-                <MaterialIcons name="menu" size={24} color={colors.textMuted} />
                 <View style={styles.topBrandTextCol}>
                   <Text style={styles.topBrandTitle}>DrishX</Text>
                   <Text style={styles.topBrandTagline} numberOfLines={1}>
