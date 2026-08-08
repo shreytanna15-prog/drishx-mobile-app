@@ -5,7 +5,6 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Image,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -15,17 +14,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
+import { HomeCategoryIcon } from '@/components/category-icons';
 import { HomeHero } from '@/components/home-hero';
 import { WholesalePromoBanner } from '@/components/wholesale-promo-banner';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
-import {
-    catalogImageSourceForHomeCategory,
-    fetchCatalogImages,
-    type CatalogImagesResponse,
-} from '@/lib/catalog-images-api';
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import {
     getCompanyDisplayName,
@@ -122,31 +117,22 @@ export default function HomeScreen() {
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
   const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
-  const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
   const [lastOrderSummary, setLastOrderSummary] = useState<LastOrderSummary | null>(null);
 
   const loadOrders = useCallback(async () => {
     if (isStaff || !user) return;
     setOrdersLoading(true);
     try {
-      const [orders, images] = await Promise.all([
-        fetchOrders(getAuthHeaders()),
-        fetchCatalogImages().catch(() => null),
-      ]);
+      const orders = await fetchOrders(getAuthHeaders());
       setOrderCounts(computeCustomerOrderOverview(orders));
       setOverviewTrends(computeCustomerOverviewTrends(orders));
       setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
-      if (images) setCatalogImages(images);
       setLastOrderSummary(getLastOrderSummary(orders));
     } catch {
       setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
       setOverviewTrends(EMPTY_OVERVIEW_TRENDS);
       setMostOrderedProducts([]);
       setLastOrderSummary(null);
-      // Still try to load category images if order fetch failed.
-      void fetchCatalogImages()
-        .then((images) => setCatalogImages(images))
-        .catch(() => undefined);
     } finally {
       setOrdersLoading(false);
     }
@@ -508,32 +494,21 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitleOutside}>Shop by category</Text>
           <View style={styles.categoryGrid}>
             {CLIENT_HOME_CATEGORIES.map((cat) => {
-              const imageSource = catalogImageSourceForHomeCategory(catalogImages, cat.id);
               const label = cat.id === 'singlevision' ? 'Single Vision' : cat.label;
               return (
                 <Pressable
                   key={cat.id}
-                  style={[styles.categoryCard, { borderColor: colors.cardBorder }]}
-                  onPress={() => goToCategory(router, cat.id, cat.filter)}>
-                  <View style={[styles.categoryMedia, { backgroundColor: colors.background }]}>
-                    {imageSource ? (
-                      <Image
-                        source={imageSource}
-                        style={styles.categoryImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={styles.categoryImagePlaceholder} />
-                    )}
+                  style={styles.categoryCard}
+                  onPress={() => goToCategory(router, cat.id, cat.filter)}
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                >
+                  <View style={styles.categoryIconWrap}>
+                    <HomeCategoryIcon id={cat.id} size={42} />
                   </View>
-                  <View style={styles.categoryScrim} pointerEvents="none">
-                    <View style={styles.categoryScrimFade} />
-                    <View style={styles.categoryLabelRow}>
-                      <Text style={styles.categoryCardText} numberOfLines={1}>
-                        {label}
-                      </Text>
-                    </View>
-                  </View>
+                  <Text style={styles.categoryCardText} numberOfLines={1}>
+                    {label}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -844,54 +819,35 @@ const createStyles = (c: BrandColorScheme) =>
   },
   categoryCard: {
     width: '48%',
-    height: 148,
+    minHeight: 118,
     borderRadius: 18,
     borderWidth: 1,
-    overflow: 'hidden',
+    borderColor: c.cardBorder,
     backgroundColor: c.card,
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  categoryMedia: {
-    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
   },
-  categoryImage: {
-    width: '100%',
-    height: '100%',
-  },
-  categoryImagePlaceholder: {
-    width: '70%',
-    height: '70%',
+  categoryIconWrap: {
+    width: 64,
+    height: 64,
     borderRadius: 16,
-    backgroundColor: 'rgba(240, 161, 50, 0.1)',
-  },
-  categoryScrim: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 56,
-    justifyContent: 'flex-end',
-  },
-  categoryScrimFade: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8, 10, 14, 0.55)',
-  },
-  categoryLabelRow: {
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-    paddingTop: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(240, 161, 50, 0.06)',
   },
   categoryCardText: {
-    color: '#FFFFFF',
-    fontSize: 14,
+    color: c.text,
+    fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.1,
+    textAlign: 'center',
   },
   mostOrderedSectionTitle: {
     marginTop: 8,
