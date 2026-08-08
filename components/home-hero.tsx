@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Platform,
@@ -8,22 +8,30 @@ import {
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
 } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useTimeOfDay, type TimeOfDay } from '@/hooks/use-time-of-day';
-import { useBrandColors } from '@/lib/theme-provider';
 import {
-  getTimeOfDayAccentIcon,
   getTimeOfDayGreetingFromBucket,
   getTimeOfDayTaglineFromBucket,
   TIME_OF_DAY_HERO_IMAGES,
 } from '@/lib/home-greeting';
 import type { LastOrderSummary } from '@/lib/last-order-summary';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 
 const CROSSFADE_MS = 500;
 const BUCKETS: TimeOfDay[] = ['morning', 'afternoon', 'evening'];
+/** Slightly taller than the JPEG frame so the banner feels less cramped. */
+const BANNER_ASPECT_RATIO = 1.95;
+/**
+ * Hero JPEGs ship with a baked-in gold rounded stroke + outer padding.
+ * Scale past the container so overflow:hidden clips that frame edge-to-edge.
+ */
+const IMAGE_BLEED_SCALE = 1.14;
 
 type HomeHeroProps = {
   companyName: string;
@@ -40,11 +48,12 @@ export function HomeHero({
   date,
 }: HomeHeroProps) {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const bucket = useTimeOfDay(date);
   const greeting = getTimeOfDayGreetingFromBucket(bucket);
   const tagline = getTimeOfDayTaglineFromBucket(bucket);
-  const accentIcon = getTimeOfDayAccentIcon(bucket);
+  const [bannerSize, setBannerSize] = useState({ width: 0, height: 0 });
 
   const opacities = useRef({
     morning: new Animated.Value(bucket === 'morning' ? 1 : 0),
@@ -64,119 +73,129 @@ export function HomeHero({
     ).start();
   }, [bucket, opacities]);
 
+  const heroImages = TIME_OF_DAY_HERO_IMAGES[colorScheme];
+
+  const onBannerLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setBannerSize((prev) =>
+      prev.width === width && prev.height === height ? prev : { width, height }
+    );
+  };
+
   return (
-    <View style={styles.card}>
-      <View style={styles.imagePane} pointerEvents="none">
+    <View style={styles.root}>
+      <View style={styles.banner} onLayout={onBannerLayout}>
         {BUCKETS.map((key) => (
           <Animated.View
             key={key}
             style={[styles.imageLayer, { opacity: opacities[key] }]}
           >
             <Image
-              source={TIME_OF_DAY_HERO_IMAGES[key]}
-              style={StyleSheet.absoluteFill}
+              source={heroImages[key]}
+              style={styles.heroImage}
               contentFit="cover"
               contentPosition="center"
             />
           </Animated.View>
         ))}
-        <View style={styles.vignetteLeft} />
-        <View style={styles.vignetteBottom} />
-      </View>
 
-      <View style={styles.content}>
-        <View style={styles.greetingRow}>
-          <Text style={styles.greetingScript} numberOfLines={1}>
-            {greeting}
-          </Text>
-          <MaterialIcons name={accentIcon} size={18} color={colors.primary} />
-        </View>
-
-        <Text style={styles.customerName} numberOfLines={2}>
-          {companyName}
-        </Text>
-
-        <Text style={styles.tagline} numberOfLines={2}>
-          {tagline}
-        </Text>
-
-        {lastOrder ? (
-          <Pressable
-            style={styles.continuePill}
-            onPress={onContinueLastOrder}
-            accessibilityRole="button"
-            accessibilityLabel={`Continue last order: ${lastOrder.label}`}
+        {bannerSize.width > 0 ? (
+          <Svg
+            pointerEvents="none"
+            width={bannerSize.width}
+            height={bannerSize.height}
+            style={StyleSheet.absoluteFill}
           >
-            <MaterialIcons name="schedule" size={16} color={colors.primary} />
-            <View style={styles.continueTextCol}>
-              <Text style={styles.continueTitle} numberOfLines={1}>
-                Continue last order
-              </Text>
-              <Text style={styles.continueSubtitle} numberOfLines={1} ellipsizeMode="tail">
-                {lastOrder.label}
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
-          </Pressable>
+            <Defs>
+              <LinearGradient id="heroLeftScrim" x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor="#000000" stopOpacity="0.72" />
+                <Stop offset="0.42" stopColor="#000000" stopOpacity="0.28" />
+                <Stop offset="0.7" stopColor="#000000" stopOpacity="0" />
+              </LinearGradient>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
+              width={bannerSize.width}
+              height={bannerSize.height}
+              fill="url(#heroLeftScrim)"
+            />
+          </Svg>
         ) : null}
+
+        <View style={styles.bannerContent} pointerEvents="none">
+          <Text style={styles.greetingScript}>{greeting},</Text>
+          <Text style={styles.customerName} numberOfLines={2}>
+            {companyName}
+          </Text>
+        </View>
       </View>
+
+      <Text style={styles.tagline} numberOfLines={2}>
+        {tagline.toUpperCase()}
+      </Text>
+
+      {lastOrder ? (
+        <Pressable
+          style={styles.continueCard}
+          onPress={onContinueLastOrder}
+          accessibilityRole="button"
+          accessibilityLabel={`Continue last order: ${lastOrder.label}`}
+        >
+          <View style={styles.clockRing}>
+            <MaterialIcons name="history" size={18} color={colors.primary} />
+          </View>
+          <View style={styles.continueTextCol}>
+            <Text style={styles.continueTitle} numberOfLines={1}>
+              Continue last order
+            </Text>
+            <Text
+              style={styles.continueSubtitle}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {lastOrder.label}
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={22} color={colors.primary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
-    card: {
-      position: 'relative',
-      minHeight: 210,
-      borderRadius: 20,
-      overflow: 'hidden',
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
+    root: {
+      width: '100%',
+      gap: 10,
     },
-    imagePane: {
-      ...StyleSheet.absoluteFillObject,
-      left: '36%',
+    banner: {
+      width: '100%',
+      aspectRatio: BANNER_ASPECT_RATIO,
+      borderRadius: 18,
+      overflow: 'hidden',
+      backgroundColor: '#0B0F14',
     },
     imageLayer: {
       ...StyleSheet.absoluteFillObject,
-      borderTopLeftRadius: 100,
-      borderBottomLeftRadius: 28,
       overflow: 'hidden',
     },
-    vignetteLeft: {
-      position: 'absolute',
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: 56,
-      backgroundColor: 'rgba(11, 15, 20, 0.55)',
+    heroImage: {
+      ...StyleSheet.absoluteFillObject,
+      transform: [{ scale: IMAGE_BLEED_SCALE }],
     },
-    vignetteBottom: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: '38%',
-      backgroundColor: 'rgba(11, 15, 20, 0.28)',
-    },
-    content: {
-      zIndex: 2,
-      paddingTop: 18,
-      paddingBottom: 16,
-      paddingHorizontal: 16,
-      maxWidth: '58%',
-    },
-    greetingRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
+    bannerContent: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      maxWidth: '52%',
     },
     greetingScript: {
       color: c.primary,
-      fontSize: 28,
-      lineHeight: 34,
+      fontSize: 15,
+      lineHeight: 19,
       fontStyle: 'italic',
       fontWeight: '500',
       letterSpacing: 0.2,
@@ -187,48 +206,58 @@ const createStyles = (c: BrandColorScheme) =>
       }),
     },
     customerName: {
-      color: c.text,
-      fontSize: 26,
-      fontWeight: '800',
-      marginTop: 4,
-      letterSpacing: -0.4,
-      lineHeight: 32,
+      color: '#FFFFFF',
+      fontSize: 17,
+      fontWeight: '700',
+      marginTop: 1,
+      letterSpacing: -0.2,
+      lineHeight: 21,
     },
     tagline: {
       color: c.textMuted,
-      fontSize: 13,
-      lineHeight: 18,
-      marginTop: 6,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: '500',
+      letterSpacing: 1.4,
+      textAlign: 'center',
+      paddingHorizontal: 8,
     },
-    continuePill: {
-      marginTop: 14,
-      alignSelf: 'flex-start',
+    continueCard: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 8,
-      maxWidth: '100%',
-      paddingVertical: 8,
-      paddingLeft: 10,
-      paddingRight: 8,
-      borderRadius: 999,
+      gap: 12,
+      width: '100%',
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 14,
       borderWidth: 1,
-      borderColor: 'rgba(240, 161, 50, 0.45)',
-      backgroundColor: 'rgba(11, 15, 20, 0.78)',
+      borderColor: c.cardBorder,
+      backgroundColor: c.cardElevated,
+    },
+    clockRing: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(240, 161, 50, 0.4)',
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
     },
     continueTextCol: {
-      flexShrink: 1,
+      flex: 1,
       minWidth: 0,
-      maxWidth: 150,
     },
     continueTitle: {
       color: c.primary,
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: '700',
     },
     continueSubtitle: {
       color: c.textMuted,
-      fontSize: 11,
-      marginTop: 1,
-      lineHeight: 14,
+      fontSize: 12,
+      marginTop: 2,
+      lineHeight: 16,
     },
   });

@@ -4,13 +4,13 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,33 +20,33 @@ import { WholesalePromoBanner } from '@/components/wholesale-promo-banner';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import {
-  catalogImageSourceForHomeCategory,
-  fetchCatalogImages,
-  type CatalogImagesResponse,
+    catalogImageSourceForHomeCategory,
+    fetchCatalogImages,
+    type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
 import { CLIENT_HOME_CATEGORIES } from '@/lib/home-categories-api';
 import {
-  getCompanyDisplayName,
+    getCompanyDisplayName,
 } from '@/lib/home-greeting';
 import {
-  getLastOrderSummary,
-  type LastOrderSummary,
-} from '@/lib/last-order-summary';
-import {
-  computeCustomerOrderOverview,
-  computeCustomerOverviewTrends,
-  EMPTY_OVERVIEW_TRENDS,
-  type OverviewTrend,
+    computeCustomerOrderOverview,
+    computeCustomerOverviewTrends,
+    EMPTY_OVERVIEW_TRENDS,
+    type OverviewTrend,
 } from '@/lib/home-order-stats';
+import {
+    getLastOrderSummary,
+    type LastOrderSummary,
+} from '@/lib/last-order-summary';
 import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
 import { useOrderMode } from '@/lib/order-mode';
-import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
+import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
+import { useBrandColors } from '@/lib/theme-provider';
 import type { FilterOption } from '@/lib/types/lens';
 import { filterToCatalogCategory } from '@/lib/wholesale-navigation';
 
@@ -393,7 +393,7 @@ export default function HomeScreen() {
           <View style={styles.heroBlock}>
             <View style={styles.topBrandRow}>
               <View style={styles.topBrandLeft}>
-                <MaterialIcons name="menu" size={24} color={colors.text} />
+                <MaterialIcons name="menu" size={24} color={colors.textMuted} />
                 <View style={styles.topBrandTextCol}>
                   <Text style={styles.topBrandTitle}>DrishX</Text>
                   <Text style={styles.topBrandTagline} numberOfLines={1}>
@@ -403,7 +403,7 @@ export default function HomeScreen() {
               </View>
               <View style={styles.headerIcons}>
                 <Pressable onPress={() => router.push('/notifications')} hitSlop={12} style={styles.bellBtn}>
-                  <MaterialIcons name="notifications-none" size={24} color={colors.primary} />
+                  <MaterialIcons name="notifications-none" size={24} color={colors.text} />
                   {unreadNotificationsCount > 0 ? (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
@@ -426,7 +426,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.homeSearchWrap}>
-            <CatalogSearchBar showFilter showAiAssistant />
+            <CatalogSearchBar showFilter />
           </View>
 
           <View style={styles.overviewSection}>
@@ -696,13 +696,13 @@ const createStyles = (c: BrandColorScheme) =>
   topBrandTextCol: { minWidth: 0 },
   topBrandTitle: {
     color: c.primary,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
   topBrandTagline: {
     color: c.textMuted,
-    fontSize: 9,
+    fontSize: 10,
     marginTop: 1,
   },
   headerTextCol: { flex: 1, paddingRight: 12 },
@@ -717,7 +717,7 @@ const createStyles = (c: BrandColorScheme) =>
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: c.primary, fontWeight: '800', fontSize: 13 },
+  avatarText: { color: c.text, fontWeight: '700', fontSize: 13 },
   bellBtn: { padding: 4 },
   sectionCard: {
     backgroundColor: c.card,

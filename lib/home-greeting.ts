@@ -8,10 +8,22 @@ export type TimeOfDayGreeting =
   | 'Good Afternoon'
   | 'Good Evening';
 
-export const TIME_OF_DAY_HERO_IMAGES: Record<TimeOfDay, ImageSourcePropType> = {
-  morning: require('@/public/morning.png'),
-  afternoon: require('@/public/afternoon.png'),
-  evening: require('@/public/evening.png'),
+export type HeroColorScheme = 'light' | 'dark';
+
+export const TIME_OF_DAY_HERO_IMAGES: Record<
+  HeroColorScheme,
+  Record<TimeOfDay, ImageSourcePropType>
+> = {
+  light: {
+    morning: require('@/public/morning-light.jpeg'),
+    afternoon: require('@/public/afternoon-light.jpeg'),
+    evening: require('@/public/evening-light.jpeg'),
+  },
+  dark: {
+    morning: require('@/public/morning-black.jpeg'),
+    afternoon: require('@/public/afternoon-black.jpeg'),
+    evening: require('@/public/evening-black.jpeg'),
+  },
 };
 
 function getDisplayNameFallback(
@@ -60,16 +72,18 @@ export function getTimeOfDayTagline(date: Date = new Date()): string {
 }
 
 export function getTimeOfDayHeroImageFromBucket(
-  bucket: TimeOfDay
+  bucket: TimeOfDay,
+  scheme: HeroColorScheme = 'dark'
 ): ImageSourcePropType {
-  return TIME_OF_DAY_HERO_IMAGES[bucket];
+  return TIME_OF_DAY_HERO_IMAGES[scheme][bucket];
 }
 
 /** Local asset for the time-of-day home hero banner. */
 export function getTimeOfDayHeroImage(
-  date: Date = new Date()
+  date: Date = new Date(),
+  scheme: HeroColorScheme = 'dark'
 ): ImageSourcePropType {
-  return getTimeOfDayHeroImageFromBucket(getTimeOfDayBucket(date));
+  return getTimeOfDayHeroImageFromBucket(getTimeOfDayBucket(date), scheme);
 }
 
 export function getTimeOfDayAccentIcon(
