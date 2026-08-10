@@ -554,8 +554,8 @@ export default function LensProductScreen() {
             <View style={styles.prescriptionHeader}>
               <Text style={styles.prescriptionHeaderLabel}>SPH</Text>
               <Text style={styles.prescriptionHeaderLabel}>CYL</Text>
-              <Text style={styles.prescriptionHeaderLabel}>ADD</Text>
               <Text style={styles.prescriptionHeaderLabel}>AXIS</Text>
+              <Text style={styles.prescriptionHeaderLabel}>ADD</Text>
             </View>
             <View style={styles.catalogDetailRow}>
               <Text style={styles.catalogDetailValue}>
@@ -564,8 +564,8 @@ export default function LensProductScreen() {
               <Text style={styles.catalogDetailValue}>
                 {item.cyl != null ? formatPowerLabel(item.cyl) : '—'}
               </Text>
-              <Text style={styles.catalogDetailValue}>{formatAddValue(item.add)}</Text>
               <Text style={styles.catalogDetailValue}>{formatAxisValue(item.axis)}</Text>
+              <Text style={styles.catalogDetailValue}>{formatAddValue(item.add)}</Text>
             </View>
           </View>
 
