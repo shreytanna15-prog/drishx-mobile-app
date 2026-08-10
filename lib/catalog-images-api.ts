@@ -10,6 +10,8 @@ export type CatalogImageKey =
   | 'color'
   | 'white';
 
+export type ShopLensImageKey = 'singlevision' | 'progressive' | 'kryptok';
+
 export type CatalogImagesResponse = {
   images: Record<CatalogImageKey, string>;
   homeCategories: Record<string, CatalogImageKey>;
@@ -23,6 +25,13 @@ const LOCAL_CATALOG_IMAGES: Record<CatalogImageKey, ImageSourcePropType> = {
   rx: require('@/assets/images/catalog/rxorders.jpeg'),
   color: require('@/assets/images/catalog/colors.jpeg'),
   white: require('@/assets/images/catalog/glass.jpeg'),
+};
+
+/** Transparent-background lens art for shop/wholesale category cards. */
+const LOCAL_SHOP_LENS_IMAGES: Record<ShopLensImageKey, ImageSourcePropType> = {
+  singlevision: require('@/assets/images/catalog/singlevision.png'),
+  progressive: require('@/assets/images/catalog/progressive.png'),
+  kryptok: require('@/assets/images/catalog/kryptok.png'),
 };
 
 const HOME_CATEGORY_KEYS: Record<string, CatalogImageKey> = {
@@ -39,6 +48,10 @@ const SHOP_CATEGORY_KEYS: Record<string, CatalogImageKey> = {
   kt: 'kryptok',
   v2: 'progressive',
 };
+
+function isShopLensImageKey(key: CatalogImageKey): key is ShopLensImageKey {
+  return key === 'singlevision' || key === 'progressive' || key === 'kryptok';
+}
 
 let cached: CatalogImagesResponse | null = null;
 let inflight: Promise<CatalogImagesResponse> | null = null;
@@ -93,12 +106,21 @@ export function catalogImageSourceForHomeCategory(
   return key ? LOCAL_CATALOG_IMAGES[key] : null;
 }
 
+/**
+ * Shop category cards use local transparent PNGs (lens highlights only) so the
+ * radial fade reveals the themed card background in light and dark mode.
+ * Prefer local over API remotes which are dark-vignette JPEGs.
+ */
 export function catalogImageSourceForShopCategory(
   data: CatalogImagesResponse | null,
   categoryId: string
 ): ImageSourcePropType | null {
+  const key = data?.shopCategories[categoryId] ?? SHOP_CATEGORY_KEYS[categoryId];
+  if (!key) return null;
+  if (isShopLensImageKey(key)) {
+    return LOCAL_SHOP_LENS_IMAGES[key];
+  }
   const remote = catalogImageForShopCategory(data, categoryId);
   if (remote) return { uri: remote };
-  const key = data?.shopCategories[categoryId] ?? SHOP_CATEGORY_KEYS[categoryId];
-  return key ? LOCAL_CATALOG_IMAGES[key] : null;
+  return LOCAL_CATALOG_IMAGES[key] ?? null;
 }

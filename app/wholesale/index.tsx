@@ -3,14 +3,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ShopCategoryCard } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
-  catalogImageForShopCategory,
+  catalogImageSourceForShopCategory,
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
@@ -56,30 +57,21 @@ export default function WholesaleCategoryScreen() {
         <Text style={styles.hint}>Select a category</Text>
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
-            const imageUrl = catalogImageForShopCategory(catalogImages, cat.id);
+            const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
             return (
-              <Pressable
+              <ShopCategoryCard
                 key={cat.id}
-                style={styles.card}
+                title={cat.title}
+                subtitle={cat.subtitle}
+                icon={cat.icon}
+                imageSource={imageSource}
                 onPress={() =>
                   router.push({
                     pathname: '/wholesale/items',
                     params: { category: cat.id },
                   })
-                }>
-                <View style={styles.cardTop}>
-                  {imageUrl ? (
-                    <Image source={{ uri: imageUrl }} style={styles.cardImage} />
-                  ) : (
-                    <View style={styles.iconWrap}>
-                      <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
-                    </View>
-                  )}
-                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-                </View>
-                <Text style={styles.cardTitle}>{cat.title}</Text>
-                <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
-              </Pressable>
+                }
+              />
             );
           })}
         </View>
@@ -103,33 +95,4 @@ const createStyles = (c: BrandColorScheme) =>
     title: { color: c.text, fontSize: 18, fontWeight: '800' },
     hint: { color: c.textMuted, fontSize: 14, fontWeight: '600', marginBottom: 12 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 },
-    card: {
-      width: '48%',
-      backgroundColor: c.card,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      padding: 14,
-      minHeight: 132,
-      justifyContent: 'space-between',
-    },
-    cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    cardImage: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
-    },
-    iconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: 'rgba(240, 161, 50, 0.12)',
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    cardTitle: { color: c.text, fontSize: 16, fontWeight: '800', marginTop: 14 },
-    cardSubtitle: { color: c.textMuted, fontSize: 13, fontWeight: '600', marginTop: 4 },
   });

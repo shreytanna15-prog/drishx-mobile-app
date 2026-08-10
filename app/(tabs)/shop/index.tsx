@@ -4,10 +4,11 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
+import { ShopCategoryCard } from '@/components/shop-category-card';
 import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -158,28 +159,19 @@ export default function ShopScreen() {
           {LENS_CATALOG_CATEGORIES.map((cat) => {
             const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
             return (
-              <Pressable
+              <ShopCategoryCard
                 key={cat.id}
-                style={styles.card}
+                title={cat.title}
+                subtitle={cat.subtitle}
+                icon={cat.icon}
+                imageSource={imageSource}
                 onPress={() =>
                   router.push({
                     pathname: '/shop/items',
                     params: { category: cat.id },
                   })
-                }>
-                <View style={styles.cardTop}>
-                  {imageSource ? (
-                    <Image source={imageSource} style={styles.cardImage} />
-                  ) : (
-                    <View style={styles.iconWrap}>
-                      <MaterialIcons name={cat.icon} size={22} color={colors.primary} />
-                    </View>
-                  )}
-                  <MaterialIcons name="chevron-right" size={22} color={colors.textMuted} />
-                </View>
-                <Text style={styles.cardTitle}>{cat.title}</Text>
-                <Text style={styles.cardSubtitle}>{cat.subtitle}</Text>
-              </Pressable>
+                }
+              />
             );
           })}
         </View>
@@ -254,49 +246,6 @@ const createStyles = (c: BrandColorScheme) =>
       flexWrap: 'wrap',
       justifyContent: 'space-between',
       gap: 12,
-    },
-    card: {
-      width: '48%',
-      backgroundColor: c.card,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      padding: 14,
-      minHeight: 132,
-      justifyContent: 'space-between',
-    },
-    cardTop: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    cardImage: {
-      width: 48,
-      height: 48,
-      borderRadius: 12,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
-    },
-    iconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: 'rgba(240, 161, 50, 0.12)',
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    cardTitle: {
-      color: c.text,
-      fontSize: 16,
-      fontWeight: '800',
-      marginTop: 10,
-    },
-    cardSubtitle: {
-      color: c.textMuted,
-      fontSize: 12,
-      fontWeight: '600',
-      marginTop: 4,
     },
     fab: {
       position: 'absolute',
