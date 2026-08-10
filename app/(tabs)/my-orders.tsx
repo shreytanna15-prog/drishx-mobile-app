@@ -1,6 +1,7 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import * as Clipboard from 'expo-clipboard';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -10,6 +11,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,23 +21,31 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
-import { formatOrderDateTime, getStatusPillStyle, groupOrdersForList, type OrderListGroup } from '@/lib/order-list-display';
-import { formatOrderStatusLabel, normalizeOrderStatus } from '@/lib/order-tracking';
+import {
+  formatOrderDateTime,
+  getStatusPillStyle,
+  groupOrdersForList,
+  type OrderCardStatusVariant,
+  type OrderListGroup,
+} from '@/lib/order-list-display';
+import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
+import { appAlert } from '@/lib/app-alert';
 
 type FilterKey = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
 type FilterOption = {
   key: FilterKey;
   label: string;
+  icon: keyof typeof MaterialIcons.glyphMap;
 };
 
 const FILTER_OPTIONS: FilterOption[] = [
-  { key: 'ALL', label: 'All' },
-  { key: 'IN_PROGRESS', label: 'In Progress' },
-  { key: 'COMPLETED', label: 'Completed' },
-  { key: 'CANCELLED', label: 'Cancelled' },
+  { key: 'ALL', label: 'All Orders', icon: 'format-list-bulleted' },
+  { key: 'IN_PROGRESS', label: 'In Progress', icon: 'schedule' },
+  { key: 'COMPLETED', label: 'Completed', icon: 'check-circle-outline' },
+  { key: 'CANCELLED', label: 'Cancelled', icon: 'cancel' },
 ];
 
 function isInProgressStatus(status: string): boolean {
@@ -62,6 +72,49 @@ function groupMatchesFilter(group: OrderListGroup, filter: FilterKey): boolean {
   return group.orders.some((order) => orderMatchesFilter(order, filter));
 }
 
+function accentForVariant(variant: OrderCardStatusVariant): string {
+  switch (variant) {
+    case 'ready':
+      return '#22C55E';
+    case 'completed':
+      return '#16A34A';
+    case 'procurement':
+      return '#EF4444';
+    case 'partial':
+      return '#14B8A6';
+    case 'cancelled':
+      return '#9CA3AF';
+    case 'progress':
+    default:
+      return '#F0A132';
+  }
+}
+
+function iconForVariant(variant: OrderCardStatusVariant): keyof typeof MaterialIcons.glyphMap {
+  switch (variant) {
+    case 'ready':
+    case 'completed':
+      return 'shopping-bag';
+    case 'procurement':
+      return 'inventory';
+    case 'partial':
+      return 'pending-actions';
+    case 'cancelled':
+      return 'remove-shopping-cart';
+    default:
+      return 'assignment';
+  }
+}
+
+async function copyOrderId(orderId: string) {
+  try {
+    await Clipboard.setStringAsync(orderId);
+    appAlert('Copied', `${orderId} copied to clipboard.`);
+  } catch {
+    appAlert('Order ID', orderId);
+  }
+}
+
 function ListOrderRow({
   group,
   onPress,
@@ -69,61 +122,123 @@ function ListOrderRow({
   group: OrderListGroup;
   onPress: () => void;
 }) {
+  const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const pillStyle = getStatusPillStyle(group.status.variant);
+  const accent = accentForVariant(group.status.variant);
   const productLabel = `${group.productCount} Product${group.productCount === 1 ? '' : 's'}`;
   const pairLabel = `${group.pairCount} Pair${group.pairCount === 1 ? '' : 's'}`;
+  const readyTotal =
+    group.productCount > 0
+      ? group.productCount
+      : Math.max(group.readyProductCount + group.procurementProductCount, 1);
+  const readyCount = group.readyProductCount;
+  const progress =
+    group.isPhotoOrder || readyTotal <= 0 ? 0 : Math.min(1, readyCount / readyTotal);
+  const showProgress =
+    !group.isPhotoOrder &&
+    (group.readyProductCount > 0 || group.procurementProductCount > 0 || group.productCount > 0);
 
   return (
     <Pressable style={styles.listRow} onPress={onPress}>
-      <View style={styles.listTopRow}>
-        <Text style={styles.listOrderId}>{group.displayOrderId}</Text>
-        <View
-          style={[
-            styles.statusPill,
-            {
-              backgroundColor: pillStyle.backgroundColor,
-              borderColor: pillStyle.borderColor,
-            },
-          ]}>
-          <Text style={[styles.statusPillText, { color: pillStyle.color }]}>{group.status.label}</Text>
+      <View style={styles.cardTop}>
+        <View style={[styles.orderIconWrap, { backgroundColor: `${accent}22` }]}>
+          <MaterialIcons name={iconForVariant(group.status.variant)} size={20} color={accent} />
+        </View>
+
+        <View style={styles.cardTopMain}>
+          <View style={styles.orderIdRow}>
+            <Text style={styles.listOrderId} numberOfLines={1}>
+              {group.displayOrderId}
+            </Text>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                void copyOrderId(group.displayOrderId);
+              }}
+              accessibilityLabel="Copy order ID">
+              <MaterialIcons name="content-copy" size={14} color={colors.textMuted} />
+            </Pressable>
+          </View>
+          <Text style={styles.listCompany} numberOfLines={1}>
+            {group.companyName}
+          </Text>
+        </View>
+
+        <View style={styles.cardTopRight}>
+          <View
+            style={[
+              styles.statusPill,
+              {
+                backgroundColor: pillStyle.backgroundColor,
+                borderColor: pillStyle.borderColor,
+              },
+            ]}>
+            <MaterialIcons
+              name={
+                group.status.variant === 'ready' || group.status.variant === 'completed'
+                  ? 'check-circle'
+                  : group.status.variant === 'procurement'
+                    ? 'radio-button-unchecked'
+                    : 'fiber-manual-record'
+              }
+              size={11}
+              color={pillStyle.color}
+            />
+            <Text style={[styles.statusPillText, { color: pillStyle.color }]}>
+              {group.status.label}
+            </Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={20} color={colors.textMuted} />
         </View>
       </View>
-
-      <Text style={styles.listCompany}>{group.companyName}</Text>
-      <Text style={styles.listDate}>{formatOrderDateTime(group.createdAt)}</Text>
 
       {group.isPhotoOrder ? (
         <Text style={styles.photoOrderNote}>
           Photo order submitted · your order will be placed soon
         </Text>
       ) : (
-        <View style={styles.listMetricsRow}>
-          <Text style={styles.listMetricsText}>
-            {productLabel} · {pairLabel}
-          </Text>
-          <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
+        <View style={styles.metaRow}>
+          <View style={styles.metaLeft}>
+            <View style={styles.metaLine}>
+              <MaterialIcons name="calendar-today" size={13} color={colors.textMuted} />
+              <Text style={styles.metaText}>{formatOrderDateTime(group.createdAt)}</Text>
+            </View>
+            <View style={styles.metaLine}>
+              <MaterialIcons name="inventory-2" size={13} color={colors.textMuted} />
+              <Text style={styles.metaText}>
+                {productLabel} • {pairLabel}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.amountBlock}>
+            <Text style={styles.amountLabel}>Total Amount</Text>
+            <Text style={styles.listAmount}>₹{group.totalAmount.toLocaleString('en-IN')}</Text>
+          </View>
         </View>
       )}
 
-      {!group.isPhotoOrder && (group.readyProductCount > 0 || group.procurementProductCount > 0) && (
-        <View style={styles.fulfillmentRow}>
-          {group.readyProductCount > 0 ? (
-            <View style={styles.readyPill}>
-              <Text style={styles.readyPillText}>
-                {group.readyProductCount} Ready
-              </Text>
-            </View>
-          ) : null}
-          {group.procurementProductCount > 0 ? (
-            <View style={styles.procurementPill}>
-              <Text style={styles.procurementPillText}>
-                {group.procurementProductCount} Need Procurement
-              </Text>
-            </View>
-          ) : null}
+      {showProgress ? (
+        <View style={styles.progressFooter}>
+          <View style={styles.progressLeft}>
+            <MaterialIcons name="visibility" size={16} color={colors.textMuted} />
+            <Text style={styles.progressText}>
+              {readyCount} / {readyTotal} Ready
+            </Text>
+          </View>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.round(progress * 100)}%`,
+                  backgroundColor: progress >= 1 ? '#22C55E' : accent,
+                },
+              ]}
+            />
+          </View>
         </View>
-      )}
+      ) : null}
     </Pressable>
   );
 }
@@ -138,6 +253,8 @@ export default function MyOrdersScreen() {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const orderGroups = useMemo(
     () => groupOrdersForList(orders, user?.businessName, 'Your company'),
@@ -179,10 +296,18 @@ export default function MyOrdersScreen() {
     }
   }, [selectedGroup, selectedGroupKey]);
 
-  const filteredGroups = useMemo(
-    () => orderGroups.filter((group) => groupMatchesFilter(group, activeFilter)),
-    [orderGroups, activeFilter]
-  );
+  const filteredGroups = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return orderGroups.filter((group) => {
+      if (!groupMatchesFilter(group, activeFilter)) return false;
+      if (!q) return true;
+      return (
+        group.displayOrderId.toLowerCase().includes(q) ||
+        group.companyName.toLowerCase().includes(q) ||
+        group.status.label.toLowerCase().includes(q)
+      );
+    });
+  }, [orderGroups, activeFilter, searchQuery]);
 
   return (
     <View style={styles.container}>
@@ -197,10 +322,20 @@ export default function MyOrdersScreen() {
               <View style={styles.backButton} />
             </View>
           ) : (
-            <>
-              <Text style={styles.screenTitle}>My Orders</Text>
-              <Text style={styles.subtitle}>Track your lens orders</Text>
-            </>
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerTextCol}>
+                <Text style={styles.screenTitle}>My Orders</Text>
+                <Text style={styles.subtitle}>Track, manage & reorder your lens orders</Text>
+              </View>
+              <View style={styles.headerActions}>
+                <Pressable
+                  style={[styles.headerIconBtn, searchOpen && styles.headerIconBtnActive]}
+                  onPress={() => setSearchOpen((open) => !open)}
+                  accessibilityLabel="Search orders">
+                  <MaterialIcons name="search" size={20} color={colors.primary} />
+                </Pressable>
+              </View>
+            </View>
           )}
         </View>
 
@@ -238,18 +373,49 @@ export default function MyOrdersScreen() {
           </ScrollView>
         ) : (
           <>
-            <View style={styles.filterRow}>
-              {FILTER_OPTIONS.map((option) => {
-                const isActive = option.key === activeFilter;
-                return (
-                  <Pressable
-                    key={option.key}
-                    style={[styles.filterChip, isActive && styles.filterChipActive]}
-                    onPress={() => setActiveFilter(option.key)}>
-                    <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>{option.label}</Text>
+            {searchOpen ? (
+              <View style={styles.searchWrap}>
+                <MaterialIcons name="search" size={18} color={colors.textMuted} />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search by order ID or company"
+                  placeholderTextColor={colors.placeholder}
+                  style={styles.searchInput}
+                  autoFocus
+                />
+                {searchQuery ? (
+                  <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+                    <MaterialIcons name="close" size={18} color={colors.textMuted} />
                   </Pressable>
-                );
-              })}
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={styles.filterWrap}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.filterRow}>
+                {FILTER_OPTIONS.map((option) => {
+                  const isActive = option.key === activeFilter;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.filterChip, isActive && styles.filterChipActive]}
+                      onPress={() => setActiveFilter(option.key)}>
+                      <MaterialIcons
+                        name={option.icon}
+                        size={15}
+                        color={isActive ? colors.primary : colors.textMuted}
+                      />
+                      <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
 
             <FlatList
@@ -287,176 +453,253 @@ export default function MyOrdersScreen() {
 
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: c.background },
-  safeArea: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  detailHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  backButton: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailHeaderTitle: {
-    color: c.text,
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  screenTitle: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: c.text },
-  subtitle: { marginTop: 4, fontSize: 14, color: c.textMuted },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  filterChip: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    backgroundColor: c.card,
-  },
-  filterChipActive: {
-    borderColor: c.primary,
-    backgroundColor: 'rgba(240, 161, 50, 0.15)',
-  },
-  filterChipText: {
-    fontSize: 12,
-    color: c.textMuted,
-    fontWeight: '600',
-  },
-  filterChipTextActive: {
-    color: c.primary,
-    fontWeight: '700',
-  },
-  listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
-  listRow: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: c.cardBorder,
-    backgroundColor: c.card,
-    gap: 6,
-  },
-  listTopRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  listOrderId: {
-    color: c.text,
-    fontSize: 17,
-    fontWeight: '800',
-    flex: 1,
-  },
-  statusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  listCompany: {
-    color: c.text,
-    fontSize: 15,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  listDate: {
-    color: c.textMuted,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  listMetricsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    gap: 12,
-  },
-  listMetricsText: {
-    color: c.text,
-    fontSize: 13,
-    fontWeight: '600',
-    flex: 1,
-  },
-  listAmount: {
-    color: c.text,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  photoOrderNote: {
-    color: c.textMuted,
-    fontSize: 13,
-    fontWeight: '600',
-    marginTop: 8,
-  },
-  fulfillmentRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
-  },
-  readyPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-  },
-  readyPillText: {
-    color: '#4ade80',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  procurementPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(248, 113, 113, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(248, 113, 113, 0.3)',
-  },
-  procurementPillText: {
-    color: c.danger,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  detailContent: { paddingHorizontal: 16, paddingBottom: 32 },
-  separator: { height: 12 },
-  centeredState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-    gap: 8,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: c.text },
-  stateText: { fontSize: 15, color: c.textMuted, textAlign: 'center' },
-  errorText: { fontSize: 15, color: c.danger, textAlign: 'center' },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 8,
-    backgroundColor: c.primary,
-  },
-  retryText: { color: c.primaryText, fontWeight: '700' },
-});
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    header: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 10,
+    },
+    headerTopRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    headerTextCol: { flex: 1, paddingRight: 4 },
+    headerActions: { flexDirection: 'row', gap: 8 },
+    headerIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+    },
+    headerIconBtnActive: {
+      backgroundColor: 'rgba(240, 161, 50, 0.14)',
+    },
+    detailHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    backButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    detailHeaderTitle: {
+      color: c.text,
+      fontSize: 17,
+      fontWeight: '700',
+    },
+    screenTitle: { fontSize: 28, lineHeight: 34, fontWeight: '800', color: c.text },
+    subtitle: { marginTop: 4, fontSize: 13, color: c.textMuted, lineHeight: 18 },
+    searchWrap: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    searchInput: {
+      flex: 1,
+      color: c.text,
+      fontSize: 14,
+      padding: 0,
+    },
+    filterWrap: {
+      flexGrow: 0,
+      flexShrink: 0,
+      marginBottom: 10,
+      paddingTop: 2,
+    },
+    filterRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 4,
+      minHeight: 48,
+    },
+    filterChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      minHeight: 40,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+    },
+    filterChipActive: {
+      borderColor: c.primary,
+      backgroundColor: 'rgba(240, 161, 50, 0.12)',
+    },
+    filterChipText: {
+      fontSize: 12,
+      lineHeight: 16,
+      color: c.textMuted,
+      fontWeight: '600',
+    },
+    filterChipTextActive: {
+      color: c.primary,
+      fontWeight: '700',
+    },
+    listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+    listRow: {
+      padding: 14,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+      gap: 12,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    orderIconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cardTopMain: { flex: 1, minWidth: 0, gap: 2 },
+    orderIdRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    listOrderId: {
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '800',
+      flexShrink: 1,
+    },
+    listCompany: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '500',
+    },
+    cardTopRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    statusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    statusPillText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    metaLeft: { flex: 1, gap: 6, minWidth: 0 },
+    metaLine: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    metaText: {
+      color: c.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+      flexShrink: 1,
+    },
+    amountBlock: { alignItems: 'flex-end' },
+    amountLabel: {
+      color: c.textMuted,
+      fontSize: 10,
+      fontWeight: '600',
+      marginBottom: 2,
+    },
+    listAmount: {
+      color: c.text,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    photoOrderNote: {
+      color: c.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+    },
+    progressFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 12,
+      backgroundColor: c.menuRowAlt,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    progressLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 0,
+    },
+    progressText: {
+      color: c.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    progressTrack: {
+      flex: 1,
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: 'rgba(148, 163, 184, 0.25)',
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 999,
+    },
+    detailContent: { paddingHorizontal: 16, paddingBottom: 32 },
+    separator: { height: 12 },
+    centeredState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 48,
+      paddingHorizontal: 32,
+      gap: 8,
+    },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: c.text },
+    stateText: { fontSize: 15, color: c.textMuted, textAlign: 'center' },
+    errorText: { fontSize: 15, color: c.danger, textAlign: 'center' },
+    retryButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginTop: 8,
+      backgroundColor: c.primary,
+    },
+    retryText: { color: c.primaryText, fontWeight: '700' },
+  });
