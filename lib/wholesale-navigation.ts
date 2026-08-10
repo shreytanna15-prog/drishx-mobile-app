@@ -14,7 +14,7 @@ export type LensCatalogCategory = {
 export const LENS_CATALOG_CATEGORIES: LensCatalogCategory[] = [
   { id: 'sv', title: 'Single Vision', subtitle: 'SV products', icon: 'remove-red-eye' },
   { id: 'kt', title: 'Kryptok', subtitle: 'KT products', icon: 'visibility' },
-  { id: 'v2', title: 'Progressive', subtitle: 'V2 products', icon: 'center-focus-strong' },
+  { id: 'v2', title: 'Progressive', subtitle: 'V2 products', icon: 'layers' },
 ];
 
 export function wholesaleCategoryToFilter(category: WholesaleCategoryId): FilterOption {

@@ -15,8 +15,13 @@ import {
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
+import { fetchLensCatalogItems } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
-import { LENS_CATALOG_CATEGORIES } from '@/lib/wholesale-navigation';
+import {
+  LENS_CATALOG_CATEGORIES,
+  wholesaleCategoryToApiType,
+  type WholesaleCategoryId,
+} from '@/lib/wholesale-navigation';
 
 export default function WholesaleCategoryScreen() {
   const colors = useBrandColors();
@@ -24,6 +29,9 @@ export default function WholesaleCategoryScreen() {
   const router = useRouter();
   const { setMode } = useOrderMode();
   const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
+  const [productCounts, setProductCounts] = useState<
+    Partial<Record<WholesaleCategoryId, number>>
+  >({});
 
   useEffect(() => {
     setMode('wholesale');
@@ -43,6 +51,31 @@ export default function WholesaleCategoryScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      LENS_CATALOG_CATEGORIES.map(async (cat) => {
+        try {
+          const items = await fetchLensCatalogItems(wholesaleCategoryToApiType(cat.id));
+          const total = items.reduce((sum, item) => sum + (item.productCount ?? 0), 0);
+          return [cat.id, total] as const;
+        } catch {
+          return [cat.id, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Partial<Record<WholesaleCategoryId, number>> = {};
+      for (const [id, total] of entries) {
+        if (typeof total === 'number') next[id] = total;
+      }
+      setProductCounts(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <View style={styles.root}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -54,7 +87,11 @@ export default function WholesaleCategoryScreen() {
           <View style={styles.backBtn} />
         </View>
 
-        <Text style={styles.hint}>Select a category</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Categories</Text>
+          <View style={styles.sectionUnderline} />
+        </View>
+
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
             const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
@@ -65,6 +102,7 @@ export default function WholesaleCategoryScreen() {
                 subtitle={cat.subtitle}
                 icon={cat.icon}
                 imageSource={imageSource}
+                productCount={productCounts[cat.id] ?? null}
                 onPress={() =>
                   router.push({
                     pathname: '/wholesale/items',
@@ -93,6 +131,14 @@ const createStyles = (c: BrandColorScheme) =>
     },
     backBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
     title: { color: c.text, fontSize: 18, fontWeight: '800' },
-    hint: { color: c.textMuted, fontSize: 14, fontWeight: '600', marginBottom: 12 },
+    sectionHeader: { marginBottom: 14 },
+    sectionTitle: { color: c.text, fontSize: 20, fontWeight: '800' },
+    sectionUnderline: {
+      marginTop: 4,
+      width: 36,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: c.primary,
+    },
     grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 },
   });

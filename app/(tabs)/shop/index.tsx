@@ -4,7 +4,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CatalogSearchBar } from '@/components/catalog-search-bar';
@@ -21,10 +21,15 @@ import {
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
+import { fetchLensCatalogItems } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
 import { getCartBadgeCount } from '@/lib/order-quantity';
 import { uploadPhotoOrder } from '@/lib/photo-orders-api';
-import { LENS_CATALOG_CATEGORIES } from '@/lib/wholesale-navigation';
+import {
+  LENS_CATALOG_CATEGORIES,
+  wholesaleCategoryToApiType,
+  type WholesaleCategoryId,
+} from '@/lib/wholesale-navigation';
 
 export default function ShopScreen() {
   const colors = useBrandColors();
@@ -35,6 +40,9 @@ export default function ShopScreen() {
   const { getAuthHeaders } = useAuth();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
+  const [productCounts, setProductCounts] = useState<
+    Partial<Record<WholesaleCategoryId, number>>
+  >({});
 
   const cartBadgeCount = getCartBadgeCount(
     cartItems.reduce((sum, entry) => sum + entry.cartQuantity, 0),
@@ -56,6 +64,31 @@ export default function ShopScreen() {
       .catch(() => {
         if (!cancelled) setCatalogImages(null);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all(
+      LENS_CATALOG_CATEGORIES.map(async (cat) => {
+        try {
+          const items = await fetchLensCatalogItems(wholesaleCategoryToApiType(cat.id));
+          const total = items.reduce((sum, item) => sum + (item.productCount ?? 0), 0);
+          return [cat.id, total] as const;
+        } catch {
+          return [cat.id, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Partial<Record<WholesaleCategoryId, number>> = {};
+      for (const [id, total] of entries) {
+        if (typeof total === 'number') next[id] = total;
+      }
+      setProductCounts(next);
+    });
     return () => {
       cancelled = true;
     };
@@ -134,6 +167,10 @@ export default function ShopScreen() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <View style={styles.titleBlock}>
             <Text style={styles.screenTitle}>Shop</Text>
@@ -155,6 +192,20 @@ export default function ShopScreen() {
           <CatalogSearchBar />
         </View>
 
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Categories</Text>
+            <View style={styles.sectionUnderline} />
+          </View>
+          <Pressable
+            onPress={() => router.push('/shop/search')}
+            hitSlop={8}
+            style={styles.viewAllBtn}>
+            <Text style={styles.viewAllText}>View all</Text>
+            <MaterialIcons name="chevron-right" size={18} color={colors.primary} />
+          </Pressable>
+        </View>
+
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
             const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
@@ -165,6 +216,7 @@ export default function ShopScreen() {
                 subtitle={cat.subtitle}
                 icon={cat.icon}
                 imageSource={imageSource}
+                productCount={productCounts[cat.id] ?? null}
                 onPress={() =>
                   router.push({
                     pathname: '/shop/items',
@@ -175,6 +227,7 @@ export default function ShopScreen() {
             );
           })}
         </View>
+        </ScrollView>
 
         <Pressable
           style={[styles.fab, uploadingPhoto && styles.fabDisabled]}
@@ -196,7 +249,8 @@ export default function ShopScreen() {
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.background },
-    safeArea: { flex: 1, paddingHorizontal: 16, paddingBottom: 24 },
+    safeArea: { flex: 1 },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 100 },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -217,7 +271,27 @@ const createStyles = (c: BrandColorScheme) =>
       marginTop: 4,
       fontWeight: '600',
     },
-    searchWrap: { marginBottom: 16 },
+    searchWrap: { marginBottom: 18 },
+    sectionHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+      marginBottom: 14,
+    },
+    sectionTitle: {
+      color: c.text,
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    sectionUnderline: {
+      marginTop: 4,
+      width: 36,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: c.primary,
+    },
+    viewAllBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+    viewAllText: { color: c.primary, fontSize: 14, fontWeight: '700' },
     iconButton: {
       width: 44,
       height: 44,

@@ -2,12 +2,16 @@
 
 Used by Shop / Wholesale category cards with a radial alpha fade.
 
-| Category | Transparent PNG |
-| --- | --- |
-| Single Vision | `singlevision.png` |
-| Kryptok | `kryptok.png` |
-| Progressive | `progressive.png` |
+| Category | Transparent PNG | Source |
+| --- | --- | --- |
+| Single Vision | `singlevision.png` | Design SV lens (gold rim) |
+| Kryptok | `kryptok.png` | Design KT bifocal lens |
+| Progressive | `progressive.png` | Design V2 progressive lens |
 
-These PNGs keep **glass highlights / rim** with a **transparent** background (no baked dark vignette). One asset works in light and dark themes because the card background shows through.
+Black studio backgrounds were keyed to alpha. Replace these PNGs in place to update art.
 
-Original dark JPEGs (`*.jpeg`) remain for home carousel / other catalog uses.
+Re-process from source JPEGs/PNGs:
+
+```bash
+node scripts/process-lens-assets.js
+```

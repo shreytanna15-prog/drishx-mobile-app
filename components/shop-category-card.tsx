@@ -17,7 +17,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 
-const BLEED_SCALE = 1.28;
+const BLEED_SCALE = 1.22;
 
 type CategoryLensBleedProps = {
   source: ImageSourcePropType;
@@ -28,12 +28,11 @@ type CategoryLensBleedProps = {
 
 /**
  * Lens art with a true alpha radial fade (MaskedView).
- * Source should be a transparent PNG (lens highlights only) so the fade
- * reveals the themed card background in both light and dark mode.
+ * Source should be a transparent PNG so the fade reveals the themed card bg.
  */
 export function CategoryLensBleed({
   source,
-  size = 72,
+  size = 112,
   style,
 }: CategoryLensBleedProps) {
   const gradientId = `categoryLensFade-${useId().replace(/:/g, '')}`;
@@ -65,15 +64,15 @@ export function CategoryLensBleed({
             <Defs>
               <RadialGradient
                 id={gradientId}
-                cx="0.68"
-                cy="0.32"
-                rx="0.62"
-                ry="0.62"
+                cx="0.58"
+                cy="0.42"
+                rx="0.58"
+                ry="0.58"
                 gradientUnits="objectBoundingBox"
               >
                 <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="42%" stopColor="#FFFFFF" stopOpacity="0.92" />
-                <Stop offset="72%" stopColor="#FFFFFF" stopOpacity="0.35" />
+                <Stop offset="55%" stopColor="#FFFFFF" stopOpacity="0.95" />
+                <Stop offset="82%" stopColor="#FFFFFF" stopOpacity="0.4" />
                 <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
               </RadialGradient>
             </Defs>
@@ -88,9 +87,8 @@ export function CategoryLensBleed({
               position: 'absolute',
               width: imgW,
               height: imgH,
-              // Bleed toward top-right so the soft edge dissolves into the card.
-              top: -(imgH - h) * 0.62,
-              left: -(imgW - w) * 0.18,
+              top: -(imgH - h) * 0.45,
+              left: -(imgW - w) * 0.12,
             }}
             contentFit="contain"
           />
@@ -105,6 +103,7 @@ type ShopCategoryCardProps = {
   subtitle: string;
   icon: keyof typeof MaterialIcons.glyphMap;
   imageSource?: ImageSourcePropType | null;
+  productCount?: number | null;
   onPress: () => void;
   footer?: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -115,6 +114,7 @@ export function ShopCategoryCard({
   subtitle,
   icon,
   imageSource,
+  productCount,
   onPress,
   footer,
   style,
@@ -122,24 +122,46 @@ export function ShopCategoryCard({
   const colors = useBrandColors();
   const styles = useThemedStyles(createCardStyles);
 
+  const countLabel =
+    productCount == null
+      ? null
+      : `${productCount} Product${productCount === 1 ? '' : 's'}`;
+
   return (
     <Pressable style={[styles.card, style]} onPress={onPress}>
-      <View style={styles.mediaRow}>
+      <View style={styles.mediaWrap}>
         {imageSource ? (
-          <CategoryLensBleed source={imageSource} size={78} />
+          <CategoryLensBleed source={imageSource} size={118} style={styles.lens} />
         ) : (
           <View style={styles.iconFallback}>
-            <MaterialIcons name={icon} size={22} color={colors.primary} />
+            <MaterialIcons name={icon} size={26} color={colors.primary} />
           </View>
         )}
+
+        <View style={styles.iconBadge}>
+          <MaterialIcons name={icon} size={16} color={colors.primary} />
+        </View>
+
         <View style={styles.chevronCircle}>
-          <MaterialIcons name="chevron-right" size={18} color={colors.textMuted} />
+          <MaterialIcons name="chevron-right" size={16} color={colors.textMuted} />
         </View>
       </View>
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
-      {footer}
+
+      {footer ??
+        (countLabel ? (
+          <View style={styles.footer}>
+            <Text style={styles.footerCount}>{countLabel}</Text>
+            <MaterialIcons name="arrow-forward" size={18} color={colors.primary} />
+          </View>
+        ) : (
+          <View style={styles.footer}>
+            <Text style={styles.footerCount}>Browse</Text>
+            <MaterialIcons name="arrow-forward" size={18} color={colors.primary} />
+          </View>
+        ))}
     </Pressable>
   );
 }
@@ -149,47 +171,83 @@ const createCardStyles = (c: BrandColorScheme) =>
     card: {
       width: '48%',
       backgroundColor: c.card,
-      borderRadius: 18,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: c.cardBorder,
       padding: 14,
-      minHeight: 168,
+      paddingBottom: 12,
+      minHeight: 236,
       overflow: 'hidden',
     },
-    mediaRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      justifyContent: 'space-between',
-      minHeight: 78,
+    mediaWrap: {
+      height: 118,
+      marginBottom: 6,
+      position: 'relative',
+    },
+    lens: {
+      position: 'absolute',
+      left: -4,
+      top: -2,
     },
     iconFallback: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
+      width: 56,
+      height: 56,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: 'rgba(240, 161, 50, 0.12)',
       alignItems: 'center',
       justifyContent: 'center',
+      marginTop: 28,
+    },
+    iconBadge: {
+      position: 'absolute',
+      left: 0,
+      bottom: 4,
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      borderWidth: 1.5,
+      borderColor: c.primary,
+      backgroundColor: c.card,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     chevronCircle: {
+      position: 'absolute',
+      top: 0,
+      right: 0,
       width: 28,
       height: 28,
       borderRadius: 14,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'rgba(240, 161, 50, 0.08)',
+      backgroundColor: 'rgba(240, 161, 50, 0.1)',
+      borderWidth: 1,
+      borderColor: c.cardBorder,
     },
     title: {
       color: c.text,
-      fontSize: 16,
+      fontSize: 17,
       fontWeight: '800',
-      marginTop: 10,
+      marginTop: 8,
     },
     subtitle: {
       color: c.textMuted,
       fontSize: 12,
       fontWeight: '600',
-      marginTop: 4,
+      marginTop: 3,
+    },
+    footer: {
+      marginTop: 'auto',
+      paddingTop: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    footerCount: {
+      color: c.primary,
+      fontSize: 13,
+      fontWeight: '700',
     },
   });
