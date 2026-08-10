@@ -60,7 +60,7 @@ export default function WhiteVariantsScreen() {
                 const catalogItem = buildWhiteCatalogLensItem(lineId, variant.id);
                 const onBehalf = getOnBehalfCustomOrderContext();
                 router.push({
-                  pathname: '/lens-product',
+                  pathname: '/shop/lens-product',
                   params: {
                     payload: encodeURIComponent(JSON.stringify(catalogItem)),
                     ...(onBehalf ? { mode: 'on-behalf-select' } : {}),

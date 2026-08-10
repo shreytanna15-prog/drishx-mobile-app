@@ -393,7 +393,7 @@ export default function ShopProductsScreen() {
                   item={item}
                   onPress={() =>
                     router.push({
-                      pathname: '/lens-product',
+                      pathname: '/shop/lens-product',
                       params: {
                         payload: encodeURIComponent(JSON.stringify(item)),
                       },

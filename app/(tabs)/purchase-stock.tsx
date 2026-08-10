@@ -330,7 +330,7 @@ export default function PurchaseStockScreen() {
   function handleOpenLensDetails(item: LensItem) {
     setPickerOpen(false);
     router.push({
-      pathname: '/lens-product',
+      pathname: '/shop/lens-product',
       params: {
         payload: encodeURIComponent(JSON.stringify(item)),
         mode: 'stock-select',

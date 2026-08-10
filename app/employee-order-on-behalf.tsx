@@ -517,7 +517,7 @@ export default function EmployeeOrderOnBehalfScreen() {
                 style={styles.shopCard}
                 onPress={() =>
                   router.push({
-                    pathname: '/lens-product',
+                    pathname: '/shop/lens-product',
                     params: {
                       payload: encodeURIComponent(JSON.stringify(lens)),
                       mode: 'on-behalf-select',

@@ -1,12 +1,12 @@
+import {
+    computeCrossCylOptionsForSph,
+    computeCrossSphOptions,
+    computeFullCrossCylOptions,
+    resolveCrossPowerMeta,
+    type CrossPowerRangeMeta,
+} from '@/lib/cross-power';
 import type { LensItem, PowerAxisRange, SelectableRange } from '@/lib/types/lens';
 import { resolveWholesalePowerProfile } from '@/lib/wholesale-powers';
-import {
-  computeCrossCylOptionsForSph,
-  computeCrossSphOptions,
-  computeFullCrossCylOptions,
-  resolveCrossPowerMeta,
-  type CrossPowerRangeMeta,
-} from '@/lib/cross-power';
 
 const POWER_STEP = 0.25;
 
