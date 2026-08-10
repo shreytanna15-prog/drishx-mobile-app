@@ -41,7 +41,7 @@ import { useOrderMode } from '@/lib/order-mode';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import type { FilterOption } from '@/lib/types/lens';
 import { filterToCatalogCategory } from '@/lib/wholesale-navigation';
 
@@ -97,7 +97,9 @@ function goToCategory(
 
 export default function HomeScreen() {
   const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
+  const colorScheme = useResolvedColorScheme();
+  const isLight = colorScheme === 'light';
+  const styles = useThemedStyles((c) => createStyles(c, isLight), [isLight]);
   const router = useRouter();
   const { user, isStaff, getAuthHeaders } = useAuth();
   const { setMode } = useOrderMode();
@@ -587,7 +589,9 @@ function OverviewCell({
   accentColor?: string;
   trend?: OverviewTrend;
 }) {
-  const styles = useThemedStyles(createStyles);
+  const colorScheme = useResolvedColorScheme();
+  const isLight = colorScheme === 'light';
+  const styles = useThemedStyles((c) => createStyles(c, isLight), [isLight]);
   const colors = useBrandColors();
   const tint = accentColor ?? colors.primary;
   return (
@@ -620,7 +624,9 @@ function QuickIcon({
   label: string;
   onPress: () => void;
 }) {
-  const styles = useThemedStyles(createStyles);
+  const colorScheme = useResolvedColorScheme();
+  const isLight = colorScheme === 'light';
+  const styles = useThemedStyles((c) => createStyles(c, isLight), [isLight]);
   const colors = useBrandColors();
   return (
     <Pressable style={styles.quickItem} onPress={onPress}>
@@ -632,7 +638,7 @@ function QuickIcon({
   );
 }
 
-const createStyles = (c: BrandColorScheme) =>
+const createStyles = (c: BrandColorScheme, isLight: boolean) =>
   StyleSheet.create({
   root: { flex: 1, backgroundColor: c.background },
   safeTop: { flex: 1 },
@@ -702,11 +708,15 @@ const createStyles = (c: BrandColorScheme) =>
     borderColor: c.cardBorder,
     padding: 16,
     marginBottom: 22,
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 3,
+    ...(isLight
+      ? {}
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.18,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 3,
+        }),
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -832,11 +842,15 @@ const createStyles = (c: BrandColorScheme) =>
     paddingVertical: 12,
     paddingHorizontal: 6,
     gap: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    ...(isLight
+      ? {}
+      : {
+          shadowColor: '#000',
+          shadowOpacity: 0.16,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 2,
+        }),
   },
   categoryIconWrap: {
     width: 44,

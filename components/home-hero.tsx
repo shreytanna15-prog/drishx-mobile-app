@@ -1,9 +1,9 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useTimeOfDay, type TimeOfDay } from '@/hooks/use-time-of-day';
 import {
+  getTimeOfDayAccentIcon,
   getTimeOfDayGreetingFromBucket,
   getTimeOfDayTaglineFromBucket,
   TIME_OF_DAY_HERO_IMAGES,
@@ -49,10 +50,12 @@ export function HomeHero({
 }: HomeHeroProps) {
   const colors = useBrandColors();
   const colorScheme = useResolvedColorScheme();
-  const styles = useThemedStyles(createStyles);
+  const isLight = colorScheme === 'light';
+  const styles = useThemedStyles((c) => createStyles(c, isLight), [isLight]);
   const bucket = useTimeOfDay(date);
   const greeting = getTimeOfDayGreetingFromBucket(bucket);
   const tagline = getTimeOfDayTaglineFromBucket(bucket);
+  const accentIcon = getTimeOfDayAccentIcon(bucket);
   const [bannerSize, setBannerSize] = useState({ width: 0, height: 0 });
 
   const opacities = useRef({
@@ -99,7 +102,7 @@ export function HomeHero({
           </Animated.View>
         ))}
 
-        {bannerSize.width > 0 ? (
+        {!isLight && bannerSize.width > 0 ? (
           <Svg
             pointerEvents="none"
             width={bannerSize.width}
@@ -124,7 +127,15 @@ export function HomeHero({
         ) : null}
 
         <View style={styles.bannerContent} pointerEvents="none">
-          <Text style={styles.greetingScript}>{greeting},</Text>
+          <View style={styles.greetingRow}>
+            <Text style={styles.greetingScript}>{greeting}</Text>
+            <MaterialCommunityIcons
+              name={accentIcon}
+              size={18}
+              color={colors.primary}
+              style={styles.greetingIcon}
+            />
+          </View>
           <Text style={styles.customerName} numberOfLines={2}>
             {companyName}
           </Text>
@@ -164,7 +175,7 @@ export function HomeHero({
   );
 }
 
-const createStyles = (c: BrandColorScheme) =>
+const createStyles = (c: BrandColorScheme, isLight: boolean) =>
   StyleSheet.create({
     root: {
       width: '100%',
@@ -175,7 +186,7 @@ const createStyles = (c: BrandColorScheme) =>
       aspectRatio: BANNER_ASPECT_RATIO,
       borderRadius: 18,
       overflow: 'hidden',
-      backgroundColor: '#0B0F14',
+      backgroundColor: isLight ? '#F7F4EE' : '#0B0F14',
     },
     imageLayer: {
       ...StyleSheet.absoluteFillObject,
@@ -189,36 +200,39 @@ const createStyles = (c: BrandColorScheme) =>
       ...StyleSheet.absoluteFillObject,
       justifyContent: 'center',
       paddingHorizontal: 18,
-      paddingVertical: 18,
-      maxWidth: '52%',
+      paddingVertical: 16,
+      maxWidth: '58%',
+    },
+    greetingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     greetingScript: {
       color: c.primary,
-      fontSize: 15,
-      lineHeight: 19,
-      fontStyle: 'italic',
-      fontWeight: '500',
-      letterSpacing: 0.2,
-      fontFamily: Platform.select({
-        ios: 'Georgia',
-        android: 'serif',
-        default: 'Georgia',
-      }),
+      fontSize: 22,
+      lineHeight: 26,
+      letterSpacing: 0.35,
+      fontFamily: 'CormorantGaramond_600SemiBold_Italic',
+    },
+    greetingIcon: {
+      marginTop: 2,
+      opacity: 0.92,
     },
     customerName: {
-      color: '#FFFFFF',
-      fontSize: 17,
-      fontWeight: '700',
-      marginTop: 1,
-      letterSpacing: -0.2,
-      lineHeight: 21,
+      color: isLight ? c.text : '#FFFFFF',
+      fontSize: 20,
+      fontWeight: '800',
+      marginTop: 4,
+      letterSpacing: -0.35,
+      lineHeight: 24,
     },
     tagline: {
       color: c.textMuted,
       fontSize: 11,
       lineHeight: 15,
       fontWeight: '500',
-      letterSpacing: 1.4,
+      letterSpacing: 1.6,
       textAlign: 'center',
       paddingHorizontal: 8,
     },

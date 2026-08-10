@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 
 type WholesalePromoBannerProps = {
   onPress: () => void;
@@ -11,7 +11,8 @@ type WholesalePromoBannerProps = {
 
 export function WholesalePromoBanner({ onPress }: WholesalePromoBannerProps) {
   const colors = useBrandColors();
-  const styles = useThemedStyles(createStyles);
+  const isLight = useResolvedColorScheme() === 'light';
+  const styles = useThemedStyles((c) => createStyles(c, isLight), [isLight]);
 
   return (
     <View style={styles.wrapper}>
@@ -43,7 +44,7 @@ export function WholesalePromoBanner({ onPress }: WholesalePromoBannerProps) {
   );
 }
 
-const createStyles = (c: BrandColorScheme) =>
+const createStyles = (c: BrandColorScheme, isLight: boolean) =>
   StyleSheet.create({
     wrapper: {
       position: 'relative',
@@ -58,11 +59,17 @@ const createStyles = (c: BrandColorScheme) =>
       paddingHorizontal: 14,
       paddingVertical: 7,
       borderRadius: 999,
-      shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 5,
+      borderWidth: isLight ? 1 : 0,
+      borderColor: c.cardBorder,
+      ...(isLight
+        ? {}
+        : {
+            shadowColor: '#000',
+            shadowOpacity: 0.25,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 5,
+          }),
     },
     pillText: {
       color: '#141414',
@@ -82,11 +89,15 @@ const createStyles = (c: BrandColorScheme) =>
       paddingTop: 22,
       paddingBottom: 18,
       paddingHorizontal: 18,
-      shadowColor: '#000',
-      shadowOpacity: 0.22,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 5,
+      ...(isLight
+        ? {}
+        : {
+            shadowColor: '#000',
+            shadowOpacity: 0.22,
+            shadowRadius: 14,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 5,
+          }),
     },
     ringOuter: {
       position: 'absolute',

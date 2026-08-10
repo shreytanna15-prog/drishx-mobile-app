@@ -88,8 +88,8 @@ export function getTimeOfDayHeroImage(
 
 export function getTimeOfDayAccentIcon(
   bucket: TimeOfDay
-): 'wb-sunny' | 'wb-cloudy' | 'nights-stay' {
-  if (bucket === 'morning') return 'wb-sunny';
-  if (bucket === 'afternoon') return 'wb-cloudy';
-  return 'nights-stay';
+): 'weather-sunny' | 'weather-partly-cloudy' | 'weather-night' {
+  if (bucket === 'morning') return 'weather-sunny';
+  if (bucket === 'afternoon') return 'weather-partly-cloudy';
+  return 'weather-night';
 }
