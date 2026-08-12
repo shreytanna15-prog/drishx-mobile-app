@@ -133,3 +133,18 @@ export function catalogImageSourceForShopCategory(
   if (remote) return { uri: remote };
   return LOCAL_CATALOG_IMAGES[key] ?? null;
 }
+
+const LENS_TYPE_TO_SHOP_CATEGORY: Record<string, string> = {
+  'Single Vision': 'sv',
+  Kryptok: 'kt',
+  Progressive: 'v2',
+};
+
+/** Blended local lens art for product list / detail cards. */
+export function catalogImageSourceForLensType(
+  lensType: string | undefined,
+  scheme: 'light' | 'dark' = 'dark'
+): ImageSourcePropType | null {
+  const categoryId = LENS_TYPE_TO_SHOP_CATEGORY[lensType ?? ''] ?? 'sv';
+  return catalogImageSourceForShopCategory(null, categoryId, scheme);
+}

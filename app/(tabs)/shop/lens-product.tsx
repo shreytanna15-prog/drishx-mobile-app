@@ -3,15 +3,17 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
 import { RelatedLensCard } from '@/components/related-lens-card';
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import { PRESCRIPTION_PICKER_HEIGHT, PrescriptionWheelPicker } from '@/components/prescription-wheel-picker';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
+import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
 import { useCart } from '@/lib/cart';
 import {
   buildCartLineId,
@@ -72,6 +74,7 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 
 export default function LensProductScreen() {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string; mode?: string }>();
@@ -319,6 +322,8 @@ export default function LensProductScreen() {
       })()
     : `Select prescription values for this lens.`;
 
+  const detailImage = catalogImageSourceForLensType(item.lensType, colorScheme);
+
   function handleAddChange(value: number) {
     setAdd(value);
     setError(null);
@@ -529,24 +534,28 @@ export default function LensProductScreen() {
 
         <KeyboardAwareScroll contentContainerStyle={styles.content}>
           <View style={styles.summaryCard}>
-            {item.imageUrl ? (
-              <View style={styles.summaryImageWrap}>
-                <Image
-                  source={{ uri: item.imageUrl }}
-                  style={styles.summaryImage}
-                  resizeMode="contain"
-                />
+            <View style={styles.summaryRow}>
+              {detailImage ? (
+                <View style={styles.summaryImageWrap}>
+                  <CategoryLensBleed source={detailImage} size={104} />
+                </View>
+              ) : null}
+              <View style={styles.summaryText}>
+                <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
+                <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
+                <Text style={styles.summaryType}>{lensType}</Text>
+                <Text style={styles.summaryPrice}>
+                  {isWhiteCatalogProduct
+                    ? 'White catalog product'
+                    : `₹${item.price}${LENS_PRICE_PER_PAIR_LABEL}`}
+                </Text>
+                {isWhiteCatalogProduct ? (
+                  <Text style={styles.whiteCatalogHint}>
+                    Select power from the white catalog range below.
+                  </Text>
+                ) : null}
               </View>
-            ) : null}
-            <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
-            <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
-            <Text style={styles.summaryType}>{lensType}</Text>
-            <Text style={styles.summaryPrice}>
-              {isWhiteCatalogProduct ? 'White catalog product' : `₹${item.price}${LENS_PRICE_PER_PAIR_LABEL}`}
-            </Text>
-            {isWhiteCatalogProduct ? (
-              <Text style={styles.whiteCatalogHint}>Select power from the white catalog range below.</Text>
-            ) : null}
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>Details</Text>
@@ -770,26 +779,30 @@ const createStyles = (c: BrandColorScheme) =>
       padding: 14,
       marginBottom: 18,
     },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
     summaryImageWrap: {
-      width: '100%',
-      height: 180,
-      borderRadius: 12,
-      marginBottom: 10,
-      backgroundColor: 'rgba(240, 161, 50, 0.08)',
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      overflow: 'hidden',
+      flexShrink: 0,
+      backgroundColor: 'transparent',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 10,
     },
-    summaryImage: {
-      width: '100%',
-      height: '100%',
+    summaryText: {
+      flex: 1,
+      minWidth: 0,
+      justifyContent: 'center',
     },
-    summaryBrand: { color: c.text, fontSize: 22, fontWeight: '700' },
-    summaryMeta: { color: c.textMuted, fontSize: 14, marginTop: 4 },
-    summaryType: { color: c.text, fontSize: 16, marginTop: 6, fontWeight: '600' },
+    summaryBrand: {
+      color: c.text,
+      fontSize: 18,
+      fontWeight: '800',
+      lineHeight: 24,
+    },
+    summaryMeta: { color: c.textMuted, fontSize: 13, marginTop: 4, fontWeight: '600' },
+    summaryType: { color: c.text, fontSize: 15, marginTop: 6, fontWeight: '600' },
     summaryPrice: { color: c.primary, fontSize: 18, marginTop: 8, fontWeight: '800' },
     whiteCatalogHint: {
       color: c.textMuted,

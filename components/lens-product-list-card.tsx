@@ -1,9 +1,12 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
 import { formatLensProductCardDetail, formatLensProductCardTitle } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
+import { useResolvedColorScheme } from '@/lib/theme-provider';
 import type { LensItem } from '@/lib/types/lens';
 
 type LensProductListCardProps = {
@@ -15,19 +18,17 @@ type LensProductListCardProps = {
 
 export function LensProductListCard({ item, onPress }: LensProductListCardProps) {
   const styles = useThemedStyles(createStyles);
+  const colorScheme = useResolvedColorScheme();
   const title = formatLensProductCardTitle(item);
   const detailLine = formatLensProductCardDetail(item);
+  const imageSource = catalogImageSourceForLensType(item.lensType, colorScheme);
 
   const content = (
     <View style={styles.row}>
-      {item.imageUrl ? (
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.thumb}
-          resizeMode="contain"
-        />
+      {imageSource ? (
+        <CategoryLensBleed source={imageSource} size={56} />
       ) : (
-        <View style={[styles.thumb, styles.thumbFallback]} />
+        <View style={styles.thumbFallback} />
       )}
       <View style={styles.compactTopRow}>
         <View style={styles.compactTopLeft}>
@@ -74,17 +75,10 @@ const createStyles = (c: BrandColorScheme) =>
       alignItems: 'flex-start',
       gap: 10,
     },
-    thumb: {
+    thumbFallback: {
       width: 56,
       height: 56,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      backgroundColor: 'rgba(240, 161, 50, 0.08)',
-      padding: 4,
-    },
-    thumbFallback: {
-      backgroundColor: 'rgba(240, 161, 50, 0.14)',
+      backgroundColor: 'transparent',
     },
     compactTopRow: {
       flex: 1,

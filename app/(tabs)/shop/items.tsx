@@ -6,19 +6,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type ImageSourcePropType,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import {
-  catalogImageForShopCategory,
+  catalogImageSourceForShopCategory,
   fetchCatalogImages,
   type CatalogImagesResponse,
 } from '@/lib/catalog-images-api';
@@ -34,12 +35,12 @@ function ItemCard({
   item,
   onPress,
   uppercase,
-  imageUrl,
+  imageSource,
 }: {
   item: LensCatalogItem;
   onPress: () => void;
   uppercase?: boolean;
-  imageUrl?: string | null;
+  imageSource?: ImageSourcePropType | null;
 }) {
   const styles = useThemedStyles(createStyles);
   const disabled = item.productCount < 1;
@@ -49,7 +50,9 @@ function ItemCard({
       style={[styles.card, disabled && styles.cardDisabled]}
       onPress={onPress}
       disabled={disabled}>
-      {imageUrl ? <Image source={{ uri: imageUrl }} style={styles.cardImage} /> : null}
+      {imageSource ? (
+        <CategoryLensBleed source={imageSource} size={72} style={styles.cardImage} />
+      ) : null}
       <Text style={[styles.cardTitle, uppercase && styles.cardTitleUpper]} numberOfLines={3}>
         {item.name}
       </Text>
@@ -64,6 +67,7 @@ function ItemCard({
 
 export default function ShopItemsScreen() {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { setMode } = useOrderMode();
@@ -148,7 +152,11 @@ export default function ShopItemsScreen() {
               <ItemCard
                 item={item}
                 uppercase
-                imageUrl={catalogImageForShopCategory(catalogImages, category)}
+                imageSource={catalogImageSourceForShopCategory(
+                  catalogImages,
+                  category,
+                  colorScheme
+                )}
                 onPress={() =>
                   router.push({
                     pathname: '/shop/products',
@@ -203,11 +211,7 @@ const createStyles = (c: BrandColorScheme) =>
     },
     cardDisabled: { opacity: 0.55 },
     cardImage: {
-      width: 56,
-      height: 56,
-      borderRadius: 12,
       marginBottom: 10,
-      backgroundColor: 'rgba(240, 161, 50, 0.1)',
     },
     cardTitle: {
       color: c.text,

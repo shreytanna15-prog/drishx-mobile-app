@@ -1,7 +1,9 @@
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
+import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
 import {
   formatAddAxisLabel,
   formatLensItemLabel,
@@ -9,6 +11,7 @@ import {
   formatSphCylSlash,
 } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
+import { useResolvedColorScheme } from '@/lib/theme-provider';
 import type { LensItem } from '@/lib/types/lens';
 
 export function RelatedLensCard({
@@ -19,6 +22,7 @@ export function RelatedLensCard({
   onPress: () => void;
 }) {
   const styles = useThemedStyles(createStyles);
+  const colorScheme = useResolvedColorScheme();
   const title = formatLensProductCardTitle(item);
   const indexLabel =
     item.index != null && item.lensType === 'Single Vision'
@@ -29,18 +33,15 @@ export function RelatedLensCard({
     Boolean(itemLabel) && itemLabel.toLowerCase() !== title.toLowerCase();
   const sphCyl = formatSphCylSlash(item);
   const addAxis = formatAddAxisLabel(item);
+  const imageSource = catalogImageSourceForLensType(item.lensType, colorScheme);
 
   return (
     <Pressable style={styles.card} onPress={onPress}>
       <View style={styles.topRow}>
-        {item.imageUrl ? (
-          <Image
-            source={{ uri: item.imageUrl }}
-            style={styles.thumb}
-            resizeMode="contain"
-          />
+        {imageSource ? (
+          <CategoryLensBleed source={imageSource} size={48} />
         ) : (
-          <View style={[styles.thumb, styles.thumbFallback]} />
+          <View style={styles.thumbFallback} />
         )}
         <View style={styles.leftBlock}>
           <Text style={styles.brandText} numberOfLines={2}>
@@ -80,17 +81,10 @@ const createStyles = (c: BrandColorScheme) =>
       justifyContent: 'space-between',
       gap: 10,
     },
-    thumb: {
+    thumbFallback: {
       width: 48,
       height: 48,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: c.cardBorder,
-      backgroundColor: 'rgba(240, 161, 50, 0.08)',
-      padding: 3,
-    },
-    thumbFallback: {
-      backgroundColor: 'rgba(240, 161, 50, 0.14)',
+      backgroundColor: 'transparent',
     },
     leftBlock: {
       flex: 1,
