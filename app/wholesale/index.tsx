@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShopCategoryCard } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import {
   catalogImageSourceForShopCategory,
   fetchCatalogImages,
@@ -25,6 +25,7 @@ import {
 
 export default function WholesaleCategoryScreen() {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { setMode } = useOrderMode();
@@ -94,7 +95,11 @@ export default function WholesaleCategoryScreen() {
 
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
-            const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
+            const imageSource = catalogImageSourceForShopCategory(
+              catalogImages,
+              cat.id,
+              colorScheme
+            );
             return (
               <ShopCategoryCard
                 key={cat.id}

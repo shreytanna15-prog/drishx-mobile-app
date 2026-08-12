@@ -1,3 +1,4 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { Image } from 'expo-image';
 import { useId, useState, type ReactNode } from 'react';
@@ -11,40 +12,43 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
-
-const BLEED_SCALE = 1.22;
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 
 type CategoryLensBleedProps = {
   source: ImageSourcePropType;
-  /** Visible viewport size (image is scaled larger and bled top-right). */
   size?: number;
   style?: StyleProp<ViewStyle>;
 };
 
 /**
- * Lens art with a true alpha radial fade (MaskedView).
- * Source should be a transparent PNG so the fade reveals the themed card bg.
+ * Photorealistic lens, fully visible and centered.
+ * Mask only feathers the outer corners so the square photo bound disappears.
  */
 export function CategoryLensBleed({
   source,
   size = 112,
   style,
 }: CategoryLensBleedProps) {
-  const gradientId = `categoryLensFade-${useId().replace(/:/g, '')}`;
+  const colorScheme = useResolvedColorScheme();
+  const isDark = colorScheme === 'dark';
+  const maskGradientId = `categoryLensFade-${useId().replace(/:/g, '')}`;
+  const glowGradientId = `categoryLensGlow-${useId().replace(/:/g, '')}`;
   const [layout, setLayout] = useState({ width: size, height: size });
   const w = layout.width || size;
   const h = layout.height || size;
-  const imgW = w * BLEED_SCALE;
-  const imgH = h * BLEED_SCALE;
+
+  const glowWhiteOpacity = isDark ? 0.08 : 0;
+  const glowOrangeOpacity = isDark ? 0.1 : 0.07;
 
   return (
     <View
-      style={[{ width: size, height: size, overflow: 'visible' }, style]}
+      style={[
+        { width: size, height: size, overflow: 'hidden', backgroundColor: 'transparent' },
+        style,
+      ]}
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
         if (width > 0 && height > 0) {
@@ -57,42 +61,72 @@ export function CategoryLensBleed({
       }}
       pointerEvents="none"
     >
+      {!isDark ? (
+        <View
+          style={{
+            position: 'absolute',
+            width: w * 0.9,
+            height: h * 0.9,
+            borderRadius: (w * 0.9) / 2,
+            top: h * 0.05,
+            left: w * 0.05,
+            backgroundColor: '#F6F1E8',
+            borderWidth: 1,
+            borderColor: 'rgba(240, 161, 50, 0.22)',
+          }}
+        />
+      ) : null}
+
+      <Svg
+        width={w}
+        height={h}
+        style={{ position: 'absolute', top: 0, left: 0 }}
+        pointerEvents="none"
+      >
+        <Defs>
+          <RadialGradient
+            id={glowGradientId}
+            cx="0.5"
+            cy="0.48"
+            rx="0.42"
+            ry="0.42"
+            gradientUnits="objectBoundingBox"
+          >
+            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={glowWhiteOpacity} />
+            <Stop offset="45%" stopColor="#F0A132" stopOpacity={glowOrangeOpacity} />
+            <Stop offset="100%" stopColor="#F0A132" stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={w} height={h} fill={`url(#${glowGradientId})`} />
+      </Svg>
+
       <MaskedView
         style={{ width: w, height: h }}
         maskElement={
           <Svg width={w} height={h}>
             <Defs>
               <RadialGradient
-                id={gradientId}
-                cx="0.58"
-                cy="0.42"
-                rx="0.58"
-                ry="0.58"
+                id={maskGradientId}
+                cx="0.5"
+                cy="0.48"
+                rx="0.48"
+                ry="0.48"
                 gradientUnits="objectBoundingBox"
               >
                 <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="55%" stopColor="#FFFFFF" stopOpacity="0.95" />
-                <Stop offset="82%" stopColor="#FFFFFF" stopOpacity="0.4" />
+                <Stop offset="72%" stopColor="#FFFFFF" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
               </RadialGradient>
             </Defs>
-            <Rect x={0} y={0} width={w} height={h} fill={`url(#${gradientId})`} />
+            <Rect x={0} y={0} width={w} height={h} fill={`url(#${maskGradientId})`} />
           </Svg>
         }
       >
-        <View style={{ width: w, height: h, overflow: 'hidden' }}>
-          <Image
-            source={source}
-            style={{
-              position: 'absolute',
-              width: imgW,
-              height: imgH,
-              top: -(imgH - h) * 0.45,
-              left: -(imgW - w) * 0.12,
-            }}
-            contentFit="contain"
-          />
-        </View>
+        <Image
+          source={source}
+          style={{ width: w, height: h, backgroundColor: 'transparent' }}
+          contentFit="contain"
+        />
       </MaskedView>
     </View>
   );
@@ -131,7 +165,7 @@ export function ShopCategoryCard({
     <Pressable style={[styles.card, style]} onPress={onPress}>
       <View style={styles.mediaWrap}>
         {imageSource ? (
-          <CategoryLensBleed source={imageSource} size={118} style={styles.lens} />
+          <CategoryLensBleed source={imageSource} size={108} style={styles.lens} />
         ) : (
           <View style={styles.iconFallback}>
             <MaterialIcons name={icon} size={26} color={colors.primary} />
@@ -181,13 +215,14 @@ const createCardStyles = (c: BrandColorScheme) =>
     },
     mediaWrap: {
       height: 118,
-      marginBottom: 6,
+      marginBottom: 4,
       position: 'relative',
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     lens: {
-      position: 'absolute',
-      left: -4,
-      top: -2,
+      alignSelf: 'center',
     },
     iconFallback: {
       width: 56,
@@ -198,7 +233,6 @@ const createCardStyles = (c: BrandColorScheme) =>
       backgroundColor: 'rgba(240, 161, 50, 0.12)',
       alignItems: 'center',
       justifyContent: 'center',
-      marginTop: 28,
     },
     iconBadge: {
       position: 'absolute',
@@ -212,6 +246,7 @@ const createCardStyles = (c: BrandColorScheme) =>
       backgroundColor: c.card,
       alignItems: 'center',
       justifyContent: 'center',
+      zIndex: 2,
     },
     chevronCircle: {
       position: 'absolute',
@@ -225,6 +260,7 @@ const createCardStyles = (c: BrandColorScheme) =>
       backgroundColor: 'rgba(240, 161, 50, 0.1)',
       borderWidth: 1,
       borderColor: c.cardBorder,
+      zIndex: 2,
     },
     title: {
       color: c.text,

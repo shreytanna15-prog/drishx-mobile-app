@@ -8,12 +8,82 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
-function jpegBlackToPng(input, output) {
-  const jpg = jpeg.decode(fs.readFileSync(input), { useTArray: true });
-  const { width, height, data } = jpg;
+function loadImageRGBA(inputPath) {
+  const buf = fs.readFileSync(inputPath);
+  const isPng =
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47;
+  const isJpeg = buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xd8;
+
+  if (isPng) {
+    const png = PNG.sync.read(buf);
+    return { width: png.width, height: png.height, data: png.data };
+  }
+  if (isJpeg) {
+    const jpg = jpeg.decode(buf, { useTArray: true });
+    return { width: jpg.width, height: jpg.height, data: jpg.data };
+  }
+
+  const ext = path.extname(inputPath).toLowerCase();
+  throw new Error(`Unsupported image format for ${inputPath} (${ext})`);
+}
+
+/**
+ * Keep the photorealistic lens fully opaque.
+ * Only hide square photo corners / studio floor with a circular crop + outer feather.
+ * Do not punch through dark glass with luma keying.
+ */
+function circularAlpha(width, height, x, y) {
+  const cx = width / 2;
+  const cy = height / 2 - height * 0.02;
+  const maxR = Math.min(width, height) * 0.46;
+  const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) / maxR;
+  if (dist > 1.08) return 0;
+  if (dist > 0.92) return Math.round(255 * (1 - smoothstep(0.92, 1.08, dist)));
+  return 255;
+}
+
+function studioToTransparentPng(input, output) {
+  const { width, height, data } = loadImageRGBA(input);
   const png = new PNG({ width, height });
-  let t = 0;
-  let o = 0;
+  let transparent = 0;
+  let opaque = 0;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const alpha = circularAlpha(width, height, x, y);
+      png.data[i] = data[i];
+      png.data[i + 1] = data[i + 1];
+      png.data[i + 2] = data[i + 2];
+      png.data[i + 3] = alpha;
+      if (alpha < 10) transparent++;
+      else if (alpha > 200) opaque++;
+    }
+  }
+
+  fs.writeFileSync(output, PNG.sync.write(png));
+  console.log(
+    path.basename(output),
+    `${width}x${height}`,
+    `transparent=${transparent}`,
+    `opaque=${opaque}`
+  );
+}
+
+/** Lift dark studio fill to warm paper so the lens reads on a white card. */
+function studioToLightPng(input, output) {
+  const { width, height, data } = loadImageRGBA(input);
+  const png = new PNG({ width, height });
+  const paperR = 250;
+  const paperG = 248;
+  const paperB = 244;
+  let transparent = 0;
+  let opaque = 0;
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
@@ -21,56 +91,58 @@ function jpegBlackToPng(input, output) {
       const g = data[i + 1];
       const b = data[i + 2];
       const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const maxc = Math.max(r, g, b);
-      const minc = Math.min(r, g, b);
-      const chroma = maxc - minc;
-      let alpha = Math.round(255 * smoothstep(12, 48, luma));
-      if (chroma > 25 && luma > 25) {
-        alpha = Math.max(alpha, Math.min(255, Math.round(180 + chroma)));
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      const alpha = circularAlpha(width, height, x, y);
+
+      let keep = Math.pow(smoothstep(6, 165, luma), 0.62);
+      if (chroma > 16) {
+        keep = Math.max(keep, smoothstep(12, 36, chroma));
       }
-      const cx = width / 2;
-      const cy = height / 2;
-      const maxR = Math.min(width, height) * 0.52;
-      const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) / maxR;
-      if (dist > 1.02) alpha = 0;
-      else if (dist > 0.94) alpha = Math.round(alpha * (1 - (dist - 0.94) / 0.08));
-      png.data[i] = r;
-      png.data[i + 1] = g;
-      png.data[i + 2] = b;
+
+      png.data[i] = Math.round(paperR + (r - paperR) * keep);
+      png.data[i + 1] = Math.round(paperG + (g - paperG) * keep);
+      png.data[i + 2] = Math.round(paperB + (b - paperB) * keep);
       png.data[i + 3] = alpha;
-      if (alpha < 10) t++;
-      else if (alpha > 200) o++;
+
+      if (alpha < 10) transparent++;
+      else if (alpha > 200) opaque++;
     }
   }
+
   fs.writeFileSync(output, PNG.sync.write(png));
-  console.log(path.basename(output), `${width}x${height}`, `transparent=${t}`, `opaque=${o}`);
+  console.log(
+    path.basename(output),
+    `${width}x${height}`,
+    `light transparent=${transparent}`,
+    `opaque=${opaque}`
+  );
 }
 
-const assets =
-  'C:/Users/HP/.cursor/projects/d-internship-drishx-web-app/assets';
-const map = [
-  [
-    'c__Users_HP_AppData_Roaming_Cursor_User_workspaceStorage_25de1e6e358c8b74da4e91a861449cc7_images_sv_img-40828b4a-31f9-47c0-aba0-8e1d73300525.png',
-    'singlevision.png',
-  ],
-  [
-    'c__Users_HP_AppData_Roaming_Cursor_User_workspaceStorage_25de1e6e358c8b74da4e91a861449cc7_images_kt_img-b43e144a-c964-4da2-a420-2c86491f4b6f.png',
-    'kryptok.png',
-  ],
-  [
-    'c__Users_HP_AppData_Roaming_Cursor_User_workspaceStorage_25de1e6e358c8b74da4e91a861449cc7_images_v2_img-822db44d-7e10-489a-8659-2817852e80d6.png',
-    'progressive.png',
-  ],
+const catalogDir = path.join(__dirname, '..', 'assets', 'images', 'catalog');
+const webCatalogDir = path.join('D:/internship/drishx-web-app/public/images/catalog');
+
+const sources = [
+  ['singlevision-source.png', 'singlevision.png'],
+  ['kryptok-source.png', 'kryptok.png'],
+  ['progressive-source.png', 'progressive.png'],
 ];
 
-const mobile = path.join(__dirname, '..', 'assets', 'images', 'catalog');
-const web = 'D:/internship/drishx-web-app/public/images/catalog';
-fs.mkdirSync(mobile, { recursive: true });
-fs.mkdirSync(web, { recursive: true });
+fs.mkdirSync(catalogDir, { recursive: true });
+fs.mkdirSync(webCatalogDir, { recursive: true });
 
-for (const [srcName, outName] of map) {
-  const src = path.join(assets, srcName);
-  const out = path.join(mobile, outName);
-  jpegBlackToPng(src, out);
-  fs.copyFileSync(out, path.join(web, outName));
+for (const [srcName, outName] of sources) {
+  const input = path.join(catalogDir, srcName);
+  if (!fs.existsSync(input)) {
+    console.error(`Missing source: ${input}`);
+    process.exitCode = 1;
+    continue;
+  }
+  const mobileOut = path.join(catalogDir, outName);
+  studioToTransparentPng(input, mobileOut);
+  fs.copyFileSync(mobileOut, path.join(webCatalogDir, outName));
+
+  const lightName = outName.replace(/\.png$/, '-light.png');
+  const mobileLight = path.join(catalogDir, lightName);
+  studioToLightPng(input, mobileLight);
+  fs.copyFileSync(mobileLight, path.join(webCatalogDir, lightName));
 }

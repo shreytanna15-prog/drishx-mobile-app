@@ -27,11 +27,18 @@ const LOCAL_CATALOG_IMAGES: Record<CatalogImageKey, ImageSourcePropType> = {
   white: require('@/assets/images/catalog/glass.jpeg'),
 };
 
-/** Transparent-background lens art for shop/wholesale category cards. */
+/** Dark-theme circular crop (studio lighting preserved). */
 const LOCAL_SHOP_LENS_IMAGES: Record<ShopLensImageKey, ImageSourcePropType> = {
   singlevision: require('@/assets/images/catalog/singlevision.png'),
   progressive: require('@/assets/images/catalog/progressive.png'),
   kryptok: require('@/assets/images/catalog/kryptok.png'),
+};
+
+/** Light-theme lift: dark studio fill mapped to warm paper. */
+const LOCAL_SHOP_LENS_IMAGES_LIGHT: Record<ShopLensImageKey, ImageSourcePropType> = {
+  singlevision: require('@/assets/images/catalog/singlevision-light.png'),
+  progressive: require('@/assets/images/catalog/progressive-light.png'),
+  kryptok: require('@/assets/images/catalog/kryptok-light.png'),
 };
 
 const HOME_CATEGORY_KEYS: Record<string, CatalogImageKey> = {
@@ -107,18 +114,20 @@ export function catalogImageSourceForHomeCategory(
 }
 
 /**
- * Shop category cards use local transparent PNGs (lens highlights only) so the
- * radial fade reveals the themed card background in light and dark mode.
- * Prefer local over API remotes which are dark-vignette JPEGs.
+ * Shop category cards use processed PNGs (from *-source.png via
+ * scripts/process-lens-assets.js). Light theme uses *-light.png.
  */
 export function catalogImageSourceForShopCategory(
   data: CatalogImagesResponse | null,
-  categoryId: string
+  categoryId: string,
+  scheme: 'light' | 'dark' = 'dark'
 ): ImageSourcePropType | null {
   const key = data?.shopCategories[categoryId] ?? SHOP_CATEGORY_KEYS[categoryId];
   if (!key) return null;
   if (isShopLensImageKey(key)) {
-    return LOCAL_SHOP_LENS_IMAGES[key];
+    return scheme === 'light'
+      ? LOCAL_SHOP_LENS_IMAGES_LIGHT[key]
+      : LOCAL_SHOP_LENS_IMAGES[key];
   }
   const remote = catalogImageForShopCategory(data, categoryId);
   if (remote) return { uri: remote };

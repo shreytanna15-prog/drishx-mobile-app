@@ -13,7 +13,7 @@ import { appAlert } from '@/lib/app-alert';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { useCart } from '@/lib/cart';
 import {
@@ -33,6 +33,7 @@ import {
 
 export default function ShopScreen() {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { items: cartItems } = useCart();
@@ -208,7 +209,11 @@ export default function ShopScreen() {
 
         <View style={styles.grid}>
           {LENS_CATALOG_CATEGORIES.map((cat) => {
-            const imageSource = catalogImageSourceForShopCategory(catalogImages, cat.id);
+            const imageSource = catalogImageSourceForShopCategory(
+              catalogImages,
+              cat.id,
+              colorScheme
+            );
             return (
               <ShopCategoryCard
                 key={cat.id}

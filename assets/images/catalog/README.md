@@ -1,17 +1,17 @@
 # Shop lens category images
 
-Used by Shop / Wholesale category cards with a radial alpha fade.
+Processed circular-crop PNGs for Shop / Wholesale category cards.
 
-| Category | Transparent PNG | Source |
+| Category | Source (studio photo) | Processed output |
 | --- | --- | --- |
-| Single Vision | `singlevision.png` | Design SV lens (gold rim) |
-| Kryptok | `kryptok.png` | Design KT bifocal lens |
-| Progressive | `progressive.png` | Design V2 progressive lens |
+| Single Vision | `singlevision-source.png` | `singlevision.png` |
+| Kryptok | `kryptok-source.png` | `kryptok.png` |
+| Progressive | `progressive-source.png` | `progressive.png` |
 
-Black studio backgrounds were keyed to alpha. Replace these PNGs in place to update art.
-
-Re-process from source JPEGs/PNGs:
+Re-process after replacing `*-source.png` files:
 
 ```bash
 node scripts/process-lens-assets.js
 ```
+
+Light theme uses `*-light.png` (dark studio fill lifted to warm paper). Dark theme uses the circular-crop originals.
