@@ -5,9 +5,11 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeOutLeft, LinearTransition } from 'react-native-reanimated';
 
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
+import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
 import type { CartPowerLine, CartProductSection } from '@/lib/cart-display';
 import { buildCartProductSections, buildWholesalePowerLines, getCartSummary } from '@/lib/cart-display';
 import type { OrderQuantityMode } from '@/lib/order-quantity';
@@ -105,7 +107,9 @@ function CartProductSectionCard({
 }) {
   const styles = useThemedStyles(createStyles);
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const [expanded, setExpanded] = useState(!section.isWholesaleBatch);
+  const imageSource = catalogImageSourceForLensType(section.lensType, colorScheme);
 
   const sectionLineIds = section.parentCartLineId
     ? [section.parentCartLineId]
@@ -126,9 +130,11 @@ function CartProductSectionCard({
       exiting={FadeOutLeft.duration(300)}>
       <View style={styles.productHeader}>
         <View style={styles.productHeaderLeft}>
-          <View style={styles.productThumb}>
-            <MaterialIcons name="visibility" size={16} color={colors.primary} />
-          </View>
+          {imageSource ? (
+            <CategoryLensBleed source={imageSource} size={48} />
+          ) : (
+            <View style={styles.productThumbFallback} />
+          )}
           <View style={styles.productHeaderText}>
             <View style={styles.productTitleRow}>
               <Text style={styles.productTitle} numberOfLines={1}>
@@ -333,13 +339,10 @@ const createStyles = (c: BrandColorScheme) =>
       minWidth: 0,
       alignItems: 'center',
     },
-    productThumb: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      backgroundColor: 'rgba(240, 161, 50, 0.12)',
-      alignItems: 'center',
-      justifyContent: 'center',
+    productThumbFallback: {
+      width: 48,
+      height: 48,
+      backgroundColor: 'transparent',
     },
     productHeaderText: { flex: 1, minWidth: 0 },
     productTitleRow: {

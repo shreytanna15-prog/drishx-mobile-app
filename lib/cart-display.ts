@@ -169,6 +169,7 @@ export function buildCartProductSections(
       subtitle: meta.subtitle,
       totalPairs: displayQty,
       lines: [line],
+      lensType: item.lensType,
     });
   }
 
