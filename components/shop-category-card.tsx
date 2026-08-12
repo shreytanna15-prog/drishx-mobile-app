@@ -172,10 +172,6 @@ export function ShopCategoryCard({
           </View>
         )}
 
-        <View style={styles.iconBadge}>
-          <MaterialIcons name={icon} size={16} color={colors.primary} />
-        </View>
-
         <View style={styles.chevronCircle}>
           <MaterialIcons name="chevron-right" size={16} color={colors.textMuted} />
         </View>
@@ -233,20 +229,6 @@ const createCardStyles = (c: BrandColorScheme) =>
       backgroundColor: 'rgba(240, 161, 50, 0.12)',
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    iconBadge: {
-      position: 'absolute',
-      left: 0,
-      bottom: 4,
-      width: 34,
-      height: 34,
-      borderRadius: 10,
-      borderWidth: 1.5,
-      borderColor: c.primary,
-      backgroundColor: c.card,
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 2,
     },
     chevronCircle: {
       position: 'absolute',
