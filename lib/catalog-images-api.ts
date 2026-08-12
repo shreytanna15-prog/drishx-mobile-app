@@ -29,9 +29,9 @@ const LOCAL_CATALOG_IMAGES: Record<CatalogImageKey, ImageSourcePropType> = {
 
 /** Dark-theme circular crop (studio lighting preserved). */
 const LOCAL_SHOP_LENS_IMAGES: Record<ShopLensImageKey, ImageSourcePropType> = {
-  singlevision: require('@/assets/images/catalog/singlevision.png'),
-  progressive: require('@/assets/images/catalog/progressive.png'),
-  kryptok: require('@/assets/images/catalog/kryptok.png'),
+  singlevision: require('@/assets/images/catalog/singlevision-lens.png'),
+  progressive: require('@/assets/images/catalog/progressive-lens.png'),
+  kryptok: require('@/assets/images/catalog/kryptok-lens.png'),
 };
 
 /** Light-theme lift: dark studio fill mapped to warm paper. */

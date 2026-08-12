@@ -1,17 +1,17 @@
 # Shop lens category images
 
-Processed circular-crop PNGs for Shop / Wholesale category cards.
+Used by Shop / Wholesale category cards with a radial alpha fade.
 
-| Category | Source (studio photo) | Processed output |
-| --- | --- | --- |
-| Single Vision | `singlevision-source.png` | `singlevision.png` |
-| Kryptok | `kryptok-source.png` | `kryptok.png` |
-| Progressive | `progressive-source.png` | `progressive.png` |
+| Category | Source | Dark (transparent) | Light |
+| --- | --- | --- | --- |
+| Single Vision | `singlevision-source.png` | `singlevision-lens.png` | `singlevision-light.png` |
+| Kryptok | `kryptok-source.png` | `kryptok-lens.png` | `kryptok-light.png` |
+| Progressive | `progressive-source.png` | `progressive-lens.png` | `progressive-light.png` |
 
-Re-process after replacing `*-source.png` files:
+**Android note:** Do not name processed PNGs the same basename as the catalog JPEGs (`singlevision.jpeg` + `singlevision.png` fails the Android resource merger). Use the `-lens` / `-light` suffixes.
+
+Original dark JPEGs remain for home carousel / other catalog uses.
 
 ```bash
 node scripts/process-lens-assets.js
 ```
-
-Light theme uses `*-light.png` (dark studio fill lifted to warm paper). Dark theme uses the circular-crop originals.

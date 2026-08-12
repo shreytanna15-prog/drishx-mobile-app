@@ -122,9 +122,9 @@ const catalogDir = path.join(__dirname, '..', 'assets', 'images', 'catalog');
 const webCatalogDir = path.join('D:/internship/drishx-web-app/public/images/catalog');
 
 const sources = [
-  ['singlevision-source.png', 'singlevision.png'],
-  ['kryptok-source.png', 'kryptok.png'],
-  ['progressive-source.png', 'progressive.png'],
+  ['singlevision-source.png', 'singlevision-lens.png'],
+  ['kryptok-source.png', 'kryptok-lens.png'],
+  ['progressive-source.png', 'progressive-lens.png'],
 ];
 
 fs.mkdirSync(catalogDir, { recursive: true });
@@ -141,7 +141,8 @@ for (const [srcName, outName] of sources) {
   studioToTransparentPng(input, mobileOut);
   fs.copyFileSync(mobileOut, path.join(webCatalogDir, outName));
 
-  const lightName = outName.replace(/\.png$/, '-light.png');
+  // Avoid Android drawable collision with *.jpeg — light uses a distinct basename.
+  const lightName = outName.replace(/-lens\.png$/, '-light.png');
   const mobileLight = path.join(catalogDir, lightName);
   studioToLightPng(input, mobileLight);
   fs.copyFileSync(mobileLight, path.join(webCatalogDir, lightName));
