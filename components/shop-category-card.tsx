@@ -15,7 +15,7 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
+import { useBrandColors } from '@/lib/theme-provider';
 
 type CategoryLensBleedProps = {
   source: ImageSourcePropType;
@@ -24,24 +24,18 @@ type CategoryLensBleedProps = {
 };
 
 /**
- * Photorealistic lens, fully visible and centered.
- * Mask only feathers the outer corners so the square photo bound disappears.
+ * Photorealistic glass cutout. Studio fill is already punched to alpha in the PNG.
+ * Mask only feathers square photo corners.
  */
 export function CategoryLensBleed({
   source,
   size = 112,
   style,
 }: CategoryLensBleedProps) {
-  const colorScheme = useResolvedColorScheme();
-  const isDark = colorScheme === 'dark';
   const maskGradientId = `categoryLensFade-${useId().replace(/:/g, '')}`;
-  const glowGradientId = `categoryLensGlow-${useId().replace(/:/g, '')}`;
   const [layout, setLayout] = useState({ width: size, height: size });
   const w = layout.width || size;
   const h = layout.height || size;
-
-  const glowWhiteOpacity = isDark ? 0.08 : 0;
-  const glowOrangeOpacity = isDark ? 0.1 : 0.07;
 
   return (
     <View
@@ -61,47 +55,8 @@ export function CategoryLensBleed({
       }}
       pointerEvents="none"
     >
-      {!isDark ? (
-        <View
-          style={{
-            position: 'absolute',
-            width: w * 0.9,
-            height: h * 0.9,
-            borderRadius: (w * 0.9) / 2,
-            top: h * 0.05,
-            left: w * 0.05,
-            backgroundColor: '#F6F1E8',
-            borderWidth: 1,
-            borderColor: 'rgba(240, 161, 50, 0.22)',
-          }}
-        />
-      ) : null}
-
-      <Svg
-        width={w}
-        height={h}
-        style={{ position: 'absolute', top: 0, left: 0 }}
-        pointerEvents="none"
-      >
-        <Defs>
-          <RadialGradient
-            id={glowGradientId}
-            cx="0.5"
-            cy="0.48"
-            rx="0.42"
-            ry="0.42"
-            gradientUnits="objectBoundingBox"
-          >
-            <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={glowWhiteOpacity} />
-            <Stop offset="45%" stopColor="#F0A132" stopOpacity={glowOrangeOpacity} />
-            <Stop offset="100%" stopColor="#F0A132" stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect x={0} y={0} width={w} height={h} fill={`url(#${glowGradientId})`} />
-      </Svg>
-
       <MaskedView
-        style={{ width: w, height: h }}
+        style={{ width: w, height: h, backgroundColor: 'transparent' }}
         maskElement={
           <Svg width={w} height={h}>
             <Defs>
@@ -114,7 +69,7 @@ export function CategoryLensBleed({
                 gradientUnits="objectBoundingBox"
               >
                 <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="1" />
-                <Stop offset="72%" stopColor="#FFFFFF" stopOpacity="1" />
+                <Stop offset="88%" stopColor="#FFFFFF" stopOpacity="1" />
                 <Stop offset="100%" stopColor="#FFFFFF" stopOpacity="0" />
               </RadialGradient>
             </Defs>

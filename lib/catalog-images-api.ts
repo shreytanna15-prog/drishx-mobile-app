@@ -27,14 +27,14 @@ const LOCAL_CATALOG_IMAGES: Record<CatalogImageKey, ImageSourcePropType> = {
   white: require('@/assets/images/catalog/glass.jpeg'),
 };
 
-/** Dark-theme circular crop (studio lighting preserved). */
+/** Dark-theme glass cutout (studio fill punched to alpha). */
 const LOCAL_SHOP_LENS_IMAGES: Record<ShopLensImageKey, ImageSourcePropType> = {
   singlevision: require('@/assets/images/catalog/singlevision-lens.png'),
   progressive: require('@/assets/images/catalog/progressive-lens.png'),
   kryptok: require('@/assets/images/catalog/kryptok-lens.png'),
 };
 
-/** Light-theme lift: dark studio fill mapped to warm paper. */
+/** Light-theme glass cutout (studio fill punched to alpha, rim darkened for white cards). */
 const LOCAL_SHOP_LENS_IMAGES_LIGHT: Record<ShopLensImageKey, ImageSourcePropType> = {
   singlevision: require('@/assets/images/catalog/singlevision-light.png'),
   progressive: require('@/assets/images/catalog/progressive-light.png'),
@@ -115,7 +115,7 @@ export function catalogImageSourceForHomeCategory(
 
 /**
  * Shop category cards use processed PNGs (from *-source.png via
- * scripts/process-lens-assets.js). Light theme uses *-light.png.
+ * scripts/process-lens-assets.js). Studio backdrop is punched to alpha.
  */
 export function catalogImageSourceForShopCategory(
   data: CatalogImagesResponse | null,

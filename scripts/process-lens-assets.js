@@ -32,57 +32,77 @@ function loadImageRGBA(inputPath) {
 }
 
 /**
- * Keep the photorealistic lens fully opaque.
- * Only hide square photo corners / studio floor with a circular crop + outer feather.
- * Do not punch through dark glass with luma keying.
+ * Crop to the glass disc only (rim ~0.28–0.34 of the frame).
+ * Wider than that keeps the bright studio wall on the left.
  */
-function circularAlpha(width, height, x, y) {
-  const cx = width / 2;
-  const cy = height / 2 - height * 0.02;
-  const maxR = Math.min(width, height) * 0.46;
-  const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) / maxR;
-  if (dist > 1.08) return 0;
-  if (dist > 0.92) return Math.round(255 * (1 - smoothstep(0.92, 1.08, dist)));
-  return 255;
+function lensFrame(width, height) {
+  return {
+    cx: width / 2,
+    cy: height / 2 - height * 0.02,
+    maxR: Math.min(width, height) * 0.345,
+  };
 }
 
-function studioToTransparentPng(input, output) {
-  const { width, height, data } = loadImageRGBA(input);
-  const png = new PNG({ width, height });
+function circularAlpha(width, height, x, y) {
+  const { cx, cy, maxR } = lensFrame(width, height);
+  const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2) / maxR;
+  if (dist > 1.08) return 0;
+  if (dist > 0.97) return 1 - smoothstep(0.97, 1.08, dist);
+  return 1;
+}
+
+/** Drop the table / caustic below the contact point. */
+function floorKeep(width, height, y) {
+  const { cy, maxR } = lensFrame(width, height);
+  const start = cy + maxR * 0.86;
+  const end = cy + maxR * 1.02;
+  if (y <= start) return 1;
+  if (y >= end) return 0;
+  return 1 - smoothstep(start, end, y);
+}
+
+function lumaOf(r, g, b) {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function chromaOf(r, g, b) {
+  return Math.max(r, g, b) - Math.min(r, g, b);
+}
+
+/**
+ * Studio backdrop is dark + low-chroma. Glass is highlights, rims, gold etch,
+ * and the Kryptok segment edge. Punch the backdrop so the card shows through.
+ */
+function glassKeep(r, g, b) {
+  const luma = lumaOf(r, g, b);
+  const chroma = chromaOf(r, g, b);
+  const highlight = Math.pow(smoothstep(52, 128, luma), 0.72);
+  const color = smoothstep(10, 34, chroma);
+  return Math.min(1, Math.max(highlight, color));
+}
+
+function writePng(output, png, extra) {
+  fs.writeFileSync(output, PNG.sync.write(png));
   let transparent = 0;
   let opaque = 0;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const alpha = circularAlpha(width, height, x, y);
-      png.data[i] = data[i];
-      png.data[i + 1] = data[i + 1];
-      png.data[i + 2] = data[i + 2];
-      png.data[i + 3] = alpha;
-      if (alpha < 10) transparent++;
-      else if (alpha > 200) opaque++;
-    }
+  for (let i = 3; i < png.data.length; i += 4) {
+    const a = png.data[i];
+    if (a < 10) transparent++;
+    else if (a > 200) opaque++;
   }
-
-  fs.writeFileSync(output, PNG.sync.write(png));
   console.log(
     path.basename(output),
-    `${width}x${height}`,
+    `${png.width}x${png.height}`,
     `transparent=${transparent}`,
-    `opaque=${opaque}`
+    `opaque=${opaque}`,
+    extra || ''
   );
 }
 
-/** Lift dark studio fill to warm paper so the lens reads on a white card. */
-function studioToLightPng(input, output) {
+/** Dark theme: keep specular glass, drop charcoal studio. Soften the hottest rim. */
+function studioToTransparentPng(input, output) {
   const { width, height, data } = loadImageRGBA(input);
   const png = new PNG({ width, height });
-  const paperR = 250;
-  const paperG = 248;
-  const paperB = 244;
-  let transparent = 0;
-  let opaque = 0;
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -90,32 +110,54 @@ function studioToLightPng(input, output) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
-      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-      const alpha = circularAlpha(width, height, x, y);
+      const luma = lumaOf(r, g, b);
+      const keep =
+        glassKeep(r, g, b) *
+        circularAlpha(width, height, x, y) *
+        floorKeep(width, height, y);
+      const hot = smoothstep(210, 255, luma);
+      const shade = 1 - 0.22 * hot;
 
-      let keep = Math.pow(smoothstep(6, 165, luma), 0.62);
-      if (chroma > 16) {
-        keep = Math.max(keep, smoothstep(12, 36, chroma));
-      }
-
-      png.data[i] = Math.round(paperR + (r - paperR) * keep);
-      png.data[i + 1] = Math.round(paperG + (g - paperG) * keep);
-      png.data[i + 2] = Math.round(paperB + (b - paperB) * keep);
-      png.data[i + 3] = alpha;
-
-      if (alpha < 10) transparent++;
-      else if (alpha > 200) opaque++;
+      png.data[i] = Math.round(r * shade);
+      png.data[i + 1] = Math.round(g * shade);
+      png.data[i + 2] = Math.round(b * shade);
+      png.data[i + 3] = Math.round(255 * keep);
     }
   }
 
-  fs.writeFileSync(output, PNG.sync.write(png));
-  console.log(
-    path.basename(output),
-    `${width}x${height}`,
-    `light transparent=${transparent}`,
-    `opaque=${opaque}`
-  );
+  writePng(output, png, 'dark');
+}
+
+/**
+ * Light theme: same cutout, but pull bright rims toward silver-gray so the
+ * glass edge reads on white instead of disappearing.
+ */
+function studioToLightPng(input, output) {
+  const { width, height, data } = loadImageRGBA(input);
+  const png = new PNG({ width, height });
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const luma = lumaOf(r, g, b);
+      const keep =
+        glassKeep(r, g, b) *
+        circularAlpha(width, height, x, y) *
+        floorKeep(width, height, y);
+      const rim = smoothstep(90, 230, luma);
+      const target = 68;
+
+      png.data[i] = Math.round(r * (1 - 0.68 * rim) + target * 0.68 * rim);
+      png.data[i + 1] = Math.round(g * (1 - 0.68 * rim) + target * 0.68 * rim);
+      png.data[i + 2] = Math.round(b * (1 - 0.68 * rim) + target * 0.68 * rim);
+      png.data[i + 3] = Math.round(255 * keep);
+    }
+  }
+
+  writePng(output, png, 'light');
 }
 
 const catalogDir = path.join(__dirname, '..', 'assets', 'images', 'catalog');
