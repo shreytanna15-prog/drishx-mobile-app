@@ -27,7 +27,6 @@ import {
 } from '@/lib/cart-utils';
 import {
   formatAddAxisLabel,
-  formatAxisValue,
   formatLensItemCoatingSummary,
   formatLensProductCardTitle,
   formatSphCylSlash,
@@ -35,7 +34,7 @@ import {
 import { useCart } from '@/lib/cart';
 import { useOrderMode } from '@/lib/order-mode';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
-import { isValidPairQuantity, piecesFromDisplayQuantity } from '@/lib/order-quantity';
+import { isValidPairQuantity } from '@/lib/order-quantity';
 import { resolveSelectableRange } from '@/lib/prescription-range';
 import {
   getDefaultRangeEndpoints,
@@ -59,7 +58,9 @@ import { buildWholesaleSpecFromOrderState } from '@/lib/wholesale-cart';
 import {
   buildPowerList,
   defaultWholesaleGridMode,
+  getAvailableWholesaleGridModes,
   resolveWholesalePowerProfile,
+  type WholesaleGridMode,
 } from '@/lib/wholesale-powers';
 import { toApiLensType } from '@/lib/types/lens';
 import type { LensItem } from '@/lib/types/lens';
@@ -75,6 +76,12 @@ function parseLensPayload(rawPayload: string | string[] | undefined): LensItem |
 }
 
 type QtyMap = Record<string, string>;
+
+const GRID_MODE_LABELS: Record<WholesaleGridMode, string> = {
+  'sph-only': 'SPH only',
+  'cyl-only': 'CYL only',
+  compound: 'Compound',
+};
 
 function normalizePairsText(text: string): string {
   return sanitizePairQuantityInput(text);
@@ -98,13 +105,35 @@ export default function WholesaleProductOrderScreen() {
     () => (item ? resolveWholesalePowerProfile(item) : 'compound'),
     [item]
   );
-  const gridMode = useMemo(() => defaultWholesaleGridMode(powerProfile), [powerProfile]);
+  const defaultGridMode = useMemo(
+    () => defaultWholesaleGridMode(powerProfile),
+    [powerProfile]
+  );
+  const [gridMode, setGridMode] = useState<WholesaleGridMode>(defaultGridMode);
   const crossPowerMeta = useMemo(
     () => (item ? resolveCrossPowerMeta(item) : null),
     [item]
   );
-  const showSphRange = powerProfile !== 'cyl-only';
-  const showCylRange = powerProfile !== 'sph-only';
+  const selectableGridModes = useMemo(() => {
+    if (item?.lensType !== 'Single Vision' || powerProfile !== 'compound') {
+      return [];
+    }
+
+    const sphStart = item.sphStartRange ?? boundOptions.sph[0];
+    const cylStart = item.cylStartRange ?? boundOptions.cyl[0];
+    const bothRangesStartAtZero =
+      sphStart != null &&
+      cylStart != null &&
+      Math.abs(Number(sphStart)) <= 1e-9 &&
+      Math.abs(Number(cylStart)) <= 1e-9;
+
+    return bothRangesStartAtZero
+      ? getAvailableWholesaleGridModes(powerProfile)
+      : [];
+  }, [boundOptions.cyl, boundOptions.sph, item, powerProfile]);
+  const showGridModeSelector = selectableGridModes.length === 3;
+  const showSphRange = gridMode !== 'cyl-only';
+  const showCylRange = gridMode !== 'sph-only';
 
   useEffect(() => {
     setMode('wholesale');
@@ -150,31 +179,32 @@ export default function WholesaleProductOrderScreen() {
     setSphStep(0.25);
     setCylStep(0.25);
     setAddStep(0.25);
+    setGridMode(defaultGridMode);
     setQtyMap({});
     setError(null);
     setVisibleRowCount(MATRIX_INITIAL_ROWS);
     setVisibleColCount(MATRIX_INITIAL_COLS);
-  }, [item?.id]);
+  }, [defaultGridMode, item]);
 
   const rangeHint = useMemo(() => {
     if (!selectableRange) {
       return null;
     }
     const parts: string[] = [];
-    if (powerProfile !== 'cyl-only') {
+    if (gridMode !== 'cyl-only') {
       const sphOpts = selectableRange.sph.options;
       const sphStart = sphOpts[0] ?? selectableRange.sph.min;
       const sphEnd = sphOpts[sphOpts.length - 1] ?? selectableRange.sph.max;
       parts.push(`SPH ${formatPowerRangeLabel(sphStart, sphEnd)}`);
     }
-    if (powerProfile !== 'sph-only' && boundOptions.cyl.length > 0) {
+    if (gridMode !== 'sph-only' && boundOptions.cyl.length > 0) {
       const cylOpts = boundOptions.cyl;
       const cylStart = cylOpts[0]!;
       const cylEnd = cylOpts[cylOpts.length - 1]!;
       parts.push(`CYL ${formatPowerRangeLabel(cylStart, cylEnd)}`);
     }
     return parts.length > 0 ? parts.join(' · ') : null;
-  }, [boundOptions.cyl, powerProfile, selectableRange]);
+  }, [boundOptions.cyl, gridMode, selectableRange]);
 
   const sphList = useMemo(() => {
     if (!Number.isFinite(sphStep) || sphStep <= 0) return [];
@@ -248,11 +278,18 @@ export default function WholesaleProductOrderScreen() {
   useEffect(() => {
     setVisibleRowCount(MATRIX_INITIAL_ROWS);
     setVisibleColCount(MATRIX_INITIAL_COLS);
-  }, [powerProfile]);
+  }, [gridMode]);
 
   const title = item
     ? `${formatLensProductCardTitle(item)} • Wholesale`
     : 'Wholesale';
+
+  function handleGridModeChange(mode: WholesaleGridMode) {
+    if (mode === gridMode) return;
+    setGridMode(mode);
+    setQtyMap({});
+    setError(null);
+  }
 
   async function handleGenerate() {
     setGenerating(true);
@@ -468,6 +505,17 @@ export default function WholesaleProductOrderScreen() {
                 onStepChange={setSphStep}
               />
             </View>
+          ) : isSingleVision ? (
+            <View style={styles.rangeCard}>
+              <Text style={styles.rangeTitle}>SPH</Text>
+              <View
+                style={styles.lockedPowerRow}
+                accessibilityRole="text"
+                accessibilityLabel="SPH fixed at plus zero point zero zero for CYL only">
+                <Text style={styles.lockedPowerHint}>Fixed for CYL only</Text>
+                <Text style={styles.lockedPowerValue}>+0.00</Text>
+              </View>
+            </View>
           ) : null}
 
           {showCylRange ? (
@@ -482,6 +530,40 @@ export default function WholesaleProductOrderScreen() {
                 onToChange={setCylTo}
                 onStepChange={setCylStep}
               />
+            </View>
+          ) : isSingleVision ? (
+            <View style={styles.rangeCard}>
+              <Text style={styles.rangeTitle}>CYL</Text>
+              <View
+                style={styles.lockedPowerRow}
+                accessibilityRole="text"
+                accessibilityLabel="CYL fixed at plus zero point zero zero for SPH only">
+                <Text style={styles.lockedPowerHint}>Fixed for SPH only</Text>
+                <Text style={styles.lockedPowerValue}>+0.00</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {showGridModeSelector ? (
+            <View
+              style={styles.toggleRow}
+              accessibilityRole="radiogroup"
+              accessibilityLabel="Power type">
+              {selectableGridModes.map((mode) => {
+                const active = mode === gridMode;
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[styles.toggleBtn, active && styles.toggleBtnActive]}
+                    onPress={() => handleGridModeChange(mode)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: active }}>
+                    <Text style={[styles.toggleText, active && styles.toggleTextActive]}>
+                      {GRID_MODE_LABELS[mode]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           ) : null}
 
@@ -666,6 +748,31 @@ const createStyles = (c: BrandColorScheme) =>
       gap: 10,
     },
     rangeTitle: { color: c.text, fontSize: 14, fontWeight: '800' },
+    lockedPowerRow: {
+      minHeight: 64,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.inputBg,
+      paddingHorizontal: 14,
+      opacity: 0.7,
+    },
+    lockedPowerHint: {
+      color: c.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    lockedPowerValue: {
+      color: c.text,
+      fontSize: 16,
+      fontWeight: '800',
+      fontVariant: ['tabular-nums'],
+    },
     addHint: {
       color: c.textMuted,
       fontSize: 11,
