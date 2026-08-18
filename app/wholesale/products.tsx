@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
+import { CoatingDot } from '@/components/coating-dot';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
@@ -346,6 +347,7 @@ export default function WholesaleProductsScreen() {
                     onPress={() => setSelectedCoating(coating)}
                     style={[styles.coatingChip, active && styles.coatingChipActive]}
                   >
+                    <CoatingDot coating={coating} />
                     <Text
                       style={[
                         styles.coatingChipText,
@@ -505,6 +507,7 @@ const createStyles = (c: BrandColorScheme) =>
       paddingRight: 8,
     },
     coatingChip: {
+      flexDirection: 'row',
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 12,
@@ -513,6 +516,7 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.card,
       justifyContent: 'center',
       alignItems: 'center',
+      gap: 6,
     },
     coatingChipActive: {
       borderColor: c.primary,

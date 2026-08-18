@@ -1,9 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CategoryLensBleed } from '@/components/shop-category-card';
+import { CoatingDot } from '@/components/coating-dot';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
+import { getCoatingDotColor } from '@/lib/coating-color';
 import { formatLensProductCardDetail, formatLensProductCardTitle } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { useResolvedColorScheme } from '@/lib/theme-provider';
@@ -21,6 +23,7 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
   const colorScheme = useResolvedColorScheme();
   const title = formatLensProductCardTitle(item);
   const detailLine = formatLensProductCardDetail(item);
+  const coatingColor = getCoatingDotColor(item.coating);
   const imageSource = catalogImageSourceForLensType(item.lensType, colorScheme);
 
   const content = (
@@ -35,9 +38,16 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
           <Text style={styles.brandText} numberOfLines={2}>
             {title}
           </Text>
-          <Text style={styles.powerText} numberOfLines={2}>
-            {detailLine}
-          </Text>
+          <View style={styles.detailRow}>
+            {coatingColor ? (
+              <View style={styles.coatingDotWrap}>
+                <CoatingDot coating={item.coating} size={6} />
+              </View>
+            ) : null}
+            <Text style={styles.powerText} numberOfLines={2}>
+              {detailLine}
+            </Text>
+          </View>
         </View>
         <View style={styles.priceBlock}>
           <Text style={styles.priceAmount}>
@@ -93,6 +103,14 @@ const createStyles = (c: BrandColorScheme) =>
       minWidth: 0,
       gap: 2,
     },
+    detailRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+    },
+    coatingDotWrap: {
+      marginTop: 7,
+    },
     brandText: {
       fontSize: 15,
       color: c.text,
@@ -101,6 +119,7 @@ const createStyles = (c: BrandColorScheme) =>
       flexShrink: 1,
     },
     powerText: {
+      flex: 1,
       fontSize: 15,
       color: c.text,
       fontWeight: '800',
