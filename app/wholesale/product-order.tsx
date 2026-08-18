@@ -18,9 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { WholesaleQtyMatrix } from '@/components/wholesale-qty-matrix';
 import { WholesaleRangePicker } from '@/components/wholesale-range-picker';
+import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useBrandColors } from '@/lib/theme-provider';
+import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
+import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
 import {
   sanitizePairQuantityInput,
   formatPowerRangeLabel,
@@ -89,6 +91,7 @@ function normalizePairsText(text: string): string {
 
 export default function WholesaleProductOrderScreen() {
   const colors = useBrandColors();
+  const colorScheme = useResolvedColorScheme();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ payload?: string }>();
@@ -460,6 +463,7 @@ export default function WholesaleProductOrderScreen() {
   }
 
   const totalPairs = totalPairsSelected();
+  const detailImage = catalogImageSourceForLensType(item.lensType, colorScheme);
 
   return (
     <View style={styles.root}>
@@ -476,17 +480,26 @@ export default function WholesaleProductOrderScreen() {
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
-            <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
-            <Text style={styles.summaryPower}>{formatSphCylSlash(item)}</Text>
-            {isBifocalLens ? (
-              <Text style={styles.summaryMeta}>{formatAddAxisLabel(item)}</Text>
-            ) : null}
-            <Text style={styles.summaryPrice}>
-              ₹{item.price}
-              {LENS_PRICE_PER_PAIR_LABEL}
-            </Text>
-            <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
+            <View style={styles.summaryRow}>
+              {detailImage ? (
+                <View style={styles.summaryImageWrap}>
+                  <CategoryLensBleed source={detailImage} size={104} />
+                </View>
+              ) : null}
+              <View style={styles.summaryText}>
+                <Text style={styles.summaryBrand}>{formatLensProductCardTitle(item)}</Text>
+                <Text style={styles.summaryMeta}>{formatLensItemCoatingSummary(item)}</Text>
+                <Text style={styles.summaryPower}>{formatSphCylSlash(item)}</Text>
+                {isBifocalLens ? (
+                  <Text style={styles.summaryMeta}>{formatAddAxisLabel(item)}</Text>
+                ) : null}
+                <Text style={styles.summaryPrice}>
+                  ₹{item.price}
+                  {LENS_PRICE_PER_PAIR_LABEL}
+                </Text>
+                <Text style={styles.pairsHint}>Wholesale orders are in pairs only.</Text>
+              </View>
+            </View>
           </View>
 
           <Text style={styles.sectionTitle}>Ranges</Text>
@@ -699,6 +712,22 @@ const createStyles = (c: BrandColorScheme) =>
       borderWidth: 1,
       borderColor: c.cardBorder,
       padding: 14,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    summaryImageWrap: {
+      flexShrink: 0,
+      backgroundColor: 'transparent',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    summaryText: {
+      flex: 1,
+      minWidth: 0,
+      justifyContent: 'center',
     },
     summaryBrand: { color: c.text, fontSize: 18, fontWeight: '800' },
     summaryMeta: { color: c.textMuted, fontSize: 12, fontWeight: '600', marginTop: 4 },
