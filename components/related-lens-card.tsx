@@ -4,12 +4,8 @@ import { CategoryLensBleed } from '@/components/shop-category-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
-import {
-  formatAddAxisLabel,
-  formatLensItemLabel,
-  formatLensProductCardTitle,
-  formatSphCylSlash,
-} from '@/lib/lens-display';
+import { LensPowerBadges } from '@/components/lens-power-badges';
+import { formatLensProductCardTitle } from '@/lib/lens-display';
 import { LENS_PRICE_PER_PAIR_LABEL } from '@/lib/lens-pricing';
 import { useResolvedColorScheme } from '@/lib/theme-provider';
 import type { LensItem } from '@/lib/types/lens';
@@ -28,11 +24,6 @@ export function RelatedLensCard({
     item.index != null && item.lensType === 'Single Vision'
       ? `${Number(item.index)} `
       : '';
-  const itemLabel = formatLensItemLabel(item);
-  const showItemLine =
-    Boolean(itemLabel) && itemLabel.toLowerCase() !== title.toLowerCase();
-  const sphCyl = formatSphCylSlash(item);
-  const addAxis = formatAddAxisLabel(item);
   const imageSource = catalogImageSourceForLensType(item.lensType, colorScheme);
 
   return (
@@ -47,13 +38,10 @@ export function RelatedLensCard({
           <Text style={styles.brandText} numberOfLines={2}>
             {`${indexLabel}${title}`.trim()}
           </Text>
-          {showItemLine ? (
-            <Text style={styles.itemText} numberOfLines={1}>
-              {itemLabel}
-            </Text>
-          ) : null}
-          <Text style={styles.powerText}>{sphCyl}</Text>
-          <Text style={styles.metaText}>{addAxis}</Text>
+          <LensPowerBadges
+            item={item}
+            showAdd={item.lensType === 'Kryptok' || item.lensType === 'Progressive'}
+          />
         </View>
         <Text style={styles.price}>
           ₹{item.price}
@@ -96,24 +84,6 @@ const createStyles = (c: BrandColorScheme) =>
       fontSize: 15,
       fontWeight: '700',
       lineHeight: 20,
-    },
-    itemText: {
-      color: c.textMuted,
-      fontSize: 12,
-      fontWeight: '600',
-      lineHeight: 16,
-    },
-    powerText: {
-      color: c.text,
-      fontSize: 15,
-      fontWeight: '800',
-      lineHeight: 20,
-    },
-    metaText: {
-      color: c.textMuted,
-      fontSize: 12,
-      fontWeight: '600',
-      lineHeight: 16,
     },
     price: {
       color: c.primary,

@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CategoryLensBleed } from '@/components/shop-category-card';
 import { CoatingDot } from '@/components/coating-dot';
+import { LensPowerBadges } from '@/components/lens-power-badges';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { catalogImageSourceForLensType } from '@/lib/catalog-images-api';
@@ -48,6 +49,10 @@ export function LensProductListCard({ item, onPress }: LensProductListCardProps)
               {detailLine}
             </Text>
           </View>
+          <LensPowerBadges
+            item={item}
+            showAdd={item.lensType === 'Kryptok' || item.lensType === 'Progressive'}
+          />
         </View>
         <View style={styles.priceBlock}>
           <Text style={styles.priceAmount}>
