@@ -33,7 +33,7 @@ export default function TabLayout() {
 
     if (!isSignedIn) {
       const timeout = setTimeout(() => {
-        router.replace('/signup');
+        router.replace('/login');
       }, 0);
       return () => clearTimeout(timeout);
     }

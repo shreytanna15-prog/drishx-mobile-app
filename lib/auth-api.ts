@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { MOBILE_CLIENT_HEADERS } from '@/lib/auth-fetch';
 import type { AuthUser } from '@/lib/auth';
 
 export type ApiUser = AuthUser;
@@ -13,14 +14,23 @@ export async function submitGstDetails(payload: {
 }) {
   const response = await fetch(`${BACKEND_BASE_URL}/api/auth/gst`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...MOBILE_CLIENT_HEADERS,
+    },
     body: JSON.stringify(payload),
   });
   const result = await response.json();
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to submit GST details.');
   }
-  return result as { user: ApiUser; message: string; token: string };
+  return result as {
+    user: ApiUser;
+    message: string;
+    token: string;
+    accessToken?: string;
+    refreshToken?: string;
+  };
 }
 
 export async function fetchCurrentUser(token: string) {

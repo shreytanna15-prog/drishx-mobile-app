@@ -12,7 +12,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
-import { useAuth } from '@/lib/auth';
+import { resolveAuthTokens, useAuth } from '@/lib/auth';
 
 export default function GstDetailsScreen() {
   const router = useRouter();
@@ -45,7 +45,7 @@ export default function GstDetailsScreen() {
 
     setLoading(true);
     try {
-      const { user, token } = await submitGstDetails({
+      const result = await submitGstDetails({
         userId,
         gstNumber: gstNumber.trim().toUpperCase(),
         businessName: businessName.trim(),
@@ -54,8 +54,9 @@ export default function GstDetailsScreen() {
         pincode: pincode.trim() || undefined,
       });
 
-      const mapped = mapApiUser(user as unknown as Record<string, unknown>);
-      signIn(token, mapped);
+      const mapped = mapApiUser(result.user as unknown as Record<string, unknown>);
+      const { accessToken, refreshToken } = resolveAuthTokens(result);
+      signIn(accessToken, mapped, refreshToken);
 
       router.replace({
         pathname: '/pending-approval',

@@ -12,21 +12,17 @@ import {
 } from 'react';
 
 import { fetchCurrentUser, mapApiUser } from '@/lib/auth-api';
+import {
+  getAuthHeaders as buildAuthHeaders,
+  getMemoryAccessToken,
+  logoutSession,
+  registerAuthFailureHandler,
+  resolveAuthTokens,
+  storeMobileAuthSession,
+} from '@/lib/auth-fetch';
+import { getRefreshToken } from '@/lib/secure-auth-storage';
 
-const STORAGE_KEY = '@drishx/auth-session';
-
-type StoredSession = {
-  token: string;
-  user: AuthUser;
-};
-
-async function persistSession(session: StoredSession | null) {
-  if (session) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    return;
-  }
-  await AsyncStorage.removeItem(STORAGE_KEY);
-}
+const USER_STORAGE_KEY = '@drishx/auth-user';
 
 export type AccountApprovalStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
 
@@ -64,53 +60,92 @@ type AuthContextValue = {
   isReady: boolean;
   user: AuthUser | null;
   token: string | null;
-  signIn: (token: string, user: AuthUser) => void;
+  signIn: (accessToken: string, user: AuthUser, refreshToken?: string | null) => void;
   updateUser: (user: AuthUser) => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   getAuthHeaders: () => Record<string, string>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+async function persistUser(user: AuthUser | null) {
+  if (user) {
+    await AsyncStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    return;
+  }
+  await AsyncStorage.removeItem(USER_STORAGE_KEY);
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isReady, setIsReady] = useState(false);
 
+  const signOut = useCallback(async () => {
+    await logoutSession();
+    setToken(null);
+    setUser(null);
+    await persistUser(null);
+  }, []);
+
+  useEffect(() => {
+    registerAuthFailureHandler(() => {
+      void signOut();
+    });
+  }, [signOut]);
+
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (cancelled || !stored) {
+        const storedUserRaw = await AsyncStorage.getItem(USER_STORAGE_KEY);
+        const refreshToken = await getRefreshToken();
+
+        if (cancelled || !storedUserRaw || !refreshToken) {
           return;
         }
 
-        const session = JSON.parse(stored) as StoredSession;
-        if (!session?.token || !session?.user?.id) {
+        const storedUser = JSON.parse(storedUserRaw) as AuthUser;
+        if (!storedUser?.id) {
           return;
         }
 
-        setToken(session.token);
-        setUser(session.user);
+        setUser(storedUser);
+
+        const { refreshAccessToken } = await import('@/lib/auth-fetch');
+        const refreshed = await refreshAccessToken();
+        if (cancelled) {
+          return;
+        }
+
+        if (!refreshed) {
+          await signOut();
+          return;
+        }
+
+        const accessToken = getMemoryAccessToken();
+        if (!accessToken) {
+          await signOut();
+          return;
+        }
+
+        setToken(accessToken);
 
         try {
-          const result = await fetchCurrentUser(session.token);
+          const result = await fetchCurrentUser(accessToken);
           const mapped = mapApiUser(result.user as Record<string, unknown>);
           if (cancelled) {
             return;
           }
           setUser(mapped);
-          await persistSession({ token: session.token, user: mapped });
+          await persistUser(mapped);
         } catch {
-          // Keep the cached session when offline or the backend is temporarily unavailable.
+          // Keep cached user when offline.
         }
       } catch {
-        await persistSession(null);
         if (!cancelled) {
-          setToken(null);
-          setUser(null);
+          await signOut();
         }
       } finally {
         if (!cancelled) {
@@ -122,38 +157,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [signOut]);
 
-  const signIn = useCallback((authToken: string, authUser: AuthUser) => {
-    setToken(authToken);
-    setUser(authUser);
-    void persistSession({ token: authToken, user: authUser });
-  }, []);
+  const signIn = useCallback(
+    (accessToken: string, authUser: AuthUser, refreshToken?: string | null) => {
+      void storeMobileAuthSession({ accessToken, refreshToken });
+      setToken(accessToken);
+      setUser(authUser);
+      void persistUser(authUser);
+    },
+    []
+  );
 
   const updateUser = useCallback(
     (authUser: AuthUser) => {
       setUser(authUser);
-      if (token) {
-        void persistSession({ token, user: authUser });
-      }
+      void persistUser(authUser);
     },
-    [token]
+    []
   );
 
-  const signOut = useCallback(() => {
-    setToken(null);
-    setUser(null);
-    void persistSession(null);
-  }, []);
-
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    if (!token) {
-      return { 'Content-Type': 'application/json' };
-    }
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    };
+    return buildAuthHeaders(token);
   }, [token]);
 
   const value = useMemo(
@@ -182,3 +207,5 @@ export function useAuth() {
   }
   return context;
 }
+
+export { resolveAuthTokens };

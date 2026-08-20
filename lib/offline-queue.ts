@@ -3,12 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
 export const OFFLINE_QUEUE_STORAGE_KEY = '@drishx/offline-queue';
-const AUTH_SESSION_STORAGE_KEY = '@drishx/auth-session';
+import { getMemoryAccessToken, refreshAccessToken } from '@/lib/auth-fetch';
 
 const QUEUE_FETCH_TIMEOUT_MS = 15_000;
 
 /** HTTP statuses that will not succeed on blind retry — drop to unblock the queue. */
-const UNRECOVERABLE_STATUSES = new Set([400, 401, 403, 404, 405, 409, 410, 422]);
+const UNRECOVERABLE_STATUSES = new Set([400, 403, 404, 405, 409, 410, 422]);
 
 export type QueuedRequest = {
   id: string;
@@ -18,10 +18,6 @@ export type QueuedRequest = {
   body?: string;
   label?: string;
   createdAt: string;
-};
-
-type StoredSession = {
-  token: string;
 };
 
 type QueueListener = (count: number) => void;
@@ -67,16 +63,8 @@ function migrateQueuedRequest(entry: QueuedRequest): QueuedRequest {
 }
 
 async function loadCurrentSessionToken(): Promise<string | null> {
-  try {
-    const raw = await AsyncStorage.getItem(AUTH_SESSION_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
-    const parsed = JSON.parse(raw) as StoredSession | null;
-    return typeof parsed?.token === 'string' && parsed.token.trim() ? parsed.token.trim() : null;
-  } catch {
-    return null;
-  }
+  const token = getMemoryAccessToken();
+  return token?.trim() ? token.trim() : null;
 }
 
 async function getReplayHeaders(entry: QueuedRequest): Promise<Record<string, string>> {
@@ -199,6 +187,24 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
       const response = await replayQueuedRequest(migratedEntry);
 
       if (!response.ok) {
+        if (response.status === 401) {
+          const refreshed = await refreshAccessToken();
+          if (refreshed) {
+            const retryResponse = await replayQueuedRequest(migratedEntry);
+            if (retryResponse.ok) {
+              processed += 1;
+              continue;
+            }
+            if (UNRECOVERABLE_STATUSES.has(retryResponse.status)) {
+              dropped += 1;
+              continue;
+            }
+          } else {
+            dropped += 1;
+            continue;
+          }
+        }
+
         const result = await response.json().catch(() => ({}));
         const message =
           typeof result?.error === 'string' ? result.error : `Request failed (${response.status})`;

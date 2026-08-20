@@ -12,7 +12,7 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
-import { useAuth } from '@/lib/auth';
+import { resolveAuthTokens, useAuth } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 
 const LOGIN_URL = `${BACKEND_BASE_URL}/api/auth/login`;
@@ -52,7 +52,10 @@ export default function LoginScreen() {
     try {
       const response = await fetch(LOGIN_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Client': 'mobile',
+        },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
 
@@ -80,9 +83,10 @@ export default function LoginScreen() {
       }
 
       const mapped = mapApiUser(result.user as Record<string, unknown>);
+      const { accessToken, refreshToken } = resolveAuthTokens(result);
       setEmail('');
       setPassword('');
-      signIn(result.token, mapped);
+      signIn(accessToken, mapped, refreshToken);
 
       const nextRoute = getCustomerNextRoute(mapped);
       if (nextRoute === '/gst-details') {

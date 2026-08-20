@@ -1,3 +1,4 @@
+import { authFetch } from '@/lib/auth-fetch';
 import { enqueueOfflineRequest } from '@/lib/offline-queue';
 import { getIsOnline, isNetworkError } from '@/lib/network';
 
@@ -18,10 +19,16 @@ export function isOfflineQueuedError(error: unknown): error is OfflineQueuedErro
 type ApiFetchOptions = RequestInit & {
   queueWhenOffline?: boolean;
   queueLabel?: string;
+  authenticated?: boolean;
 };
 
 export async function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Response> {
-  const { queueWhenOffline = false, queueLabel, ...init } = options;
+  const {
+    queueWhenOffline = false,
+    queueLabel,
+    authenticated = false,
+    ...init
+  } = options;
   const method = (init.method ?? 'GET').toUpperCase();
   const headers = normalizeHeaders(init.headers);
   const body = typeof init.body === 'string' ? init.body : undefined;
@@ -38,8 +45,10 @@ export async function apiFetch(url: string, options: ApiFetchOptions = {}): Prom
     throw new OfflineQueuedError(queued.id, queueLabel);
   }
 
+  const fetchImpl = authenticated || headers.Authorization ? authFetch : fetch;
+
   try {
-    return await fetch(url, init);
+    return await fetchImpl(url, init);
   } catch (error) {
     if (queueWhenOffline && isNetworkError(error)) {
       const queued = await enqueueOfflineRequest({
