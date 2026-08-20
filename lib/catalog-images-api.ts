@@ -114,7 +114,7 @@ export function catalogImageSourceForHomeCategory(
 }
 
 /**
- * Shop category cards use processed PNGs (from *-source.png via
+ * Shop category cards use processed PNGs (from lens-imgs/*.jpeg via
  * scripts/process-lens-assets.js). Studio backdrop is punched to alpha.
  */
 export function catalogImageSourceForShopCategory(
