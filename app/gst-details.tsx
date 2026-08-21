@@ -2,8 +2,8 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { KeyboardAwareScroll } from '@/components/keyboard-aware-scroll';
@@ -11,142 +11,172 @@ import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
-import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
-import { resolveAuthTokens, useAuth } from '@/lib/auth';
+import { getDraftForUser, saveRegistrationDraft } from '@/lib/registration-draft';
 
 export default function GstDetailsScreen() {
   const router = useRouter();
-  const { signIn } = useAuth();
   const params = useLocalSearchParams<{ userId?: string; email?: string }>();
   const userId = params.userId ? String(params.userId) : '';
   const email = params.email ? String(params.email) : '';
 
   const [gstNumber, setGstNumber] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [businessAddress, setBusinessAddress] = useState('');
-  const [state, setState] = useState('');
-  const [pincode, setPincode] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [legalBusinessName, setLegalBusinessName] = useState('');
+  const [tradeName, setTradeName] = useState('');
+  const [gstRegistrationState, setGstRegistrationState] = useState('');
+  const [panNumber, setPanNumber] = useState('');
   const colors = useSystemBrandColors();
   const statusBarStyle = useStatusBarStyle();
   const styles = useSystemThemedStyles(createStyles);
 
-  async function handleSubmit() {
+  useEffect(() => {
+    if (!userId) return;
+    void (async () => {
+      const draft = await getDraftForUser(userId, email);
+      if (!draft.business) {
+        router.replace({ pathname: '/business-info', params: { userId, email } });
+        return;
+      }
+      if (draft.gst) {
+        setGstNumber(draft.gst.gstNumber);
+        setLegalBusinessName(draft.gst.legalBusinessName);
+        setTradeName(draft.gst.tradeName);
+        setGstRegistrationState(draft.gst.gstRegistrationState);
+        setPanNumber(draft.gst.panNumber);
+      }
+    })();
+  }, [userId, email, router]);
+
+  async function handleContinue() {
     if (!userId) {
       appAlert('Missing account', 'Please sign up again to continue.');
       router.replace('/signup');
       return;
     }
 
-    if (!gstNumber.trim() || !businessName.trim() || !businessAddress.trim()) {
-      appAlert('Missing fields', 'GST number, business name, and address are required.');
+    if (
+      !gstNumber.trim() ||
+      !legalBusinessName.trim() ||
+      !gstRegistrationState.trim() ||
+      !panNumber.trim()
+    ) {
+      appAlert(
+        'Missing fields',
+        'GSTIN, legal business name, GST registration state, and PAN are required.'
+      );
       return;
     }
 
-    setLoading(true);
-    try {
-      const result = await submitGstDetails({
-        userId,
-        gstNumber: gstNumber.trim().toUpperCase(),
-        businessName: businessName.trim(),
-        businessAddress: businessAddress.trim(),
-        state: state.trim() || undefined,
-        pincode: pincode.trim() || undefined,
-      });
-
-      const mapped = mapApiUser(result.user as unknown as Record<string, unknown>);
-      const { accessToken, refreshToken } = resolveAuthTokens(result);
-      signIn(accessToken, mapped, refreshToken);
-
-      router.replace({
-        pathname: '/pending-approval',
-        params: { email, userId },
-      });
-    } catch (error) {
-      appAlert('Submission failed', error instanceof Error ? error.message : 'Try again.');
-    } finally {
-      setLoading(false);
+    const draft = await getDraftForUser(userId, email);
+    if (!draft.business) {
+      router.replace({ pathname: '/business-info', params: { userId, email } });
+      return;
     }
+
+    await saveRegistrationDraft({
+      ...draft,
+      gst: {
+        gstNumber: gstNumber.trim().toUpperCase(),
+        legalBusinessName: legalBusinessName.trim(),
+        tradeName: tradeName.trim(),
+        gstRegistrationState: gstRegistrationState.trim(),
+        panNumber: panNumber.trim().toUpperCase(),
+      },
+    });
+
+    router.replace({
+      pathname: '/registration-addresses',
+      params: { userId, email },
+    });
   }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style={statusBarStyle} />
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.heading}>GST details</Text>
-            <Text style={styles.subheading}>
-              Submit your business GST information. Admin will review and approve your account.
-            </Text>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>GSTIN</Text>
-              <TextInput
-                value={gstNumber}
-                onChangeText={setGstNumber}
-                placeholder="22AAAAA0000A1Z5"
-                placeholderTextColor={colors.placeholder}
-                autoCapitalize="characters"
-                style={styles.input}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Business name</Text>
-              <TextInput
-                value={businessName}
-                onChangeText={setBusinessName}
-                placeholder="Your business name"
-                placeholderTextColor={colors.placeholder}
-                style={styles.input}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Business address</Text>
-              <TextInput
-                value={businessAddress}
-                onChangeText={setBusinessAddress}
-                placeholder="Street, city, area"
-                placeholderTextColor={colors.placeholder}
-                multiline
-                style={[styles.input, styles.textArea]}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>State</Text>
-              <TextInput
-                value={state}
-                onChangeText={setState}
-                placeholder="State"
-                placeholderTextColor={colors.placeholder}
-                style={styles.input}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text style={styles.label}>Pincode</Text>
-              <TextInput
-                value={pincode}
-                onChangeText={setPincode}
-                placeholder="Pincode"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                style={styles.input}
-              />
-            </View>
-
-            <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
-              {loading ? (
-                <ActivityIndicator color={colors.primaryText} />
-              ) : (
-                <Text style={styles.buttonText}>Submit for approval</Text>
-              )}
-            </Pressable>
+        <View style={styles.card}>
+          <Text style={styles.heading}>GST information</Text>
+          <Text style={styles.subheading}>
+            Submit your GST details. Admin will review and approve your account.
+          </Text>
+          <View style={styles.steps}>
+            <View style={[styles.step, styles.stepActive]} />
+            <View style={[styles.step, styles.stepActive]} />
+            <View style={[styles.step, styles.stepActive]} />
+            <View style={styles.step} />
+            <View style={styles.step} />
           </View>
+
+          <Field label="GSTIN" styles={styles}>
+            <TextInput
+              value={gstNumber}
+              onChangeText={(value) => setGstNumber(value.toUpperCase())}
+              placeholder="22AAAAA0000A1Z5"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="characters"
+              style={styles.input}
+            />
+          </Field>
+          <Field label="Legal business name" styles={styles}>
+            <TextInput
+              value={legalBusinessName}
+              onChangeText={setLegalBusinessName}
+              placeholder="Legal business name"
+              placeholderTextColor={colors.placeholder}
+              style={styles.input}
+            />
+          </Field>
+          <Field label="Trade name (optional)" styles={styles}>
+            <TextInput
+              value={tradeName}
+              onChangeText={setTradeName}
+              placeholder="Trade name"
+              placeholderTextColor={colors.placeholder}
+              style={styles.input}
+            />
+          </Field>
+          <Field label="GST registration state" styles={styles}>
+            <TextInput
+              value={gstRegistrationState}
+              onChangeText={setGstRegistrationState}
+              placeholder="GST registration state"
+              placeholderTextColor={colors.placeholder}
+              style={styles.input}
+            />
+          </Field>
+          <Field label="PAN" styles={styles}>
+            <TextInput
+              value={panNumber}
+              onChangeText={(value) => setPanNumber(value.toUpperCase())}
+              placeholder="ABCDE1234F"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="characters"
+              style={styles.input}
+            />
+          </Field>
+
+          <Pressable style={styles.button} onPress={handleContinue}>
+            <Text style={styles.buttonText}>Continue</Text>
+          </Pressable>
+        </View>
       </KeyboardAwareScroll>
     </SafeAreaView>
+  );
+}
+
+function Field({
+  label,
+  children,
+  styles,
+}: {
+  label: string;
+  children: React.ReactNode;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      {children}
+    </View>
   );
 }
 
@@ -163,7 +193,15 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: c.cardBorder,
     },
     heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
-    subheading: { color: c.textMuted, fontSize: 14, marginBottom: 24, lineHeight: 20 },
+    subheading: { color: c.textMuted, fontSize: 14, marginBottom: 16, lineHeight: 20 },
+    steps: { flexDirection: 'row', gap: 8, marginBottom: 24 },
+    step: {
+      flex: 1,
+      height: 4,
+      borderRadius: 999,
+      backgroundColor: 'rgba(240, 161, 50, 0.18)',
+    },
+    stepActive: { backgroundColor: c.primary },
     field: { marginBottom: 16 },
     label: { marginBottom: 8, fontSize: 14, fontWeight: '600', color: c.label },
     input: {
@@ -176,7 +214,6 @@ const createStyles = (c: BrandColorScheme) =>
       color: c.text,
       backgroundColor: c.inputBg,
     },
-    textArea: { minHeight: 90, textAlignVertical: 'top' },
     button: {
       marginTop: 8,
       borderRadius: 16,

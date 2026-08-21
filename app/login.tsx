@@ -89,9 +89,9 @@ export default function LoginScreen() {
       signIn(accessToken, mapped, refreshToken);
 
       const nextRoute = getCustomerNextRoute(mapped);
-      if (nextRoute === '/gst-details') {
+      if (nextRoute === '/business-info') {
         router.replace({
-          pathname: '/gst-details',
+          pathname: '/business-info',
           params: { userId: mapped.id, email: mapped.email },
         });
       } else {

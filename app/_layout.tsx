@@ -40,7 +40,9 @@ function RootNavigation() {
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
             <Stack.Screen name="login" options={{ headerShown: false }} />
             <Stack.Screen name="signup" options={{ headerShown: false }} />
+            <Stack.Screen name="business-info" options={{ headerShown: false }} />
             <Stack.Screen name="gst-details" options={{ headerShown: false }} />
+            <Stack.Screen name="registration-addresses" options={{ headerShown: false }} />
             <Stack.Screen name="pending-approval" options={{ headerShown: false }} />
             <Stack.Screen name="cart" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ headerShown: false }} />
