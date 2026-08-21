@@ -29,6 +29,23 @@ function DetailRow({
   );
 }
 
+function Section({
+  title,
+  children,
+  styles,
+}: {
+  title: string;
+  children: React.ReactNode;
+  styles: CompanyProfileStyles;
+}) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
 export default function CompanyProfileScreen() {
   const router = useRouter();
   const { user } = useAuth();
@@ -49,16 +66,56 @@ export default function CompanyProfileScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.card}>
+          <Section title="Account" styles={styles}>
             <DetailRow label="Customer Name" value={user.name || user.email} styles={styles} />
             <DetailRow label="Email" value={user.email} styles={styles} />
             <DetailRow label="Client ID" value={user.id} styles={styles} />
+            <DetailRow label="Mobile" value={user.mobileNumber} styles={styles} />
+            <DetailRow label="Alternate mobile" value={user.alternateMobileNumber} styles={styles} />
+            <DetailRow label="WhatsApp" value={user.whatsappNumber} styles={styles} />
+          </Section>
+
+          <Section title="Business info" styles={styles}>
             <DetailRow label="Business Name" value={user.businessName} styles={styles} />
-            <DetailRow label="GST Number" value={user.gstNumber} styles={styles} />
-            <DetailRow label="Business Address" value={user.businessAddress} styles={styles} />
+            <DetailRow label="Shop name" value={user.shopName} styles={styles} />
+            <DetailRow label="Business type" value={user.businessType} styles={styles} />
+            <DetailRow label="Address line 1" value={user.addressLine1} styles={styles} />
+            <DetailRow label="Address line 2" value={user.addressLine2} styles={styles} />
+            <DetailRow label="City" value={user.city} styles={styles} />
             <DetailRow label="State" value={user.state} styles={styles} />
             <DetailRow label="Pincode" value={user.pincode} styles={styles} />
-          </View>
+            <DetailRow label="Business email" value={user.businessEmail} styles={styles} />
+            <DetailRow label="Shop phone" value={user.shopPhoneNumber} styles={styles} />
+          </Section>
+
+          <Section title="GST information" styles={styles}>
+            <DetailRow label="GST Number" value={user.gstNumber} styles={styles} />
+            <DetailRow label="Legal business name" value={user.legalBusinessName} styles={styles} />
+            <DetailRow label="Trade name" value={user.tradeName} styles={styles} />
+            <DetailRow
+              label="GST registration state"
+              value={user.gstRegistrationState}
+              styles={styles}
+            />
+            <DetailRow label="PAN" value={user.panNumber} styles={styles} />
+          </Section>
+
+          <Section title="Billing address" styles={styles}>
+            <DetailRow label="Legal name" value={user.billingLegalName} styles={styles} />
+            <DetailRow label="Address" value={user.billingAddress} styles={styles} />
+            <DetailRow label="City" value={user.billingCity} styles={styles} />
+            <DetailRow label="State" value={user.billingState} styles={styles} />
+            <DetailRow label="PIN" value={user.billingPincode} styles={styles} />
+            <DetailRow label="GST state" value={user.billingGstState} styles={styles} />
+          </Section>
+
+          <Section title="Shipping address" styles={styles}>
+            <DetailRow label="Legal name" value={user.shippingLegalName} styles={styles} />
+            <DetailRow label="Address" value={user.shippingAddress} styles={styles} />
+            <DetailRow label="City" value={user.shippingCity} styles={styles} />
+            <DetailRow label="State" value={user.shippingState} styles={styles} />
+            <DetailRow label="PIN" value={user.shippingPincode} styles={styles} />
+          </Section>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -79,7 +136,7 @@ const createStyles = (c: BrandColorScheme) =>
       borderBottomColor: c.cardBorder,
     },
     headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
-    content: { padding: 16 },
+    content: { padding: 16, gap: 12 },
     card: {
       backgroundColor: c.card,
       borderRadius: 14,
@@ -87,6 +144,13 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: c.cardBorder,
       padding: 14,
       gap: 12,
+    },
+    sectionTitle: {
+      color: c.primary,
+      fontSize: 12,
+      fontWeight: '800',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
     },
     row: { gap: 4 },
     rowLabel: { color: c.label, fontSize: 12, fontWeight: '700', textTransform: 'uppercase' },

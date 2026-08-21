@@ -30,9 +30,9 @@ export default function SplashRoute() {
 
     if (isSignedIn && user) {
       const nextRoute = getCustomerNextRoute(user);
-      if (nextRoute === '/gst-details') {
+      if (nextRoute === '/business-info') {
         router.replace({
-          pathname: '/gst-details',
+          pathname: '/business-info',
           params: { userId: user.id, email: user.email },
         });
       } else {

@@ -90,7 +90,7 @@ export default function PendingApprovalScreen() {
             {isRejected
               ? rejectionReason ||
                 'Your account was rejected by admin. Contact support or sign up again.'
-              : 'Your GST details were submitted successfully. An admin must approve your account before you can use the app.'}
+              : 'Your registration details were submitted successfully. An admin must approve your account before you can use the app.'}
           </Text>
 
           {email ? <Text style={styles.email}>Account: {email}</Text> : null}
