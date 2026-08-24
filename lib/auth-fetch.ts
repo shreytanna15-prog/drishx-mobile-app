@@ -4,6 +4,7 @@ import {
   getRefreshToken,
   setRefreshToken,
 } from '@/lib/secure-auth-storage';
+import { CLIENT_HEADER, mergeMobileClientHeaders, REQUEST_ID_HEADER } from '@/lib/request-headers';
 
 export type AuthErrorCode =
   | 'TOKEN_EXPIRED'
@@ -80,7 +81,8 @@ export async function refreshAccessToken(): Promise<boolean> {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Client': 'mobile',
+          [CLIENT_HEADER]: 'mobile',
+          [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
         },
         body: JSON.stringify({ refreshToken }),
       });
@@ -118,7 +120,8 @@ export async function logoutSession(): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Client': 'mobile',
+        [CLIENT_HEADER]: 'mobile',
+        [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
       },
       body: JSON.stringify(refreshToken ? { refreshToken } : {}),
     });
@@ -134,6 +137,8 @@ export function getAuthHeaders(token?: string | null): Record<string, string> {
   const resolved = token ?? memoryAccessToken;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    [CLIENT_HEADER]: 'mobile',
+    [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
   };
   if (resolved) {
     headers.Authorization = `Bearer ${resolved}`;
@@ -146,7 +151,7 @@ export async function authFetch(
   init?: RequestInit,
   allowRetry = true
 ): Promise<Response> {
-  const headers = new Headers(init?.headers);
+  const headers = mergeMobileClientHeaders(init?.headers);
   const accessToken = memoryAccessToken;
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -176,7 +181,7 @@ export async function authFetch(
     throw authError;
   }
 
-  const retryHeaders = new Headers(init?.headers);
+  const retryHeaders = mergeMobileClientHeaders(init?.headers);
   const nextToken = memoryAccessToken;
   if (nextToken) {
     retryHeaders.set('Authorization', `Bearer ${nextToken}`);
@@ -216,5 +221,5 @@ export function resolveAuthTokens(data: {
 }
 
 export const MOBILE_CLIENT_HEADERS = {
-  'X-Client': 'mobile',
+  [CLIENT_HEADER]: 'mobile',
 } as const;

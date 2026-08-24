@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { OFFLINE_REPLAY_HEADER, REQUEST_ID_HEADER } from '@/lib/request-headers';
 
 export const OFFLINE_QUEUE_STORAGE_KEY = '@drishx/offline-queue';
 import { getMemoryAccessToken, refreshAccessToken } from '@/lib/auth-fetch';
@@ -76,6 +77,11 @@ async function getReplayHeaders(entry: QueuedRequest): Promise<Record<string, st
   // still carries an older bearer token from a previous session.
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+  }
+
+  headers[OFFLINE_REPLAY_HEADER] = 'true';
+  if (!headers[REQUEST_ID_HEADER]) {
+    headers[REQUEST_ID_HEADER] = entry.id;
   }
 
   return headers;

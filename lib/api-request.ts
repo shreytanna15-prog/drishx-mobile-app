@@ -1,6 +1,7 @@
 import { authFetch } from '@/lib/auth-fetch';
 import { enqueueOfflineRequest } from '@/lib/offline-queue';
 import { getIsOnline, isNetworkError } from '@/lib/network';
+import { CLIENT_HEADER, REQUEST_ID_HEADER } from '@/lib/request-headers';
 
 export class OfflineQueuedError extends Error {
   readonly queueId: string;
@@ -65,18 +66,26 @@ export async function apiFetch(url: string, options: ApiFetchOptions = {}): Prom
 }
 
 function normalizeHeaders(headers: HeadersInit | undefined): Record<string, string> {
+  let record: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!headers) {
-    return { 'Content-Type': 'application/json' };
+    record[CLIENT_HEADER] = 'mobile';
+    record[REQUEST_ID_HEADER] = crypto.randomUUID?.() ?? `${Date.now()}`;
+    return record;
   }
   if (headers instanceof Headers) {
-    const record: Record<string, string> = {};
     headers.forEach((value, key) => {
       record[key] = value;
     });
-    return record;
+  } else if (Array.isArray(headers)) {
+    record = Object.fromEntries(headers);
+  } else {
+    record = { ...headers };
   }
-  if (Array.isArray(headers)) {
-    return Object.fromEntries(headers);
+  if (!record[CLIENT_HEADER]) {
+    record[CLIENT_HEADER] = 'mobile';
   }
-  return { ...headers };
+  if (!record[REQUEST_ID_HEADER]) {
+    record[REQUEST_ID_HEADER] = crypto.randomUUID?.() ?? `${Date.now()}`;
+  }
+  return record;
 }
