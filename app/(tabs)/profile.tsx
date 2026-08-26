@@ -231,7 +231,7 @@ export default function ProfileScreen() {
                 label="Outstanding/Payments"
                 variant="alt"
                 onPress={() =>
-                  router.push({ pathname: '/profile-placeholder', params: { title: 'Outstanding/Payments' } })
+                  router.push('/outstanding-payments' as never)
                 }
                 styles={styles}
                 colors={colors}

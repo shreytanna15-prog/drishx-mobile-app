@@ -4,7 +4,12 @@ import {
   getRefreshToken,
   setRefreshToken,
 } from '@/lib/secure-auth-storage';
-import { CLIENT_HEADER, mergeMobileClientHeaders, REQUEST_ID_HEADER } from '@/lib/request-headers';
+import {
+  CLIENT_HEADER,
+  createRequestId,
+  mergeMobileClientHeaders,
+  REQUEST_ID_HEADER,
+} from '@/lib/request-headers';
 
 export type AuthErrorCode =
   | 'TOKEN_EXPIRED'
@@ -82,7 +87,7 @@ export async function refreshAccessToken(): Promise<boolean> {
         headers: {
           'Content-Type': 'application/json',
           [CLIENT_HEADER]: 'mobile',
-          [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
+          [REQUEST_ID_HEADER]: createRequestId(),
         },
         body: JSON.stringify({ refreshToken }),
       });
@@ -121,7 +126,7 @@ export async function logoutSession(): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
         [CLIENT_HEADER]: 'mobile',
-        [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
+        [REQUEST_ID_HEADER]: createRequestId(),
       },
       body: JSON.stringify(refreshToken ? { refreshToken } : {}),
     });
@@ -138,7 +143,7 @@ export function getAuthHeaders(token?: string | null): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     [CLIENT_HEADER]: 'mobile',
-    [REQUEST_ID_HEADER]: crypto.randomUUID?.() ?? `${Date.now()}`,
+    [REQUEST_ID_HEADER]: createRequestId(),
   };
   if (resolved) {
     headers.Authorization = `Bearer ${resolved}`;

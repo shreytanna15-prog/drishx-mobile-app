@@ -1,7 +1,11 @@
 import { authFetch } from '@/lib/auth-fetch';
 import { enqueueOfflineRequest } from '@/lib/offline-queue';
 import { getIsOnline, isNetworkError } from '@/lib/network';
-import { CLIENT_HEADER, REQUEST_ID_HEADER } from '@/lib/request-headers';
+import {
+  CLIENT_HEADER,
+  createRequestId,
+  REQUEST_ID_HEADER,
+} from '@/lib/request-headers';
 
 export class OfflineQueuedError extends Error {
   readonly queueId: string;
@@ -69,7 +73,7 @@ function normalizeHeaders(headers: HeadersInit | undefined): Record<string, stri
   let record: Record<string, string> = { 'Content-Type': 'application/json' };
   if (!headers) {
     record[CLIENT_HEADER] = 'mobile';
-    record[REQUEST_ID_HEADER] = crypto.randomUUID?.() ?? `${Date.now()}`;
+    record[REQUEST_ID_HEADER] = createRequestId();
     return record;
   }
   if (headers instanceof Headers) {
@@ -85,7 +89,7 @@ function normalizeHeaders(headers: HeadersInit | undefined): Record<string, stri
     record[CLIENT_HEADER] = 'mobile';
   }
   if (!record[REQUEST_ID_HEADER]) {
-    record[REQUEST_ID_HEADER] = crypto.randomUUID?.() ?? `${Date.now()}`;
+    record[REQUEST_ID_HEADER] = createRequestId();
   }
   return record;
 }

@@ -36,12 +36,24 @@ export type InvoiceRecord = {
   userId: string;
   orderId: string;
   amount: number | string;
-  status: 'PAID' | 'UNPAID' | string;
+  amountPaid?: number | string;
+  amountOutstanding?: number | string;
+  taxableAmount?: number | string;
+  cgstAmount?: number | string;
+  sgstAmount?: number | string;
+  igstAmount?: number | string;
+  status: 'PAID' | 'UNPAID' | 'ISSUED' | 'PARTIALLY_PAID' | string;
   issuedAt: string;
   createdAt: string;
   updatedAt?: string;
   user?: InvoiceUser;
   order?: InvoiceOrder;
+  lines?: Array<{
+    description: string;
+    hsnCode?: string | null;
+    powerLabel?: string | null;
+    lineTotal: number | string;
+  }>;
 };
 
 export async function fetchInvoices(headers: Record<string, string>): Promise<InvoiceRecord[]> {
@@ -62,14 +74,49 @@ export async function fetchInvoiceById(id: string, headers: Record<string, strin
   return result as InvoiceRecord;
 }
 
-export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'UNPAID';
+/** Fetches the server tax-invoice HTML and opens the native share/save sheet as PDF. */
+export async function downloadInvoicePdf(
+  id: string,
+  headers: Record<string, string>,
+  invoiceNumber?: string
+): Promise<void> {
+  const Print = await import('expo-print');
+  const Sharing = await import('expo-sharing');
+
+  const response = await fetch(`${BACKEND_BASE_URL}/api/invoices/${encodeURIComponent(id)}/pdf`, {
+    headers,
+  });
+  if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    throw new Error(
+      (result as { error?: string })?.error || 'Failed to download tax invoice.'
+    );
+  }
+
+  const html = await response.text();
+  const { uri } = await Print.printToFileAsync({ html });
+  const canShare = await Sharing.isAvailableAsync();
+  if (!canShare) {
+    throw new Error('Sharing is not available on this device.');
+  }
+
+  await Sharing.shareAsync(uri, {
+    mimeType: 'application/pdf',
+    dialogTitle: invoiceNumber ? `${invoiceNumber} tax invoice` : 'Tax invoice',
+    UTI: 'com.adobe.pdf',
+  });
+}
+
+export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'UNPAID' | 'ISSUED' | 'PARTIALLY_PAID';
 export type InvoiceDateFilter = 'ALL' | 'THIS_MONTH' | 'LAST_30' | 'LAST_90' | 'THIS_YEAR';
 export type InvoiceSortOption = 'newest' | 'oldest' | 'amount_desc' | 'amount_asc';
 
 export const INVOICE_STATUS_FILTERS: { key: InvoiceStatusFilter; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'PAID', label: 'Paid' },
-  { key: 'UNPAID', label: 'Unpaid' },
+  { key: 'ISSUED', label: 'Unpaid' },
+  { key: 'PARTIALLY_PAID', label: 'Partial' },
+  { key: 'UNPAID', label: 'Unpaid (legacy)' },
 ];
 
 export const INVOICE_DATE_FILTERS: { key: InvoiceDateFilter; label: string }[] = [
@@ -135,7 +182,20 @@ export function filterAndSortInvoices(
   }
 ): InvoiceRecord[] {
   const filtered = invoices.filter((invoice) => {
-    if (options.status !== 'ALL' && invoice.status !== options.status) return false;
+    if (options.status !== 'ALL') {
+      const unpaidLike = options.status === 'UNPAID' || options.status === 'ISSUED';
+      if (unpaidLike) {
+        if (
+          invoice.status !== 'UNPAID' &&
+          invoice.status !== 'ISSUED' &&
+          invoice.status !== 'OVERDUE'
+        ) {
+          return false;
+        }
+      } else if (invoice.status !== options.status) {
+        return false;
+      }
+    }
     if (!matchesInvoiceDateFilter(invoice.issuedAt, options.date)) return false;
     return matchesInvoiceSearch(invoice, options.search);
   });
