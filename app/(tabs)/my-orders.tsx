@@ -218,6 +218,25 @@ function ListOrderRow({
         </View>
       )}
 
+      {(() => {
+        const withDelivery = group.orders.filter((o) => o.delivery || o.deliveryService);
+        if (withDelivery.length === 0) return null;
+        return (
+          <View style={styles.metaRow}>
+            <MaterialIcons name="local-shipping" size={13} color={colors.textMuted} />
+            <Text style={styles.metaText} numberOfLines={2}>
+              {withDelivery
+                .map((o) =>
+                  o.delivery
+                    ? `${o.deliveryService?.serviceName ?? 'Delivery'} · ₹${Number(o.delivery.customerCharge).toLocaleString('en-IN')}`
+                    : `${o.deliveryService?.serviceName ?? 'Delivery'} · charge after packing`
+                )
+                .join(' | ')}
+            </Text>
+          </View>
+        );
+      })()}
+
       {showProgress ? (
         <View style={styles.progressFooter}>
           <View style={styles.progressLeft}>

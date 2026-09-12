@@ -61,6 +61,21 @@ export type OrderRecord = {
   cancelReason?: string | null;
   courierName?: string | null;
   trackingNumber?: string | null;
+  deliveryServiceId?: string | null;
+  deliveryService?: {
+    id: string;
+    courierCompany: string;
+    serviceName: string;
+    serviceType: string;
+    customerRate: number | string;
+    etaText?: string | null;
+  } | null;
+  delivery?: {
+    actualWeight: number | string;
+    chargeableWeight: number | string;
+    customerCharge: number | string;
+    weightEnteredAt?: string | null;
+  } | null;
   /** Customer-selected prescription at checkout (preferred over catalog lens). */
   sph?: number | string | null;
   cyl?: number | string | null;
@@ -165,6 +180,7 @@ type CreateOrderPayload = {
   eye?: string;
   notes?: string;
   userId?: string;
+  deliveryServiceId?: string;
 };
 
 function buildOrderPayload(item: CartItem): CreateOrderPayload {
@@ -194,7 +210,8 @@ export async function wholesaleCheckout(
   cartLineKeys: string[],
   headers: Record<string, string>,
   notes?: string,
-  checkoutBatchId?: string
+  checkoutBatchId?: string,
+  deliveryServiceId?: string
 ): Promise<
   | {
       success: true;
@@ -219,6 +236,9 @@ export async function wholesaleCheckout(
         ...(notes?.trim() ? { notes: notes.trim() } : {}),
         ...(checkoutBatchId?.trim()
           ? { checkoutBatchId: checkoutBatchId.trim() }
+          : {}),
+        ...(deliveryServiceId?.trim()
+          ? { deliveryServiceId: deliveryServiceId.trim() }
           : {}),
       }),
       queueWhenOffline: true,
@@ -263,7 +283,8 @@ export async function createOrder(
   headers: Record<string, string>,
   notes?: string,
   checkoutBatchId?: string,
-  userId?: string
+  userId?: string,
+  deliveryServiceId?: string
 ): Promise<
   | { success: true; orderId: string; status?: string; queued?: boolean }
   | { success: false; error: string }
@@ -275,6 +296,7 @@ export async function createOrder(
       ...(notes?.trim() ? { notes: notes.trim() } : {}),
       ...(checkoutBatchId?.trim() ? { checkoutBatchId: checkoutBatchId.trim() } : {}),
       ...(userId?.trim() ? { userId: userId.trim() } : {}),
+      ...(deliveryServiceId?.trim() ? { deliveryServiceId: deliveryServiceId.trim() } : {}),
     };
 
     const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders`, {
@@ -376,12 +398,32 @@ export async function updateOrderStatus(
   orderId: string,
   status: OrderTrackingStatus,
   headers: Record<string, string>,
-  pickedQuantity?: number
+  pickedQuantity?: number,
+  extras?: {
+    courierName?: string | null;
+    trackingNumber?: string | null;
+    deliveryServiceId?: string | null;
+    actualWeight?: number | null;
+    weightReason?: string | null;
+  }
 ): Promise<OrderRecord> {
-  const payload: { status: OrderTrackingStatus; pickedQuantity?: number } = { status };
+  const payload: {
+    status: OrderTrackingStatus;
+    pickedQuantity?: number;
+    courierName?: string | null;
+    trackingNumber?: string | null;
+    deliveryServiceId?: string | null;
+    actualWeight?: number | null;
+    weightReason?: string | null;
+  } = { status };
   if (pickedQuantity !== undefined) {
     payload.pickedQuantity = pickedQuantity;
   }
+  if (extras?.courierName !== undefined) payload.courierName = extras.courierName;
+  if (extras?.trackingNumber !== undefined) payload.trackingNumber = extras.trackingNumber;
+  if (extras?.deliveryServiceId !== undefined) payload.deliveryServiceId = extras.deliveryServiceId;
+  if (extras?.actualWeight !== undefined) payload.actualWeight = extras.actualWeight;
+  if (extras?.weightReason !== undefined) payload.weightReason = extras.weightReason;
 
   const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
     method: 'PUT',

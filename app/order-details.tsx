@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmployeeOrderGroupDetail } from '@/components/employee-order-group-detail';
 import { EmployeePhotoOrderDetail } from '@/components/employee-photo-order-detail';
+import { StaffDeliveryPackCard } from '@/components/staff-delivery-pack-card';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
@@ -227,13 +228,23 @@ export default function OrderDetailsScreen() {
                 updatingOrderId={updatingOrderId}
               />
             ) : (
-              <EmployeeOrderGroupDetail
-                group={orderGroup}
-                onUpdateLine={handleUpdateLine}
-                updatingOrderId={updatingOrderId}
-                getAuthHeaders={getAuthHeaders}
-                onAlternateChanged={() => void loadOrders()}
-              />
+              <>
+                {orderGroup.orders.map((line) => (
+                  <StaffDeliveryPackCard
+                    key={line.id}
+                    order={line}
+                    getAuthHeaders={getAuthHeaders}
+                    onDone={() => void loadOrders()}
+                  />
+                ))}
+                <EmployeeOrderGroupDetail
+                  group={orderGroup}
+                  onUpdateLine={handleUpdateLine}
+                  updatingOrderId={updatingOrderId}
+                  getAuthHeaders={getAuthHeaders}
+                  onAlternateChanged={() => void loadOrders()}
+                />
+              </>
             )}
           </ScrollView>
         )}

@@ -30,6 +30,7 @@ import {
   getQuantityStep,
 } from '@/lib/order-quantity';
 import { createOrder, ORDER_NOTES_MAX_LENGTH, wholesaleCheckout } from '@/lib/orders-api';
+import { DeliveryServicePicker } from '@/lib/delivery-api';
 
 export default function CartTabScreen() {
   const colors = useBrandColors();
@@ -50,6 +51,7 @@ export default function CartTabScreen() {
   const quantityStep = getQuantityStep(orderMode);
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
+  const [deliveryServiceId, setDeliveryServiceId] = useState('');
   const [orderPlacedModal, setOrderPlacedModal] = useState<{
     message: string;
     notes?: string;
@@ -84,7 +86,8 @@ export default function CartTabScreen() {
         wholesaleItems.map((item) => item.cartLineKey),
         getAuthHeaders(),
         trimmedNotes || undefined,
-        checkoutBatchId
+        checkoutBatchId,
+        deliveryServiceId || undefined
       );
 
       if (wholesaleResult.success) {
@@ -106,7 +109,9 @@ export default function CartTabScreen() {
         item,
         getAuthHeaders(),
         trimmedNotes || undefined,
-        checkoutBatchId
+        checkoutBatchId,
+        undefined,
+        deliveryServiceId || undefined
       );
       if (result.success) {
         successCount += 1;
@@ -277,6 +282,8 @@ export default function CartTabScreen() {
                 maxLength={ORDER_NOTES_MAX_LENGTH}
                 textAlignVertical="top"
               />
+
+              <DeliveryServicePicker value={deliveryServiceId} onChange={setDeliveryServiceId} />
             </ScrollView>
 
             <View style={styles.summaryBar}>
