@@ -60,7 +60,6 @@ import {
   type ProgressiveEyeOption,
 } from '@/lib/progressive-eye';
 import { isWhiteCatalogLensId } from '@/lib/white-catalog';
-import { WhiteCatalogPowerForm } from '@/components/white-catalog-power-form';
 
 function parseLensPayload(rawPayload: string | string[] | undefined): LensItem | null {
   if (!rawPayload) return null;
