@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { appAlert } from '@/lib/app-alert';
 import { useDeliveryServices } from '@/lib/delivery-api';
-import { updateOrderStatus, type OrderRecord } from '@/lib/orders-api';
+import { dispatchOrder, updateOrderStatus, type OrderRecord } from '@/lib/orders-api';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { useBrandColors } from '@/lib/theme-provider';
 
@@ -27,12 +27,16 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
     order.delivery?.actualWeight != null ? String(order.delivery.actualWeight) : ''
   );
   const [reason, setReason] = useState('');
+  const [courierName, setCourierName] = useState(order.courierName ?? '');
+  const [trackingNumber, setTrackingNumber] = useState(order.trackingNumber ?? '');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     setServiceId(order.deliveryServiceId ?? '');
     setWeight(order.delivery?.actualWeight != null ? String(order.delivery.actualWeight) : '');
     setReason('');
+    setCourierName(order.courierName ?? '');
+    setTrackingNumber(order.trackingNumber ?? '');
   }, [order]);
 
   if (order.status === 'COMPLETED' || order.status === 'CANCELLED') return null;
@@ -82,6 +86,25 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
       onDone();
     } catch (err) {
       appAlert('Failed', err instanceof Error ? err.message : 'Could not correct weight.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDispatch() {
+    if (!courierName.trim() || !trackingNumber.trim()) {
+      appAlert('Details required', 'Enter both courier name and tracking number to dispatch.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await dispatchOrder(order.id, courierName.trim(), trackingNumber.trim(), getAuthHeaders());
+      if (res.duplicateWarning) {
+        appAlert('Already dispatched', res.duplicateWarning);
+      }
+      onDone();
+    } catch (err) {
+      appAlert('Failed', err instanceof Error ? err.message : 'Could not dispatch order.');
     } finally {
       setBusy(false);
     }
@@ -157,6 +180,33 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
               <Text style={[styles.secondaryText, { color: colors.primary }]}>Correct weight</Text>
             )}
           </Pressable>
+          <View style={[styles.dispatchBox, { borderTopColor: colors.cardBorder }]}>
+            <Text style={[styles.dispatchTitle, { color: colors.text }]}>Dispatch — handover to courier</Text>
+            <TextInput
+              style={[styles.input, { borderColor: colors.cardBorder, color: colors.text }]}
+              placeholder="Courier, e.g. Sri Raj Courier"
+              placeholderTextColor={colors.textMuted}
+              value={courierName}
+              onChangeText={setCourierName}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={[styles.input, { borderColor: colors.cardBorder, color: colors.text }]}
+              placeholder="Tracking / AWB number"
+              placeholderTextColor={colors.textMuted}
+              value={trackingNumber}
+              onChangeText={setTrackingNumber}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+            <Pressable style={[styles.primary, { backgroundColor: colors.primary }]} onPress={() => void handleDispatch()} disabled={busy}>
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryText}>Dispatch order</Text>
+              )}
+            </Pressable>
+          </View>
         </View>
       )}
     </View>
@@ -198,4 +248,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryText: { fontWeight: '800' },
+  dispatchBox: {
+    borderTopWidth: 1,
+    paddingTop: 8,
+    gap: 8,
+  },
+  dispatchTitle: { fontSize: 13, fontWeight: '800' },
 });

@@ -394,6 +394,27 @@ export async function cancelOrder(orderId: string, headers: Record<string, strin
   await updateOrderStatus(orderId, 'CANCELLED', headers);
 }
 
+export async function dispatchOrder(
+  orderId: string,
+  courierName: string,
+  trackingNumber: string,
+  headers: Record<string, string>
+): Promise<{ order: OrderRecord; duplicateWarning?: string | null }> {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/${orderId}/dispatch`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ courierName, trackingNumber }),
+  });
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(result?.error || 'Failed to dispatch order.');
+  }
+
+  return result;
+}
+
 export async function updateOrderStatus(
   orderId: string,
   status: OrderTrackingStatus,
