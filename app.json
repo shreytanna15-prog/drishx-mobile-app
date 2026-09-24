@@ -41,6 +41,13 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow DrishX to use the camera to scan the office attendance QR code.",
+          "barcodeScannerEnabled": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash/drishx-logo.png",

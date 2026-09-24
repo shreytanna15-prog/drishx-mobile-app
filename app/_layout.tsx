@@ -57,6 +57,7 @@ function RootNavigation() {
             <Stack.Screen name="order-details" options={{ headerShown: false }} />
             <Stack.Screen name="rx-orders" options={{ headerShown: false }} />
             <Stack.Screen name="inventory" options={{ headerShown: false }} />
+            <Stack.Screen name="attendance" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />

@@ -297,6 +297,10 @@ export default function HomeScreen() {
                 <MaterialIcons name="inventory-2" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Inventory</Text>
               </Pressable>
+              <Pressable style={styles.staffQuickCard} onPress={() => router.push('/attendance' as never)}>
+                <MaterialIcons name="qr-code-scanner" size={24} color={colors.primary} />
+                <Text style={styles.staffQuickLabel}>Attendance</Text>
+              </Pressable>
               <Pressable style={styles.staffQuickCard} onPress={() => router.push('/purchase-stock')}>
                 <MaterialIcons name="shopping-cart" size={24} color={colors.primary} />
                 <Text style={styles.staffQuickLabel}>Procurement</Text>
