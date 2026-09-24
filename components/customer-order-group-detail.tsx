@@ -37,6 +37,37 @@ type CustomerOrderGroupDetailProps = {
   onAlternateChanged?: () => void;
 };
 
+const DISPATCH_FINAL_STATUSES = ['DISPATCHED', 'COMPLETED', 'CANCELLED'];
+
+function formatDispatchDay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-IN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function ExpectedDispatchNote({ orders }: { orders: OrderListGroup['orders'] }) {
+  const styles = useThemedStyles(createStyles);
+  const pending = orders.filter(
+    (order) =>
+      order.dispatchDate &&
+      !DISPATCH_FINAL_STATUSES.includes(order.status as string)
+  );
+  const dispatchDate = pending[0]?.dispatchDate;
+  if (!dispatchDate) return null;
+  const deferred = pending.some((order) => order.cutoffDeferred);
+  return (
+    <Text style={styles.expectedDispatch}>
+      Expected dispatch: {formatDispatchDay(dispatchDate)}
+      {deferred ? ' · placed after the daily dispatch cutoff' : ''}
+    </Text>
+  );
+}
+
 function buildReturnOrderParams(group: OrderListGroup) {
   return group.orders.map((order) => {
     const brand =
@@ -307,6 +338,7 @@ export function CustomerOrderGroupDetail({
           </View>
           <Text style={styles.companyName}>{group.companyName}</Text>
           <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
+          <ExpectedDispatchNote orders={group.orders} />
           <Text style={styles.photoHint}>Your order will be placed soon. Details are in your photo.</Text>
         </View>
 
@@ -354,6 +386,7 @@ export function CustomerOrderGroupDetail({
         </View>
         <Text style={styles.companyName}>{group.companyName}</Text>
         <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
+        <ExpectedDispatchNote orders={group.orders} />
       </View>
 
       {orderReferenceUrl && !referenceLoadFailed ? (
@@ -787,6 +820,12 @@ const createStyles = (c: BrandColorScheme) =>
     fontSize: 13,
     fontWeight: '600',
     marginTop: 6,
+  },
+  expectedDispatch: {
+    color: c.primary,
+    fontSize: 13,
+    fontWeight: '600',
+    marginTop: 4,
   },
   photoImage: {
     width: '100%',

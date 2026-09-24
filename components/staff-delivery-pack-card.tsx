@@ -19,6 +19,28 @@ type Props = {
   onDone: () => void;
 };
 
+function formatDispatchDay(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('en-IN', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/** True while courier handover is blocked by the daily dispatch cutoff. */
+function isHeldAfterCutoff(order: OrderRecord): boolean {
+  if (order.dispatchOverridden) return false;
+  if (!order.cutoffDeferred || !order.dispatchDate) return false;
+  const dispatchDate = new Date(order.dispatchDate);
+  if (Number.isNaN(dispatchDate.getTime())) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return dispatchDate.getTime() > today.getTime();
+}
+
 export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) {
   const colors = useBrandColors();
   const { services } = useDeliveryServices();
@@ -40,6 +62,8 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
   }, [order]);
 
   if (order.status === 'COMPLETED' || order.status === 'CANCELLED') return null;
+
+  const heldAfterCutoff = isHeldAfterCutoff(order);
 
   async function handlePack() {
     const w = Number(weight);
@@ -92,6 +116,15 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
   }
 
   async function handleDispatch() {
+    if (heldAfterCutoff) {
+      appAlert(
+        'Held after cutoff',
+        order.dispatchDate
+          ? `Courier handover is blocked until ${formatDispatchDay(order.dispatchDate)}. An admin can move this order forward.`
+          : 'Courier handover is blocked until the cutoff day arrives or an admin moves this order forward.'
+      );
+      return;
+    }
     if (!courierName.trim() || !trackingNumber.trim()) {
       appAlert('Details required', 'Enter both courier name and tracking number to dispatch.');
       return;
@@ -113,6 +146,32 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
   return (
     <View style={[styles.card, { borderColor: colors.cardBorder, backgroundColor: colors.card }]}>
       <Text style={[styles.title, { color: colors.text }]}>Delivery — pack &amp; weigh</Text>
+      {order.cutoffDeferred ? (
+        <View
+          style={[
+            styles.cutoffBanner,
+            { borderColor: order.dispatchOverridden ? colors.cardBorder : colors.danger },
+          ]}>
+          <Text
+            style={[
+              styles.cutoffBannerTitle,
+              { color: order.dispatchOverridden ? colors.text : colors.danger },
+            ]}>
+            {order.dispatchOverridden
+              ? 'Dispatch moved forward by admin · cutoff lifted'
+              : heldAfterCutoff
+                ? `Held after daily dispatch cutoff${order.dispatchDate ? ` — expected dispatch ${formatDispatchDay(order.dispatchDate)}` : ''}`
+                : order.dispatchDate
+                  ? `Placed after cutoff · expected dispatch ${formatDispatchDay(order.dispatchDate)}`
+                  : 'Placed after the daily dispatch cutoff'}
+          </Text>
+          {heldAfterCutoff ? (
+            <Text style={[styles.cutoffBannerText, { color: colors.textMuted }]}>
+              Courier handover is blocked until the cutoff day arrives or an admin moves this order forward.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {order.delivery ? (
         <Text style={[styles.meta, { color: colors.text }]}>
           {String(order.delivery.actualWeight)} kg → {String(order.delivery.chargeableWeight)} kg
@@ -183,27 +242,46 @@ export function StaffDeliveryPackCard({ order, getAuthHeaders, onDone }: Props) 
           <View style={[styles.dispatchBox, { borderTopColor: colors.cardBorder }]}>
             <Text style={[styles.dispatchTitle, { color: colors.text }]}>Dispatch — handover to courier</Text>
             <TextInput
-              style={[styles.input, { borderColor: colors.cardBorder, color: colors.text }]}
+              style={[
+                styles.input,
+                { borderColor: colors.cardBorder, color: colors.text },
+                heldAfterCutoff && { opacity: 0.55 },
+              ]}
               placeholder="Courier, e.g. Sri Raj Courier"
               placeholderTextColor={colors.textMuted}
               value={courierName}
               onChangeText={setCourierName}
               autoCapitalize="words"
+              editable={!heldAfterCutoff}
             />
             <TextInput
-              style={[styles.input, { borderColor: colors.cardBorder, color: colors.text }]}
+              style={[
+                styles.input,
+                { borderColor: colors.cardBorder, color: colors.text },
+                heldAfterCutoff && { opacity: 0.55 },
+              ]}
               placeholder="Tracking / AWB number"
               placeholderTextColor={colors.textMuted}
               value={trackingNumber}
               onChangeText={setTrackingNumber}
               autoCapitalize="characters"
               autoCorrect={false}
+              editable={!heldAfterCutoff}
             />
-            <Pressable style={[styles.primary, { backgroundColor: colors.primary }]} onPress={() => void handleDispatch()} disabled={busy}>
+            <Pressable
+              style={[
+                styles.primary,
+                { backgroundColor: colors.primary },
+                (busy || heldAfterCutoff) && { opacity: 0.55 },
+              ]}
+              onPress={() => void handleDispatch()}
+              disabled={busy || heldAfterCutoff}>
               {busy ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryText}>Dispatch order</Text>
+                <Text style={styles.primaryText}>
+                  {heldAfterCutoff ? 'Held until dispatch day' : 'Dispatch order'}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -222,6 +300,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: { fontSize: 15, fontWeight: '800' },
+  cutoffBanner: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  cutoffBannerTitle: { fontSize: 13, fontWeight: '800' },
+  cutoffBannerText: { fontSize: 12, lineHeight: 17 },
   meta: { fontSize: 13, fontWeight: '600' },
   muted: { fontSize: 12 },
   gap: { gap: 8 },

@@ -68,8 +68,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "95f4f059-3622-4eea-9e53-b87d8a92930b"
+        "projectId": "b6a41cde-7c26-4dd1-bbb9-627d4051da17"
       }
-    }
+    },
+    "owner": "maulik11"
   }
 }
