@@ -69,7 +69,10 @@ function mapServerItem(row: ServerCartItem): CartItem {
 }
 
 export async function fetchCart(headers: Record<string, string>): Promise<CartItem[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/cart`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/cart`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load cart.');
@@ -82,9 +85,9 @@ export async function fetchCustomerCart(
   customerId: string,
   headers: Record<string, string>
 ): Promise<CartItem[]> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${BACKEND_BASE_URL}/api/cart?userId=${encodeURIComponent(customerId)}`,
-    { headers }
+    { headers, authenticated: true }
   );
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {

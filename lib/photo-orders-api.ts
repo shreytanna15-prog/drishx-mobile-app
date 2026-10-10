@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { authFetch } from '@/lib/auth-fetch';
 
 export type PhotoOrderUploadResult = {
   order: {
@@ -22,7 +23,7 @@ export async function uploadPhotoOrder(
   imageUri: string,
   mimeType: string,
   fileName: string,
-  headers: Record<string, string>
+  _headers: Record<string, string>
 ): Promise<PhotoOrderUploadResult> {
   const formData = new FormData();
   formData.append('photo', {
@@ -31,15 +32,9 @@ export async function uploadPhotoOrder(
     type: mimeType,
   } as unknown as Blob);
 
-  const authHeaders: Record<string, string> = {};
-  const auth = headers.Authorization;
-  if (auth) {
-    authHeaders.Authorization = auth;
-  }
-
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders/photo`, {
+  // authFetch attaches the live Bearer token (ignore possibly stale headers).
+  const response = await authFetch(`${BACKEND_BASE_URL}/api/orders/photo`, {
     method: 'POST',
-    headers: authHeaders,
     body: formData,
   });
 

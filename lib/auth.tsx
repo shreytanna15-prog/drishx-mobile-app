@@ -16,10 +16,15 @@ import {
   getAuthHeaders as buildAuthHeaders,
   getMemoryAccessToken,
   logoutSession,
+  registerAccessTokenRefreshHandler,
   registerAuthFailureHandler,
   resolveAuthTokens,
   storeMobileAuthSession,
 } from '@/lib/auth-fetch';
+import {
+  clearOfflineQueue,
+  registerOfflineAuthFailureHandler,
+} from '@/lib/offline-queue';
 import { getRefreshToken } from '@/lib/secure-auth-storage';
 
 const USER_STORAGE_KEY = '@drishx/auth-user';
@@ -111,12 +116,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(null);
     setUser(null);
     await persistUser(null);
+    await clearOfflineQueue();
   }, []);
 
   useEffect(() => {
     registerAuthFailureHandler(() => {
       void signOut();
     });
+    registerOfflineAuthFailureHandler(() => {
+      void signOut();
+    });
+    registerAccessTokenRefreshHandler((nextToken) => {
+      setToken(nextToken);
+    });
+    return () => {
+      registerAccessTokenRefreshHandler(null);
+      registerOfflineAuthFailureHandler(null);
+    };
   }, [signOut]);
 
   useEffect(() => {
@@ -203,7 +219,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const getAuthHeaders = useCallback((): Record<string, string> => {
-    return buildAuthHeaders(token);
+    // Omit React token so buildAuthHeaders prefers live memoryAccessToken.
+    return buildAuthHeaders();
   }, [token]);
 
   const value = useMemo(

@@ -15,7 +15,10 @@ export type TaskRecord = {
 };
 
 export async function fetchMyTasks(headers: Record<string, string>): Promise<TaskRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/tasks`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/tasks`, {
+    headers,
+    authenticated: true,
+  });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result?.error || 'Failed to load tasks.');

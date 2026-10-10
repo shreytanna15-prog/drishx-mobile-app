@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 
 export type NotificationType = 'ORDER_STATUS_UPDATED' | 'ORDER_PLACED' | 'TASK_ASSIGNED' | string;
 
@@ -27,7 +28,10 @@ export type NotificationRecord = {
 };
 
 export async function fetchNotifications(headers: Record<string, string>): Promise<NotificationRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/notifications`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/notifications`, {
+    headers,
+    authenticated: true,
+  });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result?.error || 'Failed to load notifications.');
@@ -36,10 +40,11 @@ export async function fetchNotifications(headers: Record<string, string>): Promi
 }
 
 export async function markAllNotificationsRead(headers: Record<string, string>): Promise<void> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/notifications`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/notifications`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({}),
+    authenticated: true,
   });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));

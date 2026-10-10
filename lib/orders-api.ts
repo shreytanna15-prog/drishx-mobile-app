@@ -365,7 +365,10 @@ export async function createOrderFromLens(
 
 export async function fetchOrders(headers: Record<string, string>): Promise<OrderRecord[]> {
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}/api/orders`, { headers });
+    const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders`, {
+      headers,
+      authenticated: true,
+    });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
       throw new Error(result?.error || 'Failed to load orders.');
@@ -374,6 +377,9 @@ export async function fetchOrders(headers: Record<string, string>): Promise<Orde
     await saveOfflineCache(OFFLINE_CACHE_KEYS.orders, orders);
     return orders;
   } catch (error) {
+    if (isOfflineQueuedError(error)) {
+      throw error;
+    }
     const cached = await loadOfflineCache<OrderRecord[]>(OFFLINE_CACHE_KEYS.orders);
     if (cached) {
       return cached;
@@ -387,7 +393,10 @@ export async function fetchOrders(headers: Record<string, string>): Promise<Orde
 }
 
 export async function fetchOrderById(orderId: string, headers: Record<string, string>): Promise<OrderRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/orders/${orderId}`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load order.');

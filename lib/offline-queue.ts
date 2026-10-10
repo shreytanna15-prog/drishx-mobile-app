@@ -4,7 +4,17 @@ import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { OFFLINE_REPLAY_HEADER, REQUEST_ID_HEADER } from '@/lib/request-headers';
 
 export const OFFLINE_QUEUE_STORAGE_KEY = '@drishx/offline-queue';
-import { getMemoryAccessToken, refreshAccessToken } from '@/lib/auth-fetch';
+import {
+  getMemoryAccessToken,
+  refreshAccessToken,
+} from '@/lib/auth-fetch';
+
+let onAuthFailureDuringFlush: (() => void) | null = null;
+
+/** Called when offline flush cannot refresh — typically signs the user out. */
+export function registerOfflineAuthFailureHandler(handler: (() => void) | null) {
+  onAuthFailureDuringFlush = handler;
+}
 
 const QUEUE_FETCH_TIMEOUT_MS = 15_000;
 
@@ -206,8 +216,19 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
               continue;
             }
           } else {
-            dropped += 1;
-            continue;
+            // Failed refresh: keep remaining work and force re-auth instead of
+            // silently dropping queued mutations.
+            remaining.push(migratedEntry);
+            remaining.push(...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest));
+            await saveOfflineQueue(remaining);
+            onAuthFailureDuringFlush?.();
+            return {
+              processed,
+              failed: failed + 1,
+              dropped,
+              remaining: remaining.length,
+              lastError: 'Session expired. Sign in again to sync offline changes.',
+            };
           }
         }
 

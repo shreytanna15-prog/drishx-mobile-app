@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 
 export type InvoiceUser = {
   id: string;
@@ -57,7 +58,10 @@ export type InvoiceRecord = {
 };
 
 export async function fetchInvoices(headers: Record<string, string>): Promise<InvoiceRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/invoices`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/invoices`, {
+    headers,
+    authenticated: true,
+  });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(result?.error || 'Failed to load invoices.');
@@ -66,7 +70,10 @@ export async function fetchInvoices(headers: Record<string, string>): Promise<In
 }
 
 export async function fetchInvoiceById(id: string, headers: Record<string, string>): Promise<InvoiceRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/invoices/${id}`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/invoices/${id}`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load invoice.');
@@ -83,9 +90,10 @@ export async function downloadInvoicePdf(
   const Print = await import('expo-print');
   const Sharing = await import('expo-sharing');
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/invoices/${encodeURIComponent(id)}/pdf`, {
-    headers,
-  });
+  const response = await apiFetch(
+    `${BACKEND_BASE_URL}/api/invoices/${encodeURIComponent(id)}/pdf`,
+    { headers, authenticated: true }
+  );
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new Error(

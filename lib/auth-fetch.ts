@@ -44,6 +44,7 @@ type RefreshResponse = {
 let memoryAccessToken: string | null = null;
 let refreshPromise: Promise<boolean> | null = null;
 let onAuthFailure: (() => void) | null = null;
+let onAccessTokenRefreshed: ((token: string) => void) | null = null;
 
 export function setMemoryAccessToken(token: string | null) {
   memoryAccessToken = token;
@@ -55,6 +56,13 @@ export function getMemoryAccessToken() {
 
 export function registerAuthFailureHandler(handler: () => void) {
   onAuthFailure = handler;
+}
+
+/** Keep React auth state in sync after a silent access-token refresh. */
+export function registerAccessTokenRefreshHandler(
+  handler: ((token: string) => void) | null
+) {
+  onAccessTokenRefreshed = handler;
 }
 
 function resolveAccessToken(data: RefreshResponse) {
@@ -107,6 +115,7 @@ export async function refreshAccessToken(): Promise<boolean> {
       if (data.refreshToken) {
         await setRefreshToken(data.refreshToken);
       }
+      onAccessTokenRefreshed?.(nextAccessToken);
       return true;
     } catch {
       return false;
@@ -139,7 +148,9 @@ export async function logoutSession(): Promise<void> {
 }
 
 export function getAuthHeaders(token?: string | null): Record<string, string> {
-  const resolved = token ?? memoryAccessToken;
+  // Prefer live memory token so callers keep working after a silent refresh
+  // even if React state still holds an expired access JWT.
+  const resolved = memoryAccessToken ?? token ?? null;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     [CLIENT_HEADER]: 'mobile',
@@ -161,7 +172,7 @@ export async function authFetch(
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  if (init?.body && !headers.has('Content-Type')) {
+  if (init?.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -191,7 +202,7 @@ export async function authFetch(
   if (nextToken) {
     retryHeaders.set('Authorization', `Bearer ${nextToken}`);
   }
-  if (init?.body && !retryHeaders.has('Content-Type')) {
+  if (init?.body && !(init.body instanceof FormData) && !retryHeaders.has('Content-Type')) {
     retryHeaders.set('Content-Type', 'application/json');
   }
 

@@ -1,4 +1,6 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
+import { authFetch } from '@/lib/auth-fetch';
 
 export type ReturnRequestType = 'RETURN' | 'REPLACEMENT';
 export type ReturnRequestStatus =
@@ -120,7 +122,10 @@ export function formatReturnPowerLine(parts: {
 export async function fetchReturnRequests(
   headers: Record<string, string>
 ): Promise<ReturnRequestRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/returns`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/returns`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load return requests.');
@@ -132,7 +137,10 @@ export async function fetchReturnRequest(
   id: string,
   headers: Record<string, string>
 ): Promise<ReturnRequestRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/returns/${id}`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/returns/${id}`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load return request.');
@@ -158,10 +166,11 @@ export async function createReturnRequest(
   },
   headers: Record<string, string>
 ): Promise<ReturnRequestRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/returns`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/returns`, {
     method: 'POST',
     headers,
     body: JSON.stringify(input),
+    authenticated: true,
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -176,10 +185,11 @@ export async function updateReturnRequest(
   remarks: string | undefined,
   headers: Record<string, string>
 ): Promise<ReturnRequestRecord> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/returns/${id}`, {
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/returns/${id}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify({ action, remarks }),
+    authenticated: true,
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -193,7 +203,7 @@ export async function uploadReturnRequestPhoto(
   imageUri: string,
   mimeType: string,
   fileName: string,
-  headers: Record<string, string>
+  _headers: Record<string, string>
 ): Promise<{ id: string; imageUrl: string }> {
   const formData = new FormData();
   formData.append('photo', {
@@ -202,16 +212,10 @@ export async function uploadReturnRequestPhoto(
     type: mimeType,
   } as unknown as Blob);
 
-  const authHeaders: Record<string, string> = {};
-  if (headers.Authorization) {
-    authHeaders.Authorization = headers.Authorization;
-  }
-
-  const response = await fetch(
+  const response = await authFetch(
     `${BACKEND_BASE_URL}/api/returns/${returnRequestId}/images`,
     {
       method: 'POST',
-      headers: authHeaders,
       body: formData,
     }
   );
