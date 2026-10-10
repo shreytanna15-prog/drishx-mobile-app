@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { authFetch } from '@/lib/auth-fetch';
 
 export type ColorReferenceUploadResult = {
   imageUrl: string;
@@ -25,7 +26,7 @@ export async function uploadColorReference(
     authHeaders.Authorization = auth;
   }
 
-  const response = await fetch(`${BACKEND_BASE_URL}/api/color-references`, {
+  const response = await authFetch(`${BACKEND_BASE_URL}/api/color-references`, {
     method: 'POST',
     headers: authHeaders,
     body: formData,

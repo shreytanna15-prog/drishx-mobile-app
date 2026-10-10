@@ -19,6 +19,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 import { appAlert } from '@/lib/app-alert';
 
 type OutstandingPayload = {
@@ -45,8 +46,9 @@ export default function OutstandingPaymentsScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/finance/receivables`, {
+      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/receivables`, {
         headers: getAuthHeaders(),
+        authenticated: true,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load');
@@ -71,9 +73,10 @@ export default function OutstandingPaymentsScreen() {
   async function submitClaim() {
     setSubmitting(true);
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/finance/payments`, {
+      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/payments`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        authenticated: true,
         body: JSON.stringify({
           action: 'claim',
           amount: Number(amount),
@@ -103,9 +106,10 @@ export default function OutstandingPaymentsScreen() {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`${BACKEND_BASE_URL}/api/finance/expenses`, {
+      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/expenses`, {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        authenticated: true,
         body: JSON.stringify({
           category: 'Miscellaneous',
           amount: Number(amount),

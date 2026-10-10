@@ -32,6 +32,12 @@ export class AuthError extends Error {
   }
 }
 
+/** Outcome of a refresh attempt — transient failures must not force logout. */
+export type RefreshOutcome =
+  | { status: 'refreshed' }
+  | { status: 'auth_failed' }
+  | { status: 'transient' };
+
 type RefreshResponse = {
   accessToken?: string;
   token?: string;
@@ -41,8 +47,10 @@ type RefreshResponse = {
   code?: AuthErrorCode;
 };
 
+const REFRESH_TIMEOUT_MS = 15_000;
+
 let memoryAccessToken: string | null = null;
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshOutcome> | null = null;
 let onAuthFailure: (() => void) | null = null;
 let onAccessTokenRefreshed: ((token: string) => void) | null = null;
 
@@ -78,16 +86,22 @@ async function parseAuthError(response: Response): Promise<AuthError> {
   }
 }
 
-export async function refreshAccessToken(): Promise<boolean> {
+function isTransientRefreshStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+export async function refreshAccessToken(): Promise<RefreshOutcome> {
   if (refreshPromise) {
     return refreshPromise;
   }
 
   refreshPromise = (async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
     try {
       const refreshToken = await getRefreshToken();
       if (!refreshToken) {
-        return false;
+        return { status: 'auth_failed' };
       }
 
       const response = await fetch(`${BACKEND_BASE_URL}/api/auth/refresh`, {
@@ -98,17 +112,22 @@ export async function refreshAccessToken(): Promise<boolean> {
           [REQUEST_ID_HEADER]: createRequestId(),
         },
         body: JSON.stringify({ refreshToken }),
+        signal: controller.signal,
       });
 
       if (!response.ok) {
+        if (isTransientRefreshStatus(response.status)) {
+          return { status: 'transient' };
+        }
+        // Definitive auth failure — drop the stored refresh token.
         await clearRefreshToken();
-        return false;
+        return { status: 'auth_failed' };
       }
 
       const data = (await response.json()) as RefreshResponse;
       const nextAccessToken = resolveAccessToken(data);
       if (!nextAccessToken) {
-        return false;
+        return { status: 'auth_failed' };
       }
 
       memoryAccessToken = nextAccessToken;
@@ -116,10 +135,12 @@ export async function refreshAccessToken(): Promise<boolean> {
         await setRefreshToken(data.refreshToken);
       }
       onAccessTokenRefreshed?.(nextAccessToken);
-      return true;
+      return { status: 'refreshed' };
     } catch {
-      return false;
+      // Network blip / timeout — keep refresh token and session.
+      return { status: 'transient' };
     } finally {
+      clearTimeout(timer);
       refreshPromise = null;
     }
   })();
@@ -183,16 +204,23 @@ export async function authFetch(
   }
 
   const authError = await parseAuthError(response.clone());
-  if (
-    authError.code !== 'TOKEN_EXPIRED' &&
-    authError.code !== 'TOKEN_INVALID' &&
-    authError.code !== 'TOKEN_MISSING'
-  ) {
+  // Refresh for token problems (bare 401 → TOKEN_INVALID). Do not refresh
+  // permission / account-state failures.
+  const nonRefreshable: AuthErrorCode[] = [
+    'ACCOUNT_PENDING',
+    'ACCOUNT_INACTIVE',
+    'MISSING_PERMISSION',
+    'FORBIDDEN',
+  ];
+  if (nonRefreshable.includes(authError.code)) {
     return response;
   }
 
-  const refreshed = await refreshAccessToken();
-  if (!refreshed) {
+  const outcome = await refreshAccessToken();
+  if (outcome.status === 'transient') {
+    return response;
+  }
+  if (outcome.status !== 'refreshed') {
     onAuthFailure?.();
     throw authError;
   }

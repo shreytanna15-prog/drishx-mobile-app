@@ -204,23 +204,42 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
 
       if (!response.ok) {
         if (response.status === 401) {
-          const refreshed = await refreshAccessToken();
-          if (refreshed) {
+          const outcome = await refreshAccessToken();
+          if (outcome.status === 'refreshed') {
             const retryResponse = await replayQueuedRequest(migratedEntry);
             if (retryResponse.ok) {
               processed += 1;
               continue;
             }
+            if (retryResponse.status === 401) {
+              remaining.push(migratedEntry);
+              remaining.push(
+                ...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest)
+              );
+              await saveOfflineQueue(remaining);
+              onAuthFailureDuringFlush?.();
+              return {
+                processed,
+                failed: failed + 1,
+                dropped,
+                remaining: remaining.length,
+                lastError: 'Session expired. Sign in again to sync offline changes.',
+              };
+            }
             if (UNRECOVERABLE_STATUSES.has(retryResponse.status)) {
               dropped += 1;
               continue;
             }
-          } else {
-            // Failed refresh: keep remaining work and force re-auth instead of
-            // silently dropping queued mutations.
+            failed += 1;
             remaining.push(migratedEntry);
-            remaining.push(...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest));
-            await saveOfflineQueue(remaining);
+            continue;
+          }
+          // Keep queued work. Only force re-auth on definitive refresh failure;
+          // transient network/5xx leaves the session intact for a later flush.
+          remaining.push(migratedEntry);
+          remaining.push(...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest));
+          await saveOfflineQueue(remaining);
+          if (outcome.status === 'auth_failed') {
             onAuthFailureDuringFlush?.();
             return {
               processed,
@@ -230,6 +249,13 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
               lastError: 'Session expired. Sign in again to sync offline changes.',
             };
           }
+          return {
+            processed,
+            failed: failed + 1,
+            dropped,
+            remaining: remaining.length,
+            lastError: 'Could not refresh session. Will retry when you are back online.',
+          };
         }
 
         const result = await response.json().catch(() => ({}));

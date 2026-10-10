@@ -155,13 +155,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(storedUser);
 
         const { refreshAccessToken } = await import('@/lib/auth-fetch');
-        const refreshed = await refreshAccessToken();
+        const outcome = await refreshAccessToken();
         if (cancelled) {
           return;
         }
 
-        if (!refreshed) {
+        if (outcome.status === 'auth_failed') {
           await signOut();
+          return;
+        }
+        if (outcome.status === 'transient') {
+          // Keep stored user/refresh; next authenticated call can retry.
           return;
         }
 
