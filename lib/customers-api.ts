@@ -1,4 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from '@/lib/api-request';
 import type { OrderRecord } from '@/lib/orders-api';
 
 export type CustomerCompany = {
@@ -41,7 +42,10 @@ function dedupeCustomersFromOrders(orders: OrdersResponse): CustomerCompany[] {
 export async function fetchCustomerCompanies(
   headers: Record<string, string>
 ): Promise<CustomerCompany[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/users/customers`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/users/customers`, {
+    headers,
+    authenticated: true,
+  });
   const result = (await response.json().catch(() => ({}))) as CustomerResponse & { error?: string };
 
   if (response.ok) {
@@ -49,7 +53,10 @@ export async function fetchCustomerCompanies(
   }
 
   // Fallback for environments where /api/users/customers is not available yet.
-  const fallbackResponse = await fetch(`${BACKEND_BASE_URL}/api/orders`, { headers });
+  const fallbackResponse = await apiFetch(`${BACKEND_BASE_URL}/api/orders`, {
+    headers,
+    authenticated: true,
+  });
   if (!fallbackResponse.ok) {
     const fallbackResult = (await fallbackResponse.json().catch(() => ({}))) as { error?: string };
     throw new Error(result?.error || fallbackResult?.error || 'Failed to load customers.');

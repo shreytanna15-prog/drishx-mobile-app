@@ -56,7 +56,10 @@ export type ManualExpensePayload = {
 export async function fetchProcurementHistory(
   headers: Record<string, string>
 ): Promise<ProcurementRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/expenses/procurement`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {
@@ -132,7 +135,10 @@ export async function recordManualExpense(
 export async function fetchManualExpenses(
   headers: Record<string, string>
 ): Promise<ProcurementRecord[]> {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/expenses/manual`, { headers });
+  const response = await apiFetch(`${BACKEND_BASE_URL}/api/expenses/manual`, {
+    headers,
+    authenticated: true,
+  });
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok) {

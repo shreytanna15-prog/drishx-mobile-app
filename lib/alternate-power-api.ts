@@ -21,9 +21,9 @@ export async function fetchAlternateSuggestions(
   pendingOnly = true
 ): Promise<AlternatePowerSuggestion[]> {
   const qs = pendingOnly ? '?pending=1' : '';
-  const response = await fetch(
+  const response = await apiFetch(
     `${BACKEND_BASE_URL}/api/orders/${orderId}/alternate-suggestions${qs}`,
-    { headers }
+    { headers, authenticated: true }
   );
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -36,9 +36,9 @@ export async function fetchPowerVersions(
   orderId: string,
   headers: Record<string, string>
 ): Promise<OrderPowerVersion[]> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${BACKEND_BASE_URL}/api/orders/${orderId}/power-versions`,
-    { headers }
+    { headers, authenticated: true }
   );
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {

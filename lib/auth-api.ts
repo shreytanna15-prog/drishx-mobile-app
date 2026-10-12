@@ -1,5 +1,5 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
-import { MOBILE_CLIENT_HEADERS } from '@/lib/auth-fetch';
+import { authFetch, MOBILE_CLIENT_HEADERS } from '@/lib/auth-fetch';
 import type { AuthUser } from '@/lib/auth';
 
 export type ApiUser = AuthUser;
@@ -56,7 +56,7 @@ export async function submitGstDetails(payload: CustomerRegistrationPayload) {
 }
 
 export async function fetchCurrentUser(token: string) {
-  const response = await fetch(`${BACKEND_BASE_URL}/api/auth/me`, {
+  const response = await authFetch(`${BACKEND_BASE_URL}/api/auth/me`, {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,

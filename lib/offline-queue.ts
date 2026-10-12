@@ -4,7 +4,17 @@ import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { OFFLINE_REPLAY_HEADER, REQUEST_ID_HEADER } from '@/lib/request-headers';
 
 export const OFFLINE_QUEUE_STORAGE_KEY = '@drishx/offline-queue';
-import { getMemoryAccessToken, refreshAccessToken } from '@/lib/auth-fetch';
+import {
+  getMemoryAccessToken,
+  refreshAccessToken,
+} from '@/lib/auth-fetch';
+
+let onAuthFailureDuringFlush: (() => void) | null = null;
+
+/** Called when offline flush cannot refresh — typically signs the user out. */
+export function registerOfflineAuthFailureHandler(handler: (() => void) | null) {
+  onAuthFailureDuringFlush = handler;
+}
 
 const QUEUE_FETCH_TIMEOUT_MS = 15_000;
 
@@ -194,21 +204,58 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
 
       if (!response.ok) {
         if (response.status === 401) {
-          const refreshed = await refreshAccessToken();
-          if (refreshed) {
+          const outcome = await refreshAccessToken();
+          if (outcome.status === 'refreshed') {
             const retryResponse = await replayQueuedRequest(migratedEntry);
             if (retryResponse.ok) {
               processed += 1;
               continue;
             }
+            if (retryResponse.status === 401) {
+              remaining.push(migratedEntry);
+              remaining.push(
+                ...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest)
+              );
+              await saveOfflineQueue(remaining);
+              onAuthFailureDuringFlush?.();
+              return {
+                processed,
+                failed: failed + 1,
+                dropped,
+                remaining: remaining.length,
+                lastError: 'Session expired. Sign in again to sync offline changes.',
+              };
+            }
             if (UNRECOVERABLE_STATUSES.has(retryResponse.status)) {
               dropped += 1;
               continue;
             }
-          } else {
-            dropped += 1;
+            failed += 1;
+            remaining.push(migratedEntry);
             continue;
           }
+          // Keep queued work. Only force re-auth on definitive refresh failure;
+          // transient network/5xx leaves the session intact for a later flush.
+          remaining.push(migratedEntry);
+          remaining.push(...queue.slice(queue.indexOf(entry) + 1).map(migrateQueuedRequest));
+          await saveOfflineQueue(remaining);
+          if (outcome.status === 'auth_failed') {
+            onAuthFailureDuringFlush?.();
+            return {
+              processed,
+              failed: failed + 1,
+              dropped,
+              remaining: remaining.length,
+              lastError: 'Session expired. Sign in again to sync offline changes.',
+            };
+          }
+          return {
+            processed,
+            failed: failed + 1,
+            dropped,
+            remaining: remaining.length,
+            lastError: 'Could not refresh session. Will retry when you are back online.',
+          };
         }
 
         const result = await response.json().catch(() => ({}));

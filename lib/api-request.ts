@@ -53,7 +53,8 @@ export async function apiFetch(url: string, options: ApiFetchOptions = {}): Prom
   const fetchImpl = authenticated || headers.Authorization ? authFetch : fetch;
 
   try {
-    return await fetchImpl(url, init);
+    // Pass normalized headers so X-Client / request id are always present.
+    return await fetchImpl(url, { ...init, headers });
   } catch (error) {
     if (queueWhenOffline && isNetworkError(error)) {
       const queued = await enqueueOfflineRequest({
