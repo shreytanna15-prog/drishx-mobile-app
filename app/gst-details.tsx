@@ -11,7 +11,13 @@ import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
-import { getDraftForUser, saveRegistrationDraft } from '@/lib/registration-draft';
+import {
+  EMPTY_GST_INFO,
+  getDraftForUser,
+  saveRegistrationDraft,
+  validateOptionalGstinPan,
+  type RegistrationGstInfo,
+} from '@/lib/registration-draft';
 
 export default function GstDetailsScreen() {
   const router = useRouter();
@@ -32,10 +38,6 @@ export default function GstDetailsScreen() {
     if (!userId) return;
     void (async () => {
       const draft = await getDraftForUser(userId, email);
-      if (!draft.business) {
-        router.replace({ pathname: '/business-info', params: { userId, email } });
-        return;
-      }
       if (draft.gst) {
         setGstNumber(draft.gst.gstNumber);
         setLegalBusinessName(draft.gst.legalBusinessName);
@@ -44,49 +46,41 @@ export default function GstDetailsScreen() {
         setPanNumber(draft.gst.panNumber);
       }
     })();
-  }, [userId, email, router]);
+  }, [userId, email]);
 
-  async function handleContinue() {
+  async function persistAndContinue(gst: RegistrationGstInfo) {
     if (!userId) {
       appAlert('Missing account', 'Please sign up again to continue.');
       router.replace('/signup');
       return;
     }
 
-    if (
-      !gstNumber.trim() ||
-      !legalBusinessName.trim() ||
-      !gstRegistrationState.trim() ||
-      !panNumber.trim()
-    ) {
-      appAlert(
-        'Missing fields',
-        'GSTIN, legal business name, GST registration state, and PAN are required.'
-      );
-      return;
-    }
-
     const draft = await getDraftForUser(userId, email);
-    if (!draft.business) {
-      router.replace({ pathname: '/business-info', params: { userId, email } });
-      return;
-    }
-
-    await saveRegistrationDraft({
-      ...draft,
-      gst: {
-        gstNumber: gstNumber.trim().toUpperCase(),
-        legalBusinessName: legalBusinessName.trim(),
-        tradeName: tradeName.trim(),
-        gstRegistrationState: gstRegistrationState.trim(),
-        panNumber: panNumber.trim().toUpperCase(),
-      },
-    });
-
+    await saveRegistrationDraft({ ...draft, gst });
     router.replace({
       pathname: '/registration-addresses',
       params: { userId, email },
     });
+  }
+
+  async function handleContinue() {
+    const formatError = validateOptionalGstinPan({ gstNumber, panNumber });
+    if (formatError) {
+      appAlert('Invalid details', formatError);
+      return;
+    }
+
+    await persistAndContinue({
+      gstNumber: gstNumber.trim().toUpperCase(),
+      legalBusinessName: legalBusinessName.trim(),
+      tradeName: tradeName.trim(),
+      gstRegistrationState: gstRegistrationState.trim(),
+      panNumber: panNumber.trim().toUpperCase(),
+    });
+  }
+
+  async function handleSkip() {
+    await persistAndContinue(EMPTY_GST_INFO);
   }
 
   return (
@@ -96,7 +90,8 @@ export default function GstDetailsScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>GST information</Text>
           <Text style={styles.subheading}>
-            Submit your GST details. Admin will review and approve your account.
+            GST details are optional. Without GST your account stays incomplete until an admin
+            reviews it.
           </Text>
           <View style={styles.steps}>
             <View style={[styles.step, styles.stepActive]} />
@@ -106,7 +101,7 @@ export default function GstDetailsScreen() {
             <View style={styles.step} />
           </View>
 
-          <Field label="GSTIN" styles={styles}>
+          <Field label="GSTIN (optional)" styles={styles}>
             <TextInput
               value={gstNumber}
               onChangeText={(value) => setGstNumber(value.toUpperCase())}
@@ -116,7 +111,7 @@ export default function GstDetailsScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Legal business name" styles={styles}>
+          <Field label="Legal business name (optional)" styles={styles}>
             <TextInput
               value={legalBusinessName}
               onChangeText={setLegalBusinessName}
@@ -134,7 +129,7 @@ export default function GstDetailsScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="GST registration state" styles={styles}>
+          <Field label="GST registration state (optional)" styles={styles}>
             <TextInput
               value={gstRegistrationState}
               onChangeText={setGstRegistrationState}
@@ -143,7 +138,7 @@ export default function GstDetailsScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="PAN" styles={styles}>
+          <Field label="PAN (optional)" styles={styles}>
             <TextInput
               value={panNumber}
               onChangeText={(value) => setPanNumber(value.toUpperCase())}
@@ -154,8 +149,11 @@ export default function GstDetailsScreen() {
             />
           </Field>
 
-          <Pressable style={styles.button} onPress={handleContinue}>
+          <Pressable style={styles.button} onPress={() => void handleContinue()}>
             <Text style={styles.buttonText}>Continue</Text>
+          </Pressable>
+          <Pressable style={styles.skipButton} onPress={() => void handleSkip()}>
+            <Text style={styles.skipText}>Skip for now</Text>
           </Pressable>
         </View>
       </KeyboardAwareScroll>
@@ -223,4 +221,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     buttonText: { color: c.primaryText, fontSize: 16, fontWeight: '800' },
+    skipButton: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
+    skipText: { color: c.link, fontSize: 15, fontWeight: '600' },
   });

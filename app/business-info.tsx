@@ -11,7 +11,12 @@ import { appAlert } from '@/lib/app-alert';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
-import { getDraftForUser, saveRegistrationDraft } from '@/lib/registration-draft';
+import {
+  EMPTY_BUSINESS_INFO,
+  getDraftForUser,
+  saveRegistrationDraft,
+  type RegistrationBusinessInfo,
+} from '@/lib/registration-draft';
 
 export default function BusinessInfoScreen() {
   const router = useRouter();
@@ -50,47 +55,37 @@ export default function BusinessInfoScreen() {
     })();
   }, [userId, email]);
 
-  async function handleContinue() {
+  async function persistAndContinue(business: RegistrationBusinessInfo) {
     if (!userId) {
       appAlert('Missing account', 'Please sign up again to continue.');
       router.replace('/signup');
       return;
     }
 
-    if (
-      !shopName.trim() ||
-      !businessType.trim() ||
-      !addressLine1.trim() ||
-      !city.trim() ||
-      !state.trim() ||
-      !pincode.trim() ||
-      !businessEmail.trim() ||
-      !shopPhoneNumber.trim()
-    ) {
-      appAlert('Missing fields', 'Please fill in all required business fields.');
-      return;
-    }
-
     const draft = await getDraftForUser(userId, email);
-    await saveRegistrationDraft({
-      ...draft,
-      business: {
-        shopName: shopName.trim(),
-        businessType: businessType.trim(),
-        addressLine1: addressLine1.trim(),
-        addressLine2: addressLine2.trim(),
-        city: city.trim(),
-        state: state.trim(),
-        pincode: pincode.trim(),
-        businessEmail: businessEmail.trim().toLowerCase(),
-        shopPhoneNumber: shopPhoneNumber.trim(),
-      },
-    });
-
+    await saveRegistrationDraft({ ...draft, business });
     router.replace({
       pathname: '/gst-details',
       params: { userId, email },
     });
+  }
+
+  async function handleContinue() {
+    await persistAndContinue({
+      shopName: shopName.trim(),
+      businessType: businessType.trim(),
+      addressLine1: addressLine1.trim(),
+      addressLine2: addressLine2.trim(),
+      city: city.trim(),
+      state: state.trim(),
+      pincode: pincode.trim(),
+      businessEmail: businessEmail.trim().toLowerCase(),
+      shopPhoneNumber: shopPhoneNumber.trim(),
+    });
+  }
+
+  async function handleSkip() {
+    await persistAndContinue(EMPTY_BUSINESS_INFO);
   }
 
   return (
@@ -100,7 +95,7 @@ export default function BusinessInfoScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>Business info</Text>
           <Text style={styles.subheading}>
-            Tell us about your shop so we can set up your wholesale account.
+            Shop details are optional — you can skip and add them later.
           </Text>
           <View style={styles.steps}>
             <View style={[styles.step, styles.stepActive]} />
@@ -110,7 +105,7 @@ export default function BusinessInfoScreen() {
             <View style={styles.step} />
           </View>
 
-          <Field label="Shop name" styles={styles}>
+          <Field label="Shop name (optional)" styles={styles}>
             <TextInput
               value={shopName}
               onChangeText={setShopName}
@@ -119,7 +114,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Business type" styles={styles}>
+          <Field label="Business type (optional)" styles={styles}>
             <TextInput
               value={businessType}
               onChangeText={setBusinessType}
@@ -128,7 +123,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Address line 1" styles={styles}>
+          <Field label="Address line 1 (optional)" styles={styles}>
             <TextInput
               value={addressLine1}
               onChangeText={setAddressLine1}
@@ -146,7 +141,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="City" styles={styles}>
+          <Field label="City (optional)" styles={styles}>
             <TextInput
               value={city}
               onChangeText={setCity}
@@ -155,7 +150,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="State" styles={styles}>
+          <Field label="State (optional)" styles={styles}>
             <TextInput
               value={state}
               onChangeText={setState}
@@ -164,7 +159,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Pin code" styles={styles}>
+          <Field label="Pin code (optional)" styles={styles}>
             <TextInput
               value={pincode}
               onChangeText={setPincode}
@@ -174,7 +169,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Business contact email" styles={styles}>
+          <Field label="Business contact email (optional)" styles={styles}>
             <TextInput
               value={businessEmail}
               onChangeText={setBusinessEmail}
@@ -185,7 +180,7 @@ export default function BusinessInfoScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Shop phone number" styles={styles}>
+          <Field label="Shop phone number (optional)" styles={styles}>
             <TextInput
               value={shopPhoneNumber}
               onChangeText={setShopPhoneNumber}
@@ -196,8 +191,11 @@ export default function BusinessInfoScreen() {
             />
           </Field>
 
-          <Pressable style={styles.button} onPress={handleContinue}>
+          <Pressable style={styles.button} onPress={() => void handleContinue()}>
             <Text style={styles.buttonText}>Continue</Text>
+          </Pressable>
+          <Pressable style={styles.skipButton} onPress={() => void handleSkip()}>
+            <Text style={styles.skipText}>Skip for now</Text>
           </Pressable>
         </View>
       </KeyboardAwareScroll>
@@ -265,4 +263,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     buttonText: { color: c.primaryText, fontSize: 16, fontWeight: '800' },
+    skipButton: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
+    skipText: { color: c.link, fontSize: 15, fontWeight: '600' },
   });

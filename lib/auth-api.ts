@@ -4,33 +4,34 @@ import type { AuthUser } from '@/lib/auth';
 
 export type ApiUser = AuthUser;
 
+/** RW-07: all fields except userId are optional on sparse registration submit. */
 export type CustomerRegistrationPayload = {
   userId: string;
-  shopName: string;
-  businessType: string;
-  addressLine1: string;
+  shopName?: string;
+  businessType?: string;
+  addressLine1?: string;
   addressLine2?: string;
-  city: string;
-  state: string;
-  pincode: string;
-  businessEmail: string;
-  shopPhoneNumber: string;
-  gstNumber: string;
-  legalBusinessName: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  businessEmail?: string;
+  shopPhoneNumber?: string;
+  gstNumber?: string;
+  legalBusinessName?: string;
   tradeName?: string;
-  gstRegistrationState: string;
-  panNumber: string;
-  billingLegalName: string;
-  billingAddress: string;
-  billingCity: string;
-  billingState: string;
-  billingPincode: string;
-  billingGstState: string;
-  shippingLegalName: string;
-  shippingAddress: string;
-  shippingCity: string;
-  shippingState: string;
-  shippingPincode: string;
+  gstRegistrationState?: string;
+  panNumber?: string;
+  billingLegalName?: string;
+  billingAddress?: string;
+  billingCity?: string;
+  billingState?: string;
+  billingPincode?: string;
+  billingGstState?: string;
+  shippingLegalName?: string;
+  shippingAddress?: string;
+  shippingCity?: string;
+  shippingState?: string;
+  shippingPincode?: string;
 };
 
 export async function submitGstDetails(payload: CustomerRegistrationPayload) {
@@ -125,10 +126,12 @@ export function getCustomerNextRoute(
   if (user.approvalStatus === 'REJECTED') {
     return '/pending-approval';
   }
+  // RW-07: incomplete profiles wait for admin; optional steps are not forced.
   if (!user.gstNumber) {
-    return '/business-info';
+    return '/pending-approval';
   }
-  if (!user.isApproved || user.approvalStatus !== 'APPROVED') {
+  // RW-04: suspended customers keep APPROVED with isActive=false.
+  if (!user.isApproved || user.approvalStatus !== 'APPROVED' || !user.isActive) {
     return '/pending-approval';
   }
   return '/(tabs)';
