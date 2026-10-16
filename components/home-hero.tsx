@@ -189,15 +189,15 @@ const createStyles = (c: BrandColorScheme, isLight: boolean) =>
       backgroundColor: isLight ? '#F7F4EE' : '#0B0F14',
     },
     imageLayer: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       overflow: 'hidden',
     },
     heroImage: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       transform: [{ scale: IMAGE_BLEED_SCALE }],
     },
     bannerContent: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       justifyContent: 'center',
       paddingHorizontal: 18,
       paddingVertical: 16,

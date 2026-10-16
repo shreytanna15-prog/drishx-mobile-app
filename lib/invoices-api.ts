@@ -20,8 +20,19 @@ export type InvoiceOrder = {
   totalAmount: number | string;
   status: string;
   createdAt: string;
+  /** Customer-selected prescription at checkout (not catalog defaults). */
+  sph?: number | string | null;
+  cyl?: number | string | null;
+  axis?: number | null;
+  add?: number | string | null;
+  eye?: string | null;
   singleVisionLens?: { sph: number | string; cyl: number | string | null } | null;
-  kryptokLens?: { sph: number | string; cyl: number | string | null; axis: number | null; add: number | string } | null;
+  kryptokLens?: {
+    sph: number | string;
+    cyl: number | string | null;
+    axis: number | null;
+    add: number | string;
+  } | null;
   progressiveLens?: {
     sph: number | string;
     cyl: number | string | null;
@@ -29,6 +40,13 @@ export type InvoiceOrder = {
     add: number | string;
     eye: string;
   } | null;
+};
+
+export type InvoiceLine = {
+  description: string;
+  hsnCode?: string | null;
+  powerLabel?: string | null;
+  lineTotal: number | string;
 };
 
 export type InvoiceRecord = {
@@ -49,13 +67,89 @@ export type InvoiceRecord = {
   updatedAt?: string;
   user?: InvoiceUser;
   order?: InvoiceOrder;
-  lines?: Array<{
-    description: string;
-    hsnCode?: string | null;
-    powerLabel?: string | null;
-    lineTotal: number | string;
-  }>;
+  lines?: InvoiceLine[];
 };
+
+function formatPrescriptionParts(parts: {
+  sph?: number | string | null;
+  cyl?: number | string | null;
+  axis?: number | null;
+  add?: number | string | null;
+  eye?: string | null;
+}): string | null {
+  const tokens: string[] = [];
+  if (parts.sph != null && parts.sph !== '') tokens.push(`SPH ${parts.sph}`);
+  if (parts.cyl != null && parts.cyl !== '') tokens.push(`CYL ${parts.cyl}`);
+  if (parts.axis != null) tokens.push(`AXIS ${parts.axis}`);
+  if (parts.add != null && parts.add !== '') tokens.push(`ADD ${parts.add}`);
+  const eye = typeof parts.eye === 'string' ? parts.eye.trim() : '';
+  if (eye) tokens.push(`Eye ${eye}`);
+  return tokens.length ? tokens.join(', ') : null;
+}
+
+/** Prefer checkout prescription on the order, then catalog lens defaults. */
+export function formatLensOrderDetails(order: InvoiceOrder | undefined): string {
+  if (!order) return '—';
+
+  const fromOrder = formatPrescriptionParts({
+    sph: order.sph,
+    cyl: order.cyl,
+    axis: order.axis,
+    add: order.add,
+    eye: order.eye,
+  });
+  if (fromOrder) return fromOrder;
+
+  if (order.progressiveLens) {
+    const lens = order.progressiveLens;
+    return (
+      formatPrescriptionParts({
+        sph: lens.sph,
+        cyl: lens.cyl,
+        axis: lens.axis,
+        add: lens.add,
+        eye: lens.eye,
+      }) ?? '—'
+    );
+  }
+  if (order.kryptokLens) {
+    const lens = order.kryptokLens;
+    return (
+      formatPrescriptionParts({
+        sph: lens.sph,
+        cyl: lens.cyl,
+        axis: lens.axis,
+        add: lens.add,
+      }) ?? '—'
+    );
+  }
+  if (order.singleVisionLens) {
+    const lens = order.singleVisionLens;
+    return (
+      formatPrescriptionParts({
+        sph: lens.sph,
+        cyl: lens.cyl,
+      }) ?? '—'
+    );
+  }
+  return order.lensType || '—';
+}
+
+/**
+ * FIN-01: Prefer frozen InvoiceLine.powerLabel (matches tax PDF), then order
+ * prescription fields, then catalog lens defaults.
+ */
+export function formatInvoiceLensDetails(invoice: {
+  lines?: { powerLabel?: string | null }[] | null;
+  order?: InvoiceOrder | null;
+}): string {
+  const labels = (invoice.lines ?? [])
+    .map((line) => line.powerLabel?.trim())
+    .filter((label): label is string => Boolean(label));
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length > 1) return labels.join('; ');
+  return formatLensOrderDetails(invoice.order ?? undefined);
+}
 
 export async function fetchInvoices(headers: Record<string, string>): Promise<InvoiceRecord[]> {
   const response = await apiFetch(`${BACKEND_BASE_URL}/api/invoices`, {

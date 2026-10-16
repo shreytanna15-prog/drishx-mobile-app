@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Clipboard from 'expo-clipboard';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -29,7 +29,8 @@ import {
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
-import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
+import type { OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
 import { appAlert } from '@/lib/app-alert';
 
@@ -266,54 +267,29 @@ export default function MyOrdersScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const { getAuthHeaders, user } = useAuth();
-  const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterKey>('ALL');
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { data: orders = [], loading, refreshing, error, refetch } = useGetOrders();
 
   const orderGroups = useMemo(
     () => groupOrdersForList(orders, user?.businessName, 'Your company'),
     [orders, user?.businessName]
   );
 
-  const loadOrders = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await fetchOrders(getAuthHeaders());
-      setOrders(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load orders.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
-
   useEffect(() => {
     return onOfflineSyncComplete(() => {
-      void loadOrders();
+      void refetch();
     });
-  }, [loadOrders]);
+  }, [refetch]);
 
   const selectedGroup = useMemo(
     () =>
       selectedGroupKey ? orderGroups.find((entry) => entry.key === selectedGroupKey) ?? null : null,
     [orderGroups, selectedGroupKey]
   );
-
-  useEffect(() => {
-    if (selectedGroupKey && !selectedGroup) {
-      setSelectedGroupKey(null);
-    }
-  }, [selectedGroup, selectedGroupKey]);
 
   const filteredGroups = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -366,8 +342,8 @@ export default function MyOrdersScreen() {
         ) : error ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="error-outline" size={48} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={loadOrders}>
+            <Text style={styles.errorText}>{error.message}</Text>
+            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -378,8 +354,7 @@ export default function MyOrdersScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => {
-                  setRefreshing(true);
-                  loadOrders();
+                  void refetch();
                 }}
                 tintColor={colors.primary}
               />
@@ -387,7 +362,7 @@ export default function MyOrdersScreen() {
             <CustomerOrderGroupDetail
               group={selectedGroup}
               getAuthHeaders={getAuthHeaders}
-              onAlternateChanged={() => void loadOrders()}
+              onAlternateChanged={() => void refetch()}
             />
           </ScrollView>
         ) : (
@@ -445,8 +420,7 @@ export default function MyOrdersScreen() {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={() => {
-                    setRefreshing(true);
-                    loadOrders();
+                    void refetch();
                   }}
                   tintColor={colors.primary}
                 />

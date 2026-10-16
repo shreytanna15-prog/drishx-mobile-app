@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -26,9 +26,13 @@ import { isOfflineQueuedError } from '@/lib/api-request';
 import { filterStaffFulfillmentOrders, groupOrdersForList } from '@/lib/order-list-display';
 import { downloadEmployeeOrderPdf, printEmployeeOrder } from '@/lib/order-print';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
-import { fetchOrders, updateOrderStatus } from '@/lib/orders-api';
+import { updateOrderStatus } from '@/lib/orders-api';
+import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
 
-
+/**
+ * Order detail needs the full orders list so checkout-batch siblings can be
+ * grouped. No compact batch endpoint — keep fetchOrders via useGetOrders.
+ */
 export default function OrderDetailsScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
@@ -37,35 +41,17 @@ export default function OrderDetailsScreen() {
   const orderIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
   const groupKeyParam = Array.isArray(params.groupKey) ? params.groupKey[0] : params.groupKey;
   const { getAuthHeaders } = useAuth();
-  const [orders, setOrders] = useState<Awaited<ReturnType<typeof fetchOrders>>>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<'print' | 'download' | null>(null);
 
-  const loadOrders = useCallback(async () => {
-    if (!orderIdParam) {
-      setError('Invalid order id.');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setError(null);
-      const data = await fetchOrders(getAuthHeaders());
-      setOrders(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load order.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders, orderIdParam]);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+  const enabled = Boolean(orderIdParam);
+  const {
+    data: orders = [],
+    loading,
+    refreshing,
+    error,
+    refetch,
+  } = useGetOrders({ enabled });
 
   const orderGroup = useMemo(() => {
     if (!orderIdParam && !groupKeyParam) {
@@ -104,18 +90,18 @@ export default function OrderDetailsScreen() {
       setUpdatingOrderId(orderId);
       try {
         await updateOrderStatus(orderId, payload.status, getAuthHeaders(), payload.pickedQuantity);
-        await loadOrders();
-      } catch (error) {
-        if (isOfflineQueuedError(error)) {
-          appAlert('Saved offline', error.message);
+        await refetch();
+      } catch (err) {
+        if (isOfflineQueuedError(err)) {
+          appAlert('Saved offline', err.message);
           return;
         }
-        throw error;
+        throw err;
       } finally {
         setUpdatingOrderId(null);
       }
     },
-    [getAuthHeaders, loadOrders]
+    [getAuthHeaders, refetch]
   );
 
   const handlePrintOrder = useCallback(async () => {
@@ -142,7 +128,8 @@ export default function OrderDetailsScreen() {
     }
   }, [orderGroup]);
 
-  const showExportActions = Boolean(orderGroup) && !loading && !error;
+  const missingId = !orderIdParam;
+  const showExportActions = Boolean(orderGroup) && !loading && !error && !missingId;
 
   return (
     <View style={styles.container}>
@@ -186,7 +173,12 @@ export default function OrderDetailsScreen() {
           )}
         </View>
 
-        {loading ? (
+        {missingId ? (
+          <View style={styles.centeredState}>
+            <MaterialIcons name="error-outline" size={44} color={colors.danger} />
+            <Text style={styles.errorText}>Invalid order id.</Text>
+          </View>
+        ) : loading ? (
           <View style={styles.centeredState}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading order...</Text>
@@ -194,8 +186,10 @@ export default function OrderDetailsScreen() {
         ) : error || !orderGroup ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="error-outline" size={44} color={colors.danger} />
-            <Text style={styles.errorText}>{error || 'Order not found or not assigned to you.'}</Text>
-            <Pressable style={styles.retryButton} onPress={loadOrders}>
+            <Text style={styles.errorText}>
+              {error?.message || 'Order not found or not assigned to you.'}
+            </Text>
+            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -206,8 +200,7 @@ export default function OrderDetailsScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => {
-                  setRefreshing(true);
-                  loadOrders();
+                  void refetch();
                 }}
                 tintColor={colors.primary}
               />
@@ -218,11 +211,13 @@ export default function OrderDetailsScreen() {
                 onUpdateStatus={(orderId, status) =>
                   handleUpdateLine(orderId, {
                     status,
-                pickedQuantity: (() => {
-                  const order = orderGroup.orders.find((entry) => entry.id === orderId);
-                  const value = order?.pickedQuantity;
-                  return typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : 0;
-                })(),
+                    pickedQuantity: (() => {
+                      const order = orderGroup.orders.find((entry) => entry.id === orderId);
+                      const value = order?.pickedQuantity;
+                      return typeof value === 'number' && Number.isFinite(value)
+                        ? Math.floor(value)
+                        : 0;
+                    })(),
                   })
                 }
                 updatingOrderId={updatingOrderId}
@@ -234,7 +229,7 @@ export default function OrderDetailsScreen() {
                     key={line.id}
                     order={line}
                     getAuthHeaders={getAuthHeaders}
-                    onDone={() => void loadOrders()}
+                    onDone={() => void refetch()}
                   />
                 ))}
                 <EmployeeOrderGroupDetail
@@ -242,7 +237,7 @@ export default function OrderDetailsScreen() {
                   onUpdateLine={handleUpdateLine}
                   updatingOrderId={updatingOrderId}
                   getAuthHeaders={getAuthHeaders}
-                  onAlternateChanged={() => void loadOrders()}
+                  onAlternateChanged={() => void refetch()}
                 />
               </>
             )}
@@ -255,61 +250,61 @@ export default function OrderDetailsScreen() {
 
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: c.background },
-  safeArea: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  backButton: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    color: c.text,
-    fontSize: 17,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    minWidth: 56,
-    justifyContent: 'flex-end',
-  },
-  headerActionsPlaceholder: {
-    width: 56,
-  },
-  headerActionButton: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
-  centeredState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    gap: 8,
-  },
-  stateText: { color: c.textMuted },
-  errorText: { color: c.danger, textAlign: 'center' },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 8,
-    backgroundColor: c.primary,
-  },
-  retryText: { color: c.primaryText, fontWeight: '700' },
-});
+    container: { flex: 1, backgroundColor: c.background },
+    safeArea: { flex: 1 },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+    },
+    backButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      flex: 1,
+      color: c.text,
+      fontSize: 17,
+      fontWeight: '700',
+      textAlign: 'center',
+      marginHorizontal: 8,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      minWidth: 56,
+      justifyContent: 'flex-end',
+    },
+    headerActionsPlaceholder: {
+      width: 56,
+    },
+    headerActionButton: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 32 },
+    centeredState: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      gap: 8,
+    },
+    stateText: { color: c.textMuted },
+    errorText: { color: c.danger, textAlign: 'center' },
+    retryButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 10,
+      marginTop: 8,
+      backgroundColor: c.primary,
+    },
+    retryText: { color: c.primaryText, fontWeight: '700' },
+  });

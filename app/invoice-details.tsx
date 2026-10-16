@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,11 +11,8 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
 import { appAlert } from '@/lib/app-alert';
-import {
-  downloadInvoicePdf,
-  fetchInvoiceById,
-  type InvoiceRecord,
-} from '@/lib/invoices-api';
+import { downloadInvoicePdf, formatInvoiceLensDetails } from '@/lib/invoices-api';
+import { useGetInvoice } from '@/lib/modules/invoices/query/use-get-invoice';
 import { formatLensType } from '@/lib/types/lens';
 
 const COMPANY_NAME = 'Drishx';
@@ -48,52 +45,25 @@ export default function InvoiceDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { getAuthHeaders } = useAuth();
-  const [invoice, setInvoice] = useState<InvoiceRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const invoiceId = Array.isArray(id) ? id[0] : id;
+  const {
+    data,
+    loading,
+    error,
+    refetch,
+  } = useGetInvoice(invoiceId, { enabled: Boolean(invoiceId) });
 
-  const loadInvoice = useCallback(async () => {
-    if (!invoiceId) {
-      setError('Missing invoice id.');
-      setLoading(false);
-      return;
-    }
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await fetchInvoiceById(invoiceId, getAuthHeaders());
-      setInvoice(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invoice.');
-    } finally {
-      setLoading(false);
-    }
-  }, [invoiceId, getAuthHeaders]);
+  // Drop prior invoice while id changes so we never render stale details.
+  const invoice = data?.id === invoiceId ? data : undefined;
+  const missingId = !invoiceId;
+  const showLoading = Boolean(invoiceId) && (loading || (!invoice && !error));
 
-  useEffect(() => {
-    void loadInvoice();
-  }, [loadInvoice]);
-
-  const lensDetails = useMemo(() => {
-    const order = invoice?.order;
-    if (!order) return '—';
-    if (order.progressiveLens) {
-      const d = order.progressiveLens;
-      return `SPH ${d.sph}, CYL ${d.cyl ?? '—'}, ADD ${d.add}, Eye ${d.eye}`;
-    }
-    if (order.kryptokLens) {
-      const d = order.kryptokLens;
-      return `SPH ${d.sph}, CYL ${d.cyl ?? '—'}, ADD ${d.add}`;
-    }
-    if (order.singleVisionLens) {
-      const d = order.singleVisionLens;
-      return `SPH ${d.sph}, CYL ${d.cyl ?? '—'}`;
-    }
-    return '—';
-  }, [invoice]);
+  const lensDetails = useMemo(
+    () => (invoice ? formatInvoiceLensDetails(invoice) : '—'),
+    [invoice]
+  );
 
   const showTaxBreakup =
     invoice != null &&
@@ -110,15 +80,21 @@ export default function InvoiceDetailsScreen() {
           <View style={{ width: 22 }} />
         </View>
 
-        {loading ? (
+        {missingId ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>Missing invoice id.</Text>
+          </View>
+        ) : showLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.helperText}>Loading invoice...</Text>
           </View>
         ) : error || !invoice ? (
           <View style={styles.centered}>
-            <Text style={styles.errorText}>{error || 'Invoice not found.'}</Text>
-            <Pressable style={styles.retryBtn} onPress={() => void loadInvoice()}>
+            <Text style={styles.errorText}>
+              {error?.message || 'Invoice not found.'}
+            </Text>
+            <Pressable style={styles.retryBtn} onPress={() => void refetch()}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </Pressable>
           </View>

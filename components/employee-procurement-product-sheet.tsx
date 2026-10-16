@@ -358,7 +358,7 @@ export function EmployeeProcurementProductSheet({
 const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
     overlay: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0, 0, 0, 0.65)' },
+    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.65)' },
     sheet: {
       backgroundColor: c.card,
       borderTopLeftRadius: 24,

@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,8 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
+import { useGetReturnRequests } from '@/lib/modules/returns/query/use-get-return-requests';
 import {
-  fetchReturnRequests,
   formatReturnStatus,
   type ReturnRequestRecord,
   type ReturnRequestStatus,
@@ -116,29 +116,17 @@ export default function ReturnsScreen() {
   const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
-  const { getAuthHeaders, isStaff } = useAuth();
-  const [requests, setRequests] = useState<ReturnRequestRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { isStaff } = useAuth();
   const [customerFilter, setCustomerFilter] = useState<CustomerFilterKey>('ALL');
   const [staffFilter, setStaffFilter] = useState<StaffFilterKey>('ALL');
 
-  const load = useCallback(async () => {
-    try {
-      setError(null);
-      setRequests(await fetchReturnRequests(getAuthHeaders()));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load returns.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const {
+    data: requests = [],
+    loading,
+    refreshing,
+    error,
+    refetch,
+  } = useGetReturnRequests();
 
   const filtered = useMemo(() => {
     if (isStaff) {
@@ -179,8 +167,7 @@ export default function ReturnsScreen() {
           </View>
           <Pressable
             onPress={() => {
-              setRefreshing(true);
-              void load();
+              void refetch();
             }}
             hitSlop={8}
             style={styles.headerBtn}
@@ -227,12 +214,11 @@ export default function ReturnsScreen() {
         ) : error ? (
           <View style={styles.centered}>
             <MaterialIcons name="error-outline" size={36} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{error.message}</Text>
             <Pressable
               style={styles.retryBtn}
               onPress={() => {
-                setLoading(true);
-                void load();
+                void refetch();
               }}>
               <Text style={styles.retryBtnText}>Retry</Text>
             </Pressable>
@@ -246,8 +232,7 @@ export default function ReturnsScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => {
-                  setRefreshing(true);
-                  void load();
+                  void refetch();
                 }}
                 tintColor={colors.primary}
               />

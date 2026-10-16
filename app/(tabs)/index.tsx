@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -39,7 +39,8 @@ import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-
 import { fetchNotifications } from '@/lib/notifications-api';
 import { useOrderMode } from '@/lib/order-mode';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
-import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
+import type { OrderRecord } from '@/lib/orders-api';
 import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
 import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import type { FilterOption } from '@/lib/types/lens';
@@ -103,42 +104,54 @@ export default function HomeScreen() {
   const router = useRouter();
   const { user, isStaff, getAuthHeaders } = useAuth();
   const { setMode } = useOrderMode();
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [orderCounts, setOrderCounts] = useState({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
+
+  // Customer and staff each mount one orders query (enabled by role).
+  const {
+    data: customerOrders = [],
+    loading: ordersLoading,
+    refetch: refetchCustomerOrders,
+  } = useGetOrders({ enabled: Boolean(user) && !isStaff });
+
+  const {
+    data: staffOrders = [],
+    loading: staffOrdersLoading,
+  } = useGetOrders({ enabled: Boolean(user) && isStaff });
+
   const [staffOverview, setStaffOverview] = useState({
     tasksAssigned: '—',
     tasksCompleted: '—',
     ordersReceived: 0,
     ordersPending: 0,
   });
-  const [staffLoading, setStaffLoading] = useState(false);
+  const [staffExtraLoading, setStaffExtraLoading] = useState(false);
   const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
   const [staffPendingTasks, setStaffPendingTasks] = useState<TaskRecord[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
-  const [overviewTrends, setOverviewTrends] = useState(EMPTY_OVERVIEW_TRENDS);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
-  const [mostOrderedProducts, setMostOrderedProducts] = useState<MostOrderedProduct[]>([]);
-  const [lastOrderSummary, setLastOrderSummary] = useState<LastOrderSummary | null>(null);
 
-  const loadOrders = useCallback(async () => {
-    if (isStaff || !user) return;
-    setOrdersLoading(true);
-    try {
-      const orders = await fetchOrders(getAuthHeaders());
-      setOrderCounts(computeCustomerOrderOverview(orders));
-      setOverviewTrends(computeCustomerOverviewTrends(orders));
-      setMostOrderedProducts(computeMostOrderedProducts(orders, 5));
-      setLastOrderSummary(getLastOrderSummary(orders));
-    } catch {
-      setOrderCounts({ total: 0, inProgress: 0, readyToShip: 0, completed: 0 });
-      setOverviewTrends(EMPTY_OVERVIEW_TRENDS);
-      setMostOrderedProducts([]);
-      setLastOrderSummary(null);
-    } finally {
-      setOrdersLoading(false);
-    }
-  }, [getAuthHeaders, isStaff, user]);
+  // Preserve prior silent-failure UX for customer overview (empty stats on error).
+  const orderCounts = useMemo(
+    () =>
+      ordersLoading
+        ? { total: 0, inProgress: 0, readyToShip: 0, completed: 0 }
+        : computeCustomerOrderOverview(customerOrders),
+    [customerOrders, ordersLoading],
+  );
+  const overviewTrends = useMemo(
+    () => (ordersLoading ? EMPTY_OVERVIEW_TRENDS : computeCustomerOverviewTrends(customerOrders)),
+    [customerOrders, ordersLoading],
+  );
+  const mostOrderedProducts: MostOrderedProduct[] = useMemo(
+    () => (ordersLoading ? [] : computeMostOrderedProducts(customerOrders, 5)),
+    [customerOrders, ordersLoading],
+  );
+  const lastOrderSummary: LastOrderSummary | null = useMemo(
+    () => (ordersLoading ? null : getLastOrderSummary(customerOrders)),
+    [customerOrders, ordersLoading],
+  );
+
+  const staffLoading = staffOrdersLoading || staffExtraLoading;
 
   const refreshUnreadNotificationsCount = useCallback(async () => {
     if (!user) return;
@@ -154,24 +167,26 @@ export default function HomeScreen() {
     useCallback(() => {
       void refreshUnreadNotificationsCount();
       if (!isStaff && user) {
-        void loadOrders();
+        void refetchCustomerOrders();
       }
-    }, [refreshUnreadNotificationsCount, loadOrders, isStaff, user])
+    }, [refreshUnreadNotificationsCount, refetchCustomerOrders, isStaff, user]),
   );
 
+  // Tasks + notifications after orders settle (orders via useGetOrders).
   useEffect(() => {
     if (!isStaff || !user) return;
+    if (staffOrdersLoading) return;
+
     let cancelled = false;
-    const loadStaffOverview = async () => {
-      setStaffLoading(true);
+    const loadStaffExtras = async () => {
+      setStaffExtraLoading(true);
       try {
-        const [orders, tasks, notifications] = await Promise.all([
-          fetchOrders(getAuthHeaders()),
+        const [tasks, notifications] = await Promise.all([
           fetchMyTasks(getAuthHeaders()),
           fetchNotifications(getAuthHeaders()),
         ]);
         const now = new Date();
-        const todayOrders = orders.filter((order) => {
+        const todayOrders = staffOrders.filter((order) => {
           const d = new Date(order.createdAt);
           return (
             d.getFullYear() === now.getFullYear() &&
@@ -182,12 +197,12 @@ export default function HomeScreen() {
         const pendingToday = todayOrders.filter(
           (order) =>
             STAFF_PENDING_STATUSES.includes(order.status) &&
-            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
+            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT',
         ).length;
-        const pendingOrders = orders.filter(
+        const pendingOrders = staffOrders.filter(
           (order) =>
             STAFF_PENDING_STATUSES.includes(order.status) &&
-            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT'
+            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT',
         );
         const todayTasks = tasks.filter((task) => {
           const d = new Date(task.dueDate);
@@ -220,15 +235,15 @@ export default function HomeScreen() {
         }
       } finally {
         if (!cancelled) {
-          setStaffLoading(false);
+          setStaffExtraLoading(false);
         }
       }
     };
-    void loadStaffOverview();
+    void loadStaffExtras();
     return () => {
       cancelled = true;
     };
-  }, [getAuthHeaders, isStaff, user]);
+  }, [getAuthHeaders, isStaff, user, staffOrders, staffOrdersLoading]);
 
   if (isStaff) {
     const staffDisplayName = user ? getDisplayNameFull(user.name, user.email) : 'Team';

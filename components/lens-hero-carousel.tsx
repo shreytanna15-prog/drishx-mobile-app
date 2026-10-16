@@ -275,7 +275,7 @@ const createStyles = (_c: BrandColorScheme) =>
       elevation: 6,
     },
     media: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     scrim: {
       position: 'absolute',
@@ -286,7 +286,7 @@ const createStyles = (_c: BrandColorScheme) =>
       justifyContent: 'flex-end',
     },
     scrimMid: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       top: 20,
       backgroundColor: 'rgba(8, 10, 14, 0.28)',
     },

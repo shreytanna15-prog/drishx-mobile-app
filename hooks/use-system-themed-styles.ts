@@ -2,10 +2,11 @@ import { useMemo } from 'react';
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
 import { getBrandColorsForScheme, type BrandColorScheme } from '@/constants/brand-colors';
+import { resolveColorScheme } from '@/lib/resolve-color-scheme';
 
 /** Brand colors that follow the device system light/dark setting. */
 export function useSystemBrandColors(): BrandColorScheme {
-  const scheme = useRNColorScheme() ?? 'light';
+  const scheme = resolveColorScheme(useRNColorScheme());
   return useMemo(() => getBrandColorsForScheme(scheme), [scheme]);
 }
 

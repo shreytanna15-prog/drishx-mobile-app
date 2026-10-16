@@ -3,7 +3,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -19,8 +19,8 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { appAlert } from '@/lib/app-alert';
 import { useAuth } from '@/lib/auth';
+import { useGetReturnRequest } from '@/lib/modules/returns/query/use-get-return-request';
 import {
-  fetchReturnRequest,
   formatReturnPowerLine,
   formatReturnStatus,
   updateReturnRequest,
@@ -67,31 +67,25 @@ export default function ReturnDetailsScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const returnId = Array.isArray(id) ? id[0] : id;
 
-  const [request, setRequest] = useState<ReturnRequestRecord | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Local overlay for staff mutation response — avoids refetch while keeping UI in sync.
+  const [mutatedRequest, setMutatedRequest] = useState<ReturnRequestRecord | null>(
+    null,
+  );
 
-  const load = useCallback(async () => {
-    if (!returnId) {
-      setError('Missing return request id.');
-      setLoading(false);
-      return;
-    }
-    try {
-      setError(null);
-      setRequest(await fetchReturnRequest(returnId, getAuthHeaders()));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load return request.');
-    } finally {
-      setLoading(false);
-    }
-  }, [returnId, getAuthHeaders]);
+  const {
+    data,
+    loading,
+    error,
+  } = useGetReturnRequest(returnId, { enabled: Boolean(returnId) });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const missingId = !returnId;
+  const baseRequest = data?.id === returnId ? data : undefined;
+  const request =
+    mutatedRequest?.id === returnId ? mutatedRequest : baseRequest;
+  const showLoading =
+    Boolean(returnId) && (loading || (!request && !error && !missingId));
 
   async function runAction(action: 'more-info') {
     if (!request) return;
@@ -103,7 +97,7 @@ export default function ReturnDetailsScreen() {
         remarks.trim() || undefined,
         getAuthHeaders()
       );
-      setRequest(updated);
+      setMutatedRequest(updated);
       setRemarks('');
       appAlert('Updated', `Request marked as ${formatReturnStatus(updated.status)}.`);
     } catch (err) {
@@ -140,14 +134,21 @@ export default function ReturnDetailsScreen() {
           <View style={styles.headerBtnPlaceholder} />
         </View>
 
-        {loading ? (
+        {missingId ? (
+          <View style={styles.centered}>
+            <MaterialIcons name="error-outline" size={36} color={colors.danger} />
+            <Text style={styles.errorText}>Missing return request id.</Text>
+          </View>
+        ) : showLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
           </View>
         ) : error || !request ? (
           <View style={styles.centered}>
             <MaterialIcons name="error-outline" size={36} color={colors.danger} />
-            <Text style={styles.errorText}>{error || 'Return request not found.'}</Text>
+            <Text style={styles.errorText}>
+              {error?.message || 'Return request not found.'}
+            </Text>
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

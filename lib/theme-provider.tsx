@@ -16,6 +16,7 @@ import {
   getBrandColorsForScheme,
   type BrandColorScheme,
 } from '@/constants/brand-colors';
+import { resolveColorScheme } from '@/lib/resolve-color-scheme';
 
 const STORAGE_KEY = '@drishx/theme-preference';
 
@@ -32,7 +33,7 @@ type ThemeContextValue = {
 export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const systemScheme = useSystemColorScheme() ?? 'light';
+  const systemScheme = resolveColorScheme(useSystemColorScheme());
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [ready, setReady] = useState(false);
 

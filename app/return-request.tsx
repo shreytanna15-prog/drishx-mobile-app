@@ -58,26 +58,26 @@ function parseOrders(raw: string | string[] | undefined): OrderParam[] {
   try {
     const parsed = JSON.parse(value) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((item) => {
-        const row = item as OrderParam;
-        const id = String(row?.id ?? '').trim();
-        const quantity = Number(row?.quantity ?? 1);
-        if (!id) return null;
-        return {
-          id,
-          quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
-          eye: row?.eye ?? null,
-          label: String(row?.label ?? id),
-          lensType: row?.lensType ?? null,
-          lensId: row?.lensId ?? null,
-          sph: row?.sph != null ? Number(row.sph) : null,
-          cyl: row?.cyl != null ? Number(row.cyl) : null,
-          add: row?.add != null ? Number(row.add) : null,
-          axis: row?.axis ?? null,
-        } satisfies OrderParam;
-      })
-      .filter((item): item is OrderParam => Boolean(item));
+    const orders: OrderParam[] = [];
+    for (const item of parsed) {
+      const row = item as Partial<OrderParam>;
+      const id = String(row?.id ?? '').trim();
+      if (!id) continue;
+      const quantity = Number(row?.quantity ?? 1);
+      orders.push({
+        id,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        eye: row?.eye ?? null,
+        label: String(row?.label ?? id),
+        lensType: row?.lensType ?? null,
+        lensId: row?.lensId ?? null,
+        sph: row?.sph != null ? Number(row.sph) : null,
+        cyl: row?.cyl != null ? Number(row.cyl) : null,
+        add: row?.add != null ? Number(row.add) : null,
+        axis: row?.axis ?? null,
+      });
+    }
+    return orders;
   } catch {
     return [];
   }

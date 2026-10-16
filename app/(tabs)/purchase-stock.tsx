@@ -38,11 +38,11 @@ import {
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
 import {
   fetchManualExpenses,
-  fetchProcurementHistory,
   recordManualExpense,
   recordStockIntakeBatch,
   type ProcurementRecord,
 } from '@/lib/procurement-api';
+import { useGetProcurementOrders } from '@/lib/modules/procurement/query/use-get-procurement-orders';
 import { filterProcurementOrderGroups, groupOrdersForList } from '@/lib/order-list-display';
 import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
@@ -164,10 +164,18 @@ export default function PurchaseStockScreen() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [selectedProcurementOrder, setSelectedProcurementOrder] = useState<OrderRecord | null>(null);
   const [procurementSheetVisible, setProcurementSheetVisible] = useState(false);
-  const [history, setHistory] = useState<ProcurementRecord[]>([]);
   const [manualHistory, setManualHistory] = useState<ProcurementRecord[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
+
+  const {
+    data: history = [],
+    loading: loadingHistory,
+    refreshing: refreshingHistory,
+    refetch: refetchHistory,
+  } = useGetProcurementOrders({
+    enabled: mode === 'history',
+    onError: (err) => appAlert('Error', err.message),
+  });
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [lensSearch, setLensSearch] = useState('');
@@ -196,16 +204,7 @@ export default function PurchaseStockScreen() {
       appAlert('Error', err instanceof Error ? err.message : 'Failed to load procurement orders.');
     } finally {
       setLoadingOrders(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders]);
-
-  const loadHistory = useCallback(async () => {
-    try {
-      const data = await fetchProcurementHistory(getAuthHeaders());
-      setHistory(data);
-    } catch (err) {
-      appAlert('Error', err instanceof Error ? err.message : 'Failed to load history.');
+      setRefreshingOrders(false);
     }
   }, [getAuthHeaders]);
 
@@ -238,17 +237,32 @@ export default function PurchaseStockScreen() {
 
   useEffect(() => {
     if (mode === 'orders') {
+      // Pre-existing pattern: show spinner while reloading orders tab.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- legacy orders fetch UX
       setLoadingOrders(true);
       loadProcurementOrders();
     }
   }, [mode, loadProcurementOrders]);
 
   useEffect(() => {
-    if (mode === 'history') {
-      setLoadingHistory(true);
-      Promise.all([loadHistory(), loadManualHistory()]).finally(() => setLoadingHistory(false));
-    }
-  }, [mode, loadHistory, loadManualHistory]);
+    if (mode !== 'history' || !isAdmin) return;
+    let cancelled = false;
+    void fetchManualExpenses(getAuthHeaders())
+      .then((data) => {
+        if (!cancelled) setManualHistory(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          appAlert(
+            'Error',
+            err instanceof Error ? err.message : 'Failed to load manual expenses.',
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, isAdmin, getAuthHeaders]);
 
   useEffect(() => {
     if (pickerOpen) {
@@ -262,7 +276,10 @@ export default function PurchaseStockScreen() {
       const selection = consumePendingStockLensSelection();
       if (!selection) return;
       const qty = Math.max(1, Math.floor(selection.quantity) || 1);
+      // Pre-existing focus handler; handleSelectLens is declared below in this component.
+      // eslint-disable-next-line react-hooks/immutability -- legacy stock lens selection bridge
       handleSelectLens(selection.lens, qty);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount/focus-only selection consume
     }, [])
   );
 
@@ -501,7 +518,7 @@ export default function PurchaseStockScreen() {
                 'Stock added',
                 `Successfully added ${result.itemCount} product(s).\nTotal: ₹${result.totalAmount}\nRef: ${result.batchReference}`
               );
-              await loadHistory();
+              // History tab query refreshes when opened (enabled: mode === 'history').
             } catch (err) {
               if (isOfflineQueuedError(err)) {
                 setPendingLines([]);
@@ -604,9 +621,9 @@ export default function PurchaseStockScreen() {
                 contentContainerStyle={styles.ordersListContent}
                 refreshControl={
                   <RefreshControl
-                    refreshing={refreshing}
+                    refreshing={refreshingOrders}
                     onRefresh={() => {
-                      setRefreshing(true);
+                      setRefreshingOrders(true);
                       loadProcurementOrders();
                     }}
                     tintColor={colors.primary}
@@ -829,11 +846,10 @@ export default function PurchaseStockScreen() {
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
-                onRefresh={async () => {
-                  setRefreshing(true);
-                  await loadHistory();
-                  setRefreshing(false);
+                refreshing={refreshingHistory}
+                onRefresh={() => {
+                  void refetchHistory();
+                  void loadManualHistory();
                 }}
                 tintColor={colors.primary}
               />

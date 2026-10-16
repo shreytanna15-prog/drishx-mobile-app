@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -18,19 +18,18 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
-import { useAuth } from '@/lib/auth';
 import {
   DEFAULT_INVOICE_SORT,
   filterAndSortInvoices,
   INVOICE_DATE_FILTERS,
   INVOICE_SORT_OPTIONS,
   INVOICE_STATUS_FILTERS,
-  fetchInvoices,
   type InvoiceDateFilter,
   type InvoiceRecord,
   type InvoiceSortOption,
   type InvoiceStatusFilter,
 } from '@/lib/invoices-api';
+import { useGetInvoices } from '@/lib/modules/invoices/query/use-get-invoices';
 import { useBrandColors } from '@/lib/theme-provider';
 
 function formatAmount(value: number | string): string {
@@ -76,11 +75,6 @@ function InvoiceRow({
 export default function InvoicesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getAuthHeaders } = useAuth();
-  const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('ALL');
   const [dateFilter, setDateFilter] = useState<InvoiceDateFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,22 +83,7 @@ export default function InvoicesScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
 
-  const loadInvoices = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await fetchInvoices(getAuthHeaders());
-      setInvoices(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load invoices.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    void loadInvoices();
-  }, [loadInvoices]);
+  const { data: invoices = [], loading, refreshing, error, refetch } = useGetInvoices();
 
   const filtered = useMemo(
     () =>
@@ -220,8 +199,8 @@ export default function InvoicesScreen() {
           </View>
         ) : error ? (
           <View style={styles.centered}>
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void loadInvoices()}>
+            <Text style={styles.errorText}>{error.message}</Text>
+            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -234,8 +213,7 @@ export default function InvoicesScreen() {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => {
-                  setRefreshing(true);
-                  void loadInvoices();
+                  void refetch();
                 }}
                 tintColor={colors.primary}
               />
@@ -445,7 +423,7 @@ const createStyles = (c: BrandColorScheme) =>
     },
     retryText: { color: c.primaryText, fontWeight: '700' },
     sheetOverlay: { flex: 1, justifyContent: 'flex-end' },
-    sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: c.overlay },
+    sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: c.overlay },
     sheet: {
       backgroundColor: c.cardElevated,
       borderTopLeftRadius: 24,
