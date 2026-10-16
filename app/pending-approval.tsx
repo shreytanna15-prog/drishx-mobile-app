@@ -3,7 +3,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
@@ -17,7 +24,12 @@ const POLL_MS = 5000;
 
 export default function PendingApprovalScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ email?: string; userId?: string; rejected?: string; reason?: string }>();
+  const params = useLocalSearchParams<{
+    email?: string;
+    userId?: string;
+    rejected?: string;
+    reason?: string;
+  }>();
   const { token, user, signIn, signOut, updateUser } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const colors = useBrandColors();
@@ -85,7 +97,9 @@ export default function PendingApprovalScreen() {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
-          <Text style={styles.heading}>{isRejected ? 'Account rejected' : 'Waiting for approval'}</Text>
+          <Text style={styles.heading}>
+            {isRejected ? 'Account rejected' : 'Waiting for approval'}
+          </Text>
           <Text style={styles.subheading}>
             {isRejected
               ? rejectionReason ||
@@ -100,9 +114,23 @@ export default function PendingApprovalScreen() {
               <ActivityIndicator color={colors.primary} size="small" />
               <Text style={styles.footerText}>
                 {token
-                  ? 'Checking approval... You will be signed in automatically when your account is ready.'
+                  ? user && !user.gstNumber
+                    ? 'Your account is incomplete (no GST yet). An admin can still review it, or you can add business details below.'
+                    : 'Checking approval... You will be signed in automatically when your account is ready.'
                   : 'Open the app again and log in with your email to continue. Your account is waiting for admin approval.'}
               </Text>
+              {user && !user.gstNumber && user.id ? (
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: '/business-info',
+                      params: { userId: user.id, email: user.email },
+                    })
+                  }
+                >
+                  <Text style={styles.linkText}>Complete business / GST details</Text>
+                </Pressable>
+              ) : null}
             </View>
           )}
         </View>
@@ -135,5 +163,12 @@ const createStyles = (c: BrandColorScheme) =>
       fontSize: 13,
       lineHeight: 20,
       textAlign: 'center',
+    },
+    linkText: {
+      color: c.link,
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+      marginTop: 4,
     },
   });

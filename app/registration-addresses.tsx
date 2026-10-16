@@ -2,7 +2,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -23,6 +23,8 @@ import { mapApiUser, submitGstDetails } from '@/lib/auth-api';
 import { resolveAuthTokens, useAuth } from '@/lib/auth';
 import {
   clearRegistrationDraft,
+  EMPTY_BUSINESS_INFO,
+  EMPTY_GST_INFO,
   getDraftForUser,
 } from '@/lib/registration-draft';
 
@@ -50,21 +52,7 @@ export default function RegistrationAddressesScreen() {
   const statusBarStyle = useStatusBarStyle();
   const styles = useSystemThemedStyles(createStyles);
 
-  useEffect(() => {
-    if (!userId) return;
-    void (async () => {
-      const draft = await getDraftForUser(userId, email);
-      if (!draft.business) {
-        router.replace({ pathname: '/business-info', params: { userId, email } });
-        return;
-      }
-      if (!draft.gst) {
-        router.replace({ pathname: '/gst-details', params: { userId, email } });
-      }
-    })();
-  }, [userId, email, router]);
-
-  async function handleSubmit() {
+  async function finalize(includeAddresses: boolean) {
     if (!userId) {
       appAlert('Missing account', 'Please sign up again to continue.');
       router.replace('/signup');
@@ -72,69 +60,58 @@ export default function RegistrationAddressesScreen() {
     }
 
     const draft = await getDraftForUser(userId, email);
-    if (!draft.business) {
-      router.replace({ pathname: '/business-info', params: { userId, email } });
-      return;
-    }
-    if (!draft.gst) {
-      router.replace({ pathname: '/gst-details', params: { userId, email } });
-      return;
-    }
+    const business = draft.business ?? EMPTY_BUSINESS_INFO;
+    const gst = draft.gst ?? EMPTY_GST_INFO;
 
-    if (
-      !billingLegalName.trim() ||
-      !billingAddress.trim() ||
-      !billingCity.trim() ||
-      !billingState.trim() ||
-      !billingPincode.trim() ||
-      !billingGstState.trim()
-    ) {
-      appAlert('Missing fields', 'Please complete all billing address fields.');
-      return;
-    }
-
-    const resolvedShipping = sameAsBilling
+    const billing = includeAddresses
       ? {
-          shippingLegalName: billingLegalName.trim(),
-          shippingAddress: billingAddress.trim(),
-          shippingCity: billingCity.trim(),
-          shippingState: billingState.trim(),
-          shippingPincode: billingPincode.trim(),
+          billingLegalName: billingLegalName.trim() || undefined,
+          billingAddress: billingAddress.trim() || undefined,
+          billingCity: billingCity.trim() || undefined,
+          billingState: billingState.trim() || undefined,
+          billingPincode: billingPincode.trim() || undefined,
+          billingGstState: billingGstState.trim() || undefined,
         }
-      : {
-          shippingLegalName: shippingLegalName.trim(),
-          shippingAddress: shippingAddress.trim(),
-          shippingCity: shippingCity.trim(),
-          shippingState: shippingState.trim(),
-          shippingPincode: shippingPincode.trim(),
-        };
+      : {};
 
-    if (
-      !resolvedShipping.shippingLegalName ||
-      !resolvedShipping.shippingAddress ||
-      !resolvedShipping.shippingCity ||
-      !resolvedShipping.shippingState ||
-      !resolvedShipping.shippingPincode
-    ) {
-      appAlert('Missing fields', 'Please complete all shipping address fields.');
-      return;
-    }
+    const shipping = includeAddresses
+      ? sameAsBilling
+        ? {
+            shippingLegalName: billingLegalName.trim() || undefined,
+            shippingAddress: billingAddress.trim() || undefined,
+            shippingCity: billingCity.trim() || undefined,
+            shippingState: billingState.trim() || undefined,
+            shippingPincode: billingPincode.trim() || undefined,
+          }
+        : {
+            shippingLegalName: shippingLegalName.trim() || undefined,
+            shippingAddress: shippingAddress.trim() || undefined,
+            shippingCity: shippingCity.trim() || undefined,
+            shippingState: shippingState.trim() || undefined,
+            shippingPincode: shippingPincode.trim() || undefined,
+          }
+      : {};
 
     setLoading(true);
     try {
       const result = await submitGstDetails({
         userId,
-        ...draft.business,
-        addressLine2: draft.business.addressLine2 || undefined,
-        ...draft.gst,
-        tradeName: draft.gst.tradeName || undefined,
-        billingLegalName: billingLegalName.trim(),
-        billingAddress: billingAddress.trim(),
-        billingCity: billingCity.trim(),
-        billingState: billingState.trim(),
-        billingPincode: billingPincode.trim(),
-        billingGstState: billingGstState.trim(),
-        ...resolvedShipping,
+        shopName: business.shopName || undefined,
+        businessType: business.businessType || undefined,
+        addressLine1: business.addressLine1 || undefined,
+        addressLine2: business.addressLine2 || undefined,
+        city: business.city || undefined,
+        state: business.state || undefined,
+        pincode: business.pincode || undefined,
+        businessEmail: business.businessEmail || undefined,
+        shopPhoneNumber: business.shopPhoneNumber || undefined,
+        gstNumber: gst.gstNumber || undefined,
+        legalBusinessName: gst.legalBusinessName || undefined,
+        tradeName: gst.tradeName || undefined,
+        gstRegistrationState: gst.gstRegistrationState || undefined,
+        panNumber: gst.panNumber || undefined,
+        ...billing,
+        ...shipping,
       });
 
       const mapped = mapApiUser(result.user as unknown as Record<string, unknown>);
@@ -160,7 +137,7 @@ export default function RegistrationAddressesScreen() {
         <View style={styles.card}>
           <Text style={styles.heading}>Billing & shipping</Text>
           <Text style={styles.subheading}>
-            Provide billing and delivery addresses for your account.
+            Addresses are optional. Skip to submit your registration for admin review.
           </Text>
           <View style={styles.steps}>
             <View style={[styles.step, styles.stepActive]} />
@@ -171,7 +148,7 @@ export default function RegistrationAddressesScreen() {
           </View>
 
           <Text style={styles.sectionTitle}>Billing address</Text>
-          <Field label="Legal name" styles={styles}>
+          <Field label="Legal name (optional)" styles={styles}>
             <TextInput
               value={billingLegalName}
               onChangeText={setBillingLegalName}
@@ -180,7 +157,7 @@ export default function RegistrationAddressesScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="Address" styles={styles}>
+          <Field label="Address (optional)" styles={styles}>
             <TextInput
               value={billingAddress}
               onChangeText={setBillingAddress}
@@ -190,7 +167,7 @@ export default function RegistrationAddressesScreen() {
               style={[styles.input, styles.textArea]}
             />
           </Field>
-          <Field label="City" styles={styles}>
+          <Field label="City (optional)" styles={styles}>
             <TextInput
               value={billingCity}
               onChangeText={setBillingCity}
@@ -199,7 +176,7 @@ export default function RegistrationAddressesScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="State" styles={styles}>
+          <Field label="State (optional)" styles={styles}>
             <TextInput
               value={billingState}
               onChangeText={setBillingState}
@@ -208,7 +185,7 @@ export default function RegistrationAddressesScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="PIN" styles={styles}>
+          <Field label="PIN (optional)" styles={styles}>
             <TextInput
               value={billingPincode}
               onChangeText={setBillingPincode}
@@ -218,7 +195,7 @@ export default function RegistrationAddressesScreen() {
               style={styles.input}
             />
           </Field>
-          <Field label="GST state" styles={styles}>
+          <Field label="GST state (optional)" styles={styles}>
             <TextInput
               value={billingGstState}
               onChangeText={setBillingGstState}
@@ -241,7 +218,7 @@ export default function RegistrationAddressesScreen() {
 
           {!sameAsBilling ? (
             <>
-              <Field label="Legal name" styles={styles}>
+              <Field label="Legal name (optional)" styles={styles}>
                 <TextInput
                   value={shippingLegalName}
                   onChangeText={setShippingLegalName}
@@ -250,7 +227,7 @@ export default function RegistrationAddressesScreen() {
                   style={styles.input}
                 />
               </Field>
-              <Field label="Address" styles={styles}>
+              <Field label="Address (optional)" styles={styles}>
                 <TextInput
                   value={shippingAddress}
                   onChangeText={setShippingAddress}
@@ -260,7 +237,7 @@ export default function RegistrationAddressesScreen() {
                   style={[styles.input, styles.textArea]}
                 />
               </Field>
-              <Field label="City" styles={styles}>
+              <Field label="City (optional)" styles={styles}>
                 <TextInput
                   value={shippingCity}
                   onChangeText={setShippingCity}
@@ -269,7 +246,7 @@ export default function RegistrationAddressesScreen() {
                   style={styles.input}
                 />
               </Field>
-              <Field label="State" styles={styles}>
+              <Field label="State (optional)" styles={styles}>
                 <TextInput
                   value={shippingState}
                   onChangeText={setShippingState}
@@ -278,7 +255,7 @@ export default function RegistrationAddressesScreen() {
                   style={styles.input}
                 />
               </Field>
-              <Field label="PIN" styles={styles}>
+              <Field label="PIN (optional)" styles={styles}>
                 <TextInput
                   value={shippingPincode}
                   onChangeText={setShippingPincode}
@@ -291,12 +268,23 @@ export default function RegistrationAddressesScreen() {
             </>
           ) : null}
 
-          <Pressable style={styles.button} onPress={handleSubmit} disabled={loading}>
+          <Pressable
+            style={styles.button}
+            onPress={() => void finalize(true)}
+            disabled={loading}
+          >
             {loading ? (
               <ActivityIndicator color={colors.primaryText} />
             ) : (
               <Text style={styles.buttonText}>Submit for approval</Text>
             )}
+          </Pressable>
+          <Pressable
+            style={styles.skipButton}
+            onPress={() => void finalize(false)}
+            disabled={loading}
+          >
+            <Text style={styles.skipText}>Skip addresses and submit</Text>
           </Pressable>
         </View>
       </KeyboardAwareScroll>
@@ -382,4 +370,6 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     buttonText: { color: c.primaryText, fontSize: 16, fontWeight: '800' },
+    skipButton: { marginTop: 16, alignItems: 'center', paddingVertical: 8 },
+    skipText: { color: c.link, fontSize: 15, fontWeight: '600' },
   });

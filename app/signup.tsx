@@ -36,17 +36,8 @@ export default function SignupScreen() {
   const styles = useSystemThemedStyles(createStyles);
 
   async function handleSignup() {
-    if (
-      !name.trim() ||
-      !businessName.trim() ||
-      !mobileNumber.trim() ||
-      !email.trim() ||
-      !password.trim()
-    ) {
-      appAlert(
-        'Missing fields',
-        'Full name, business name, mobile, email, and password are required.'
-      );
+    if (!name.trim() || !mobileNumber.trim() || !email.trim() || !password.trim()) {
+      appAlert('Missing fields', 'Full name, mobile, email, and password are required.');
       return;
     }
 
@@ -64,7 +55,7 @@ export default function SignupScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
-          businessName: businessName.trim(),
+          businessName: businessName.trim() || undefined,
           mobileNumber: mobileNumber.trim(),
           alternateMobileNumber: alternateMobileNumber.trim() || undefined,
           whatsappNumber: whatsappNumber.trim() || undefined,
@@ -108,7 +99,9 @@ export default function SignupScreen() {
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
         <View style={styles.card}>
           <Text style={styles.heading}>Create account</Text>
-          <Text style={styles.subheading}>Join DrishX to shop and track orders</Text>
+          <Text style={styles.subheading}>
+            Join DrishX to shop and track orders. Business and GST details are optional.
+          </Text>
           <View style={styles.steps}>
             <View style={[styles.step, styles.stepActive]} />
             <View style={styles.step} />
@@ -128,7 +121,7 @@ export default function SignupScreen() {
             />
           </Field>
 
-          <Field label="Business name" colors={colors} styles={styles}>
+          <Field label="Business name (optional)" colors={colors} styles={styles}>
             <TextInput
               value={businessName}
               onChangeText={setBusinessName}
