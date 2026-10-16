@@ -25,6 +25,13 @@
       "env": {
         "EXPO_PUBLIC_BACKEND_BASE_URL": "https://drishx-admin-and-backend.vercel.app"
       }
+    },
+    "production-apk": {
+      "extends": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     }
   },
   "submit": {

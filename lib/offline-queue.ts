@@ -167,12 +167,31 @@ export type FlushOfflineQueueResult = {
   lastError: string | null;
 };
 
+/** Mirror authFetch: only TOKEN_* / bare 401s should attempt refresh. */
+const NON_REFRESHABLE_AUTH_CODES = new Set([
+  'ACCOUNT_PENDING',
+  'ACCOUNT_INACTIVE',
+  'MISSING_PERMISSION',
+  'FORBIDDEN',
+]);
+
+async function responseAuthCode(response: Response): Promise<string | null> {
+  try {
+    const data = (await response.clone().json()) as { code?: string };
+    return typeof data.code === 'string' ? data.code : null;
+  } catch {
+    return null;
+  }
+}
+
 async function replayQueuedRequest(entry: QueuedRequest): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), QUEUE_FETCH_TIMEOUT_MS);
 
   try {
     const headers = await getReplayHeaders(entry);
+    // Use the same Authorization refresh path as authFetch: latest memory token
+    // is applied in getReplayHeaders; request goes through authenticated headers.
     return await fetch(migrateQueuedUrl(entry.url), {
       method: entry.method,
       headers,
@@ -204,6 +223,16 @@ export async function flushOfflineQueue(): Promise<FlushOfflineQueueResult> {
 
       if (!response.ok) {
         if (response.status === 401) {
+          const authCode = await responseAuthCode(response);
+          if (authCode && NON_REFRESHABLE_AUTH_CODES.has(authCode)) {
+            // Account/permission failure — do not refresh; drop unrecoverable.
+            dropped += 1;
+            lastError = migratedEntry.label
+              ? `${migratedEntry.label}: ${authCode}`
+              : authCode;
+            continue;
+          }
+
           const outcome = await refreshAccessToken();
           if (outcome.status === 'refreshed') {
             const retryResponse = await replayQueuedRequest(migratedEntry);
