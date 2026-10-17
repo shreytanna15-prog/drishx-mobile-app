@@ -161,6 +161,9 @@ export default function PurchaseStockScreen() {
 
   const [mode, setMode] = useState<ScreenMode>('orders');
   const [procurementOrders, setProcurementOrders] = useState<OrderRecord[]>([]);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersHasMore, setOrdersHasMore] = useState(false);
+  const [loadingMoreOrders, setLoadingMoreOrders] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [selectedProcurementOrder, setSelectedProcurementOrder] = useState<OrderRecord | null>(null);
   const [procurementSheetVisible, setProcurementSheetVisible] = useState(false);
@@ -196,17 +199,40 @@ export default function PurchaseStockScreen() {
   const [manualDescription, setManualDescription] = useState('');
   const [submittingManual, setSubmittingManual] = useState(false);
 
-  const loadProcurementOrders = useCallback(async () => {
-    try {
-      const data = await fetchOrders(getAuthHeaders());
-      setProcurementOrders(data);
-    } catch (err) {
-      appAlert('Error', err instanceof Error ? err.message : 'Failed to load procurement orders.');
-    } finally {
-      setLoadingOrders(false);
-      setRefreshingOrders(false);
-    }
-  }, [getAuthHeaders]);
+  const loadProcurementOrders = useCallback(
+    async (page = 1, append = false) => {
+      try {
+        if (append) setLoadingMoreOrders(true);
+        const result = await fetchOrders(getAuthHeaders(), {
+          page,
+          limit: 30,
+          status: 'AWAITING_PROCUREMENT',
+        });
+        setOrdersHasMore(result.hasMore);
+        setOrdersPage(result.page);
+        setProcurementOrders((prev) => {
+          if (!append || result.page <= 1) return result.items;
+          const seen = new Set(prev.map((o) => o.id));
+          const merged = [...prev];
+          for (const row of result.items) {
+            if (!seen.has(row.id)) merged.push(row);
+          }
+          return merged;
+        });
+      } catch (err) {
+        appAlert(
+          'Error',
+          err instanceof Error ? err.message : 'Failed to load procurement orders.'
+        );
+        if (!append) setProcurementOrders([]);
+      } finally {
+        setLoadingOrders(false);
+        setRefreshingOrders(false);
+        setLoadingMoreOrders(false);
+      }
+    },
+    [getAuthHeaders]
+  );
 
   const loadManualHistory = useCallback(async () => {
     if (!isAdmin) return;
@@ -236,12 +262,12 @@ export default function PurchaseStockScreen() {
   }, [lensFilter, lensSearch]);
 
   useEffect(() => {
-    if (mode === 'orders') {
-      // Pre-existing pattern: show spinner while reloading orders tab.
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- legacy orders fetch UX
+    if (mode !== 'orders') return;
+    const t = setTimeout(() => {
       setLoadingOrders(true);
-      loadProcurementOrders();
-    }
+      void loadProcurementOrders(1, false);
+    }, 0);
+    return () => clearTimeout(t);
   }, [mode, loadProcurementOrders]);
 
   useEffect(() => {
@@ -624,11 +650,17 @@ export default function PurchaseStockScreen() {
                     refreshing={refreshingOrders}
                     onRefresh={() => {
                       setRefreshingOrders(true);
-                      loadProcurementOrders();
+                      void loadProcurementOrders(1, false);
                     }}
                     tintColor={colors.primary}
                   />
                 }
+                onEndReached={() => {
+                  if (ordersHasMore && !loadingMoreOrders) {
+                    void loadProcurementOrders(ordersPage + 1, true);
+                  }
+                }}
+                onEndReachedThreshold={0.4}
                 ItemSeparatorComponent={() => <View style={styles.separator} />}
                 ListEmptyComponent={
                   <View style={styles.centeredState}>
@@ -638,6 +670,11 @@ export default function PurchaseStockScreen() {
                       Procurement orders assigned to you will appear here. Tap a product to add purchase details.
                     </Text>
                   </View>
+                }
+                ListFooterComponent={
+                  loadingMoreOrders ? (
+                    <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} />
+                  ) : null
                 }
                 renderItem={({ item }) => (
                   <EmployeeOrderListRow
@@ -660,7 +697,7 @@ export default function PurchaseStockScreen() {
               }}
               onSuccess={() => {
                 setLoadingOrders(true);
-                loadProcurementOrders();
+                void loadProcurementOrders(1, false);
               }}
               getAuthHeaders={getAuthHeaders}
             />

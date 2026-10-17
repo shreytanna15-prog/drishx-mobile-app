@@ -24,6 +24,10 @@ import { formatLensProductCardTitle, formatSphCylSlash } from '@/lib/lens-displa
 import { fetchLensesPage, mapApiLens } from '@/lib/lenses-api';
 import { LENS_PRICE_PER_PAIR_LABEL, lineTotalForPieceQuantity } from '@/lib/lens-pricing';
 import { consumePendingOnBehalfSelection } from '@/lib/on-behalf-selection';
+import {
+  canPlaceOnBehalfOrder,
+  onBehalfShopCatalogSubtitle,
+} from '@/lib/on-behalf-shop-ui';
 import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
 import { setOnBehalfCustomOrderContext } from '@/lib/on-behalf-custom-order';
 import { createOrderFromLens, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
@@ -84,6 +88,10 @@ export default function EmployeeOrderOnBehalfScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const [customers, setCustomers] = useState<CustomerCompany[]>([]);
+  const [customersPage, setCustomersPage] = useState(1);
+  const [customersHasMore, setCustomersHasMore] = useState(false);
+  const [loadingMoreCustomers, setLoadingMoreCustomers] = useState(false);
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
   const [products, setProducts] = useState<LensItem[]>([]);
   const [totalProducts, setTotalProducts] = useState(0);
   const [hasMoreProducts, setHasMoreProducts] = useState(true);
@@ -91,6 +99,8 @@ export default function EmployeeOrderOnBehalfScreen() {
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
   const [productError, setProductError] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedCustomerCache, setSelectedCustomerCache] =
+    useState<CustomerCompany | null>(null);
   const [selectedLines, setSelectedLines] = useState<SelectedLine[]>([]);
   const [activeFilter, setActiveFilter] = useState<FilterOption>('All');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -102,35 +112,61 @@ export default function EmployeeOrderOnBehalfScreen() {
   const loadingMoreProductsRef = useRef(false);
   const productsRequestIdRef = useRef(0);
 
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const customerRows = await fetchCustomerCompanies(getAuthHeaders());
-      setCustomers(customerRows);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeaders]);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const timer = setTimeout(() => setDebouncedCustomerSearch(customerSearch.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [customerSearch]);
 
-  const selectedCustomer = useMemo(
-    () => customers.find((c) => c.id === selectedCustomerId) ?? null,
-    [customers, selectedCustomerId]
+  const loadCustomers = useCallback(
+    async (page: number, replace: boolean) => {
+      try {
+        if (replace) {
+          setLoading(true);
+          setError(null);
+        } else {
+          setLoadingMoreCustomers(true);
+        }
+        const result = await fetchCustomerCompanies(getAuthHeaders(), {
+          page,
+          limit: 30,
+          q: debouncedCustomerSearch || undefined,
+        });
+        setCustomersHasMore(result.hasMore);
+        setCustomersPage(result.page);
+        setCustomers((prev) => {
+          if (replace || result.page <= 1) return result.items;
+          const seen = new Set(prev.map((c) => c.id));
+          const merged = [...prev];
+          for (const row of result.items) {
+            if (!seen.has(row.id)) merged.push(row);
+          }
+          return merged;
+        });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load customers.');
+        if (replace) setCustomers([]);
+      } finally {
+        setLoading(false);
+        setLoadingMoreCustomers(false);
+      }
+    },
+    [getAuthHeaders, debouncedCustomerSearch]
   );
 
-  const filteredCustomers = useMemo(() => {
-    const q = customerSearch.trim().toLowerCase();
-    if (!q) return customers;
-    return customers.filter((c) =>
-      `${c.businessName ?? ''} ${c.name ?? ''} ${c.email}`.toLowerCase().includes(q)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void loadCustomers(1, true);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [loadCustomers]);
+
+  const selectedCustomer = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return (
+      customers.find((c) => c.id === selectedCustomerId) ??
+      (selectedCustomerCache?.id === selectedCustomerId ? selectedCustomerCache : null)
     );
-  }, [customers, customerSearch]);
+  }, [customers, selectedCustomerId, selectedCustomerCache]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedProductSearch(productSearch.trim()), 400);
@@ -310,7 +346,7 @@ export default function EmployeeOrderOnBehalfScreen() {
           <View style={styles.centered}>
             <MaterialIcons name="error-outline" size={44} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryBtn} onPress={loadData}>
+            <Pressable style={styles.retryBtn} onPress={() => void loadCustomers(1, true)}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -343,13 +379,19 @@ export default function EmployeeOrderOnBehalfScreen() {
 
         {step === 'customer' ? (
           <FlatList
-            data={filteredCustomers}
+            data={customers}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            onEndReached={() => {
+              if (customersHasMore && !loadingMoreCustomers) {
+                void loadCustomers(customersPage + 1, false);
+              }
+            }}
+            onEndReachedThreshold={0.4}
             ListHeaderComponent={
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>1) Choose company</Text>
+                <Text style={styles.sectionTitle}>Choose company</Text>
                 <TextInput
                   value={customerSearch}
                   onChangeText={setCustomerSearch}
@@ -364,7 +406,10 @@ export default function EmployeeOrderOnBehalfScreen() {
               return (
                 <Pressable
                   style={[styles.choiceCard, active && styles.choiceCardActive]}
-                  onPress={() => setSelectedCustomerId(customer.id)}>
+                  onPress={() => {
+                    setSelectedCustomerId(customer.id);
+                    setSelectedCustomerCache(customer);
+                  }}>
                   <Text style={styles.choiceTitle}>{customer.businessName || customer.name || customer.email}</Text>
                   <Text style={styles.choiceMeta}>{customer.email}</Text>
                 </Pressable>
@@ -372,31 +417,45 @@ export default function EmployeeOrderOnBehalfScreen() {
             }}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListFooterComponent={
-              <Pressable
-                style={[styles.placeBtn, !selectedCustomerId && styles.disabled]}
-                onPress={() => setStep('shop')}
-                disabled={!selectedCustomerId}>
-                <Text style={styles.placeBtnText}>Continue to shop</Text>
-              </Pressable>
+              <View style={styles.customerStepFooter}>
+                {loadingMoreCustomers ? (
+                  <ActivityIndicator color={colors.primary} style={{ marginBottom: 12 }} />
+                ) : null}
+                <Pressable
+                  style={[styles.placeBtn, !selectedCustomerId && styles.disabled]}
+                  onPress={() => setStep('shop')}
+                  disabled={!selectedCustomerId}>
+                  <Text style={styles.placeBtnText}>Continue to shop</Text>
+                </Pressable>
+              </View>
             }
           />
         ) : (
-          <FlatList
-            data={products}
-            keyExtractor={(item) => getLensStableKey(item)}
-            contentContainerStyle={styles.shopContent}
-            keyboardShouldPersistTaps="handled"
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListHeaderComponent={
-              <View style={styles.shopHeader}>
-                <View style={styles.customerPill}>
-                  <Text style={styles.customerPillText}>Customer: {selectedCustomerLabel}</Text>
-                  <Pressable onPress={() => setStep('customer')}>
-                    <Text style={styles.changeText}>Change</Text>
-                  </Pressable>
-                </View>
+          <View style={styles.shopStep}>
+            <View style={styles.customerBanner}>
+              <View style={styles.customerPill}>
+                <Text style={styles.customerPillText}>Customer: {selectedCustomerLabel}</Text>
+                <Pressable onPress={() => setStep('customer')}>
+                  <Text style={styles.changeText}>Change</Text>
+                </Pressable>
+              </View>
+            </View>
+            <FlatList
+              data={products}
+              keyExtractor={(item) => getLensStableKey(item)}
+              contentContainerStyle={styles.shopContent}
+              keyboardShouldPersistTaps="handled"
+              style={styles.shopList}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListHeaderComponent={
+                <View style={styles.shopHeader}>
                 <Text style={styles.shopTitle}>Shop</Text>
-                <Text style={styles.shopSubtitle}>{totalProducts} products available</Text>
+                <Text style={styles.shopSubtitle}>
+                  {onBehalfShopCatalogSubtitle({
+                    loadingProducts,
+                    totalProducts,
+                  })}
+                </Text>
 
                 <View style={styles.searchBar}>
                   <MaterialIcons name="search" size={20} color={colors.textMuted} />
@@ -448,68 +507,7 @@ export default function EmployeeOrderOnBehalfScreen() {
                   ))}
                 </View>
 
-                <Text style={styles.sectionTitle}>Selected products</Text>
-                {selectedLines.length === 0 ? (
-                  <Text style={styles.emptySelectionText}>Tap a product card below to add it.</Text>
-                ) : (
-                  <View style={styles.selectedWrap}>
-                    {selectedLines.map((line) => (
-                      <View key={line.lens.id} style={styles.selectedCard}>
-                        <Text style={styles.choiceTitle}>{formatLensLabel(line.lens)}</Text>
-                        <Text style={styles.choiceMeta}>
-                          {line.lens.lensType ?? 'Lens'} · ₹{line.lens.price}
-                          {LENS_PRICE_PER_PAIR_LABEL}
-                        </Text>
-                        <View style={styles.qtyRow}>
-                          <Pressable
-                            style={styles.qtyBtn}
-                            onPress={() => updateLineQuantity(line.lens.id, line.quantity - 1)}>
-                            <MaterialIcons name="remove" size={18} color={colors.primary} />
-                          </Pressable>
-                          <Text style={styles.qtyValue}>{formatPairQuantity(pairsFromPieces(line.quantity))} pair</Text>
-                          <Pressable
-                            style={styles.qtyBtn}
-                            onPress={() => updateLineQuantity(line.lens.id, line.quantity + 1)}>
-                            <MaterialIcons name="add" size={18} color={colors.primary} />
-                          </Pressable>
-                          <Text style={styles.lineTotal}>
-                            ₹{lineTotalForPieceQuantity(line.lens.price, line.quantity)}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                <Text style={styles.sectionTitle}>3) Notes (optional)</Text>
-                <TextInput
-                  value={orderNotes}
-                  onChangeText={setOrderNotes}
-                  placeholder="Special instructions..."
-                  placeholderTextColor={colors.placeholder}
-                  style={styles.notesInput}
-                  multiline
-                  maxLength={ORDER_NOTES_MAX_LENGTH}
-                />
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryText}>{selectedLines.length} product line(s)</Text>
-                  <Text style={styles.summaryAmount}>₹{totalAmount}</Text>
-                </View>
-                <Pressable
-                  style={[styles.placeBtn, placingOrder && styles.disabled]}
-                  onPress={placeOrderOnBehalf}
-                  disabled={placingOrder}>
-                  {placingOrder ? (
-                    <ActivityIndicator color={colors.primaryText} />
-                  ) : (
-                    <>
-                      <MaterialIcons name="shopping-bag" size={18} color={colors.primaryText} />
-                      <Text style={styles.placeBtnText}>Place order for customer</Text>
-                    </>
-                  )}
-                </Pressable>
-
-                <Text style={styles.sectionTitle}>2) Choose products</Text>
+                <Text style={styles.sectionTitle}>Choose products</Text>
               </View>
             }
             renderItem={({ item: lens }) => (
@@ -544,12 +542,88 @@ export default function EmployeeOrderOnBehalfScreen() {
               void loadProducts(productsPageRef.current + 1, false);
             }}
             ListFooterComponent={
-              loadingMoreProducts ? (
-                <View style={styles.footerLoader}>
-                  <ActivityIndicator color={colors.primary} />
-                  <Text style={styles.footerText}>Loading more lenses...</Text>
+              <View style={styles.shopCheckoutFooter}>
+                {loadingMoreProducts ? (
+                  <View style={styles.footerLoader}>
+                    <ActivityIndicator color={colors.primary} />
+                    <Text style={styles.footerText}>Loading more lenses...</Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.sectionTitle}>Selected products</Text>
+                {selectedLines.length === 0 ? (
+                  <Text style={styles.emptySelectionText}>Tap a product card above to add it.</Text>
+                ) : (
+                  <View style={styles.selectedWrap}>
+                    {selectedLines.map((line) => (
+                      <View key={line.lens.id} style={styles.selectedCard}>
+                        <Text style={styles.choiceTitle}>{formatLensLabel(line.lens)}</Text>
+                        <Text style={styles.choiceMeta}>
+                          {line.lens.lensType ?? 'Lens'} · ₹{line.lens.price}
+                          {LENS_PRICE_PER_PAIR_LABEL}
+                        </Text>
+                        <View style={styles.qtyRow}>
+                          <Pressable
+                            style={styles.qtyBtn}
+                            onPress={() => updateLineQuantity(line.lens.id, line.quantity - 1)}>
+                            <MaterialIcons name="remove" size={18} color={colors.primary} />
+                          </Pressable>
+                          <Text style={styles.qtyValue}>
+                            {formatPairQuantity(pairsFromPieces(line.quantity))} pair
+                          </Text>
+                          <Pressable
+                            style={styles.qtyBtn}
+                            onPress={() => updateLineQuantity(line.lens.id, line.quantity + 1)}>
+                            <MaterialIcons name="add" size={18} color={colors.primary} />
+                          </Pressable>
+                          <Text style={styles.lineTotal}>
+                            ₹{lineTotalForPieceQuantity(line.lens.price, line.quantity)}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                <Text style={styles.sectionTitle}>Notes (optional)</Text>
+                <TextInput
+                  value={orderNotes}
+                  onChangeText={setOrderNotes}
+                  placeholder="Special instructions..."
+                  placeholderTextColor={colors.placeholder}
+                  style={styles.notesInput}
+                  multiline
+                  maxLength={ORDER_NOTES_MAX_LENGTH}
+                />
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryText}>{selectedLines.length} product line(s)</Text>
+                  <Text style={styles.summaryAmount}>₹{totalAmount}</Text>
                 </View>
-              ) : null
+                <Pressable
+                  style={[
+                    styles.placeBtn,
+                    !canPlaceOnBehalfOrder({
+                      selectedLineCount: selectedLines.length,
+                      placingOrder,
+                    }) && styles.disabled,
+                  ]}
+                  onPress={placeOrderOnBehalf}
+                  disabled={
+                    !canPlaceOnBehalfOrder({
+                      selectedLineCount: selectedLines.length,
+                      placingOrder,
+                    })
+                  }>
+                  {placingOrder ? (
+                    <ActivityIndicator color={colors.primaryText} />
+                  ) : (
+                    <>
+                      <MaterialIcons name="shopping-bag" size={18} color={colors.primaryText} />
+                      <Text style={styles.placeBtnText}>Place order for customer</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
             }
             ListEmptyComponent={
               loadingProducts ? (
@@ -572,7 +646,8 @@ export default function EmployeeOrderOnBehalfScreen() {
                 </View>
               )
             }
-          />
+            />
+          </View>
         )}
       </SafeAreaView>
     </View>
@@ -595,8 +670,19 @@ const createStyles = (c: BrandColorScheme) =>
     headerSpacer: { width: 24 },
     title: { color: c.text, fontSize: 18, fontWeight: '800' },
     content: { padding: 16, paddingBottom: 32 },
+    shopStep: { flex: 1 },
+    shopList: { flex: 1 },
+    customerBanner: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: c.cardBorder,
+      backgroundColor: c.background,
+    },
     shopContent: { paddingHorizontal: 16, paddingBottom: 32 },
     shopHeader: { paddingTop: 8, paddingBottom: 8, gap: 10 },
+    shopCheckoutFooter: { paddingTop: 16, gap: 0 },
     section: { marginBottom: 14 },
     sectionTitle: { color: c.text, fontSize: 16, fontWeight: '700', marginBottom: 10 },
     searchInput: {
@@ -715,6 +801,9 @@ const createStyles = (c: BrandColorScheme) =>
     summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
     summaryText: { color: c.textMuted, fontSize: 13 },
     summaryAmount: { color: c.text, fontSize: 20, fontWeight: '800' },
+    customerStepFooter: {
+      paddingTop: 12,
+    },
     placeBtn: {
       flexDirection: 'row',
       alignItems: 'center',

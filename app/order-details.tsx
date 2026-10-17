@@ -27,11 +27,11 @@ import { filterStaffFulfillmentOrders, groupOrdersForList } from '@/lib/order-li
 import { downloadEmployeeOrderPdf, printEmployeeOrder } from '@/lib/order-print';
 import type { OrderTrackingStatus } from '@/lib/order-tracking';
 import { updateOrderStatus } from '@/lib/orders-api';
-import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
+import { useGetOrderGroup } from '@/lib/modules/orders/query/use-get-order-group';
 
 /**
- * Order detail needs the full orders list so checkout-batch siblings can be
- * grouped. No compact batch endpoint — keep fetchOrders via useGetOrders.
+ * Order detail loads checkout-batch siblings via batchId / detail GET
+ * (RW-11 Phase B) — not the full unbounded orders list.
  */
 export default function OrderDetailsScreen() {
   const colors = useBrandColors();
@@ -44,14 +44,14 @@ export default function OrderDetailsScreen() {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<'print' | 'download' | null>(null);
 
-  const enabled = Boolean(orderIdParam);
+  const groupKey = groupKeyParam || orderIdParam;
   const {
     data: orders = [],
     loading,
     refreshing,
     error,
     refetch,
-  } = useGetOrders({ enabled });
+  } = useGetOrderGroup(groupKey);
 
   const orderGroup = useMemo(() => {
     if (!orderIdParam && !groupKeyParam) {

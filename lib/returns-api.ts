@@ -1,6 +1,7 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { apiFetch } from '@/lib/api-request';
 import { authFetch } from '@/lib/auth-fetch';
+import type { Paginated } from '@/lib/types/api-client';
 
 export type ReturnRequestType = 'RETURN' | 'REPLACEMENT';
 export type ReturnRequestStatus =
@@ -119,18 +120,68 @@ export function formatReturnPowerLine(parts: {
   return labels.length > 0 ? labels.join(' · ') : '—';
 }
 
+export type ListReturnsParams = {
+  page?: number;
+  limit?: number;
+  /** Single status or CSV of statuses. */
+  status?: string;
+  orderId?: string;
+  q?: string;
+  requestType?: string;
+};
+
+export type PaginatedReturns = Paginated<ReturnRequestRecord>;
+
+export function buildReturnsQueryString(params?: ListReturnsParams): string {
+  const qs = new URLSearchParams();
+  if (!params) return '';
+  if (params.page != null) qs.set('page', String(params.page));
+  if (params.limit != null) qs.set('limit', String(params.limit));
+  if (params.status?.trim()) qs.set('status', params.status.trim());
+  if (params.orderId?.trim()) qs.set('orderId', params.orderId.trim());
+  if (params.q?.trim()) qs.set('q', params.q.trim());
+  if (params.requestType?.trim()) qs.set('requestType', params.requestType.trim());
+  const s = qs.toString();
+  return s ? `?${s}` : '';
+}
+
+export function normalizeReturnsListResponse(data: unknown): PaginatedReturns {
+  if (Array.isArray(data)) {
+    return {
+      items: data as ReturnRequestRecord[],
+      page: 1,
+      limit: data.length,
+      hasMore: false,
+      total: data.length,
+    };
+  }
+  const body = data as Partial<PaginatedReturns> | null;
+  const items = Array.isArray(body?.items) ? body.items : [];
+  return {
+    items,
+    page: typeof body?.page === 'number' ? body.page : 1,
+    limit: typeof body?.limit === 'number' ? body.limit : items.length,
+    hasMore: Boolean(body?.hasMore),
+    total: typeof body?.total === 'number' ? body.total : undefined,
+  };
+}
+
 export async function fetchReturnRequests(
-  headers: Record<string, string>
-): Promise<ReturnRequestRecord[]> {
-  const response = await apiFetch(`${BACKEND_BASE_URL}/api/returns`, {
-    headers,
-    authenticated: true,
-  });
+  headers: Record<string, string>,
+  params?: ListReturnsParams
+): Promise<PaginatedReturns> {
+  const response = await apiFetch(
+    `${BACKEND_BASE_URL}/api/returns${buildReturnsQueryString(params)}`,
+    {
+      headers,
+      authenticated: true,
+    }
+  );
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(result?.error || 'Failed to load return requests.');
   }
-  return Array.isArray(result) ? (result as ReturnRequestRecord[]) : [];
+  return normalizeReturnsListResponse(result);
 }
 
 export async function fetchReturnRequest(

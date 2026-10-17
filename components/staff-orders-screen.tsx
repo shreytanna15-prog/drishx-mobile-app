@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -19,96 +19,71 @@ import { EmployeeOrderListRow } from '@/components/employee-order-list-row';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
-import { useAuth } from '@/lib/auth';
+import { usePaginatedListState } from '@/lib/hooks/use-paginated-list-state';
 import {
-  filterNonRxOrders,
-  filterRxOrders,
   filterStaffFulfillmentOrders,
   groupOrdersForList,
-  type OrderListGroup,
 } from '@/lib/order-list-display';
-import { normalizeOrderStatus } from '@/lib/order-tracking';
-import { fetchOrders, type OrderRecord } from '@/lib/orders-api';
+import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
+import type { OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
-
-type StaffOrderFilter = 'ALL' | 'PENDING' | 'PICKING' | 'PACKED' | 'COMPLETED';
-
-const FILTERS: { key: StaffOrderFilter; label: string }[] = [
-  { key: 'ALL', label: 'All' },
-  { key: 'PENDING', label: 'Pending' },
-  { key: 'PICKING', label: 'Picking' },
-  { key: 'PACKED', label: 'Packed' },
-  { key: 'COMPLETED', label: 'Completed' },
-];
-
-/** Statuses that belong under each staff filter tab. */
-const FILTER_STATUSES: Record<
-  Exclude<StaffOrderFilter, 'ALL'>,
-  ReturnType<typeof normalizeOrderStatus>[]
-> = {
-  PENDING: ['PENDING'],
-  PICKING: ['PICKING', 'PARTIALLY_FULFILLED'],
-  PACKED: ['PACKED', 'DISPATCHED'],
-  COMPLETED: ['COMPLETED'],
-};
-
-function groupMatchesStaffFilter(group: OrderListGroup, filter: StaffOrderFilter): boolean {
-  if (filter === 'ALL') {
-    return true;
-  }
-  const allowed = FILTER_STATUSES[filter];
-  return group.orders.some((order) => allowed.includes(normalizeOrderStatus(order.status)));
-}
+import {
+  groupMatchesStaffFilter,
+  STAFF_FILTER_STATUSES,
+  STAFF_ORDER_FILTERS,
+  staffOrdersEmptyTitle,
+  type StaffOrderFilter,
+} from '@/lib/staff-order-filters';
 
 type StaffOrdersScreenProps = {
   variant?: 'standard' | 'rx';
 };
+
+function statusParamForStaffFilter(filter: StaffOrderFilter): string | undefined {
+  if (filter === 'ALL') return undefined;
+  return STAFF_FILTER_STATUSES[filter].join(',');
+}
 
 export function StaffOrdersScreen({ variant = 'standard' }: StaffOrdersScreenProps) {
   const isRx = variant === 'rx';
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const { getAuthHeaders } = useAuth();
-  const [orders, setOrders] = useState<OrderRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<StaffOrderFilter>('ALL');
+  const listResetKey = `${activeFilter}|${isRx ? 'rx' : 'std'}`;
+  const { page, setPage, items, setItems, onPageSuccess } =
+    usePaginatedListState<OrderRecord>(listResetKey);
 
-  const loadOrders = useCallback(async () => {
-    try {
-      setError(null);
-      const data = await fetchOrders(getAuthHeaders());
-      setOrders(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load orders.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+  const { data, loading, refreshing, error, refetch } = useGetOrders(
+    {
+      page,
+      limit: 30,
+      status: statusParamForStaffFilter(activeFilter),
+      scope: isRx ? 'rx_lab' : 'catalog',
+    },
+    { onSuccess: onPageSuccess }
+  );
 
   useEffect(() => {
     return onOfflineSyncComplete(() => {
-      void loadOrders();
+      setPage(1);
+      setItems([]);
+      void refetch();
     });
-  }, [loadOrders]);
+  }, [refetch, setPage, setItems]);
 
   const orderGroups = useMemo(() => {
-    const fulfillment = filterStaffFulfillmentOrders(orders);
-    const scoped = isRx ? filterRxOrders(fulfillment) : filterNonRxOrders(fulfillment);
-    return groupOrdersForList(scoped);
-  }, [orders, isRx]);
+    const fulfillment = filterStaffFulfillmentOrders(items);
+    return groupOrdersForList(fulfillment);
+  }, [items]);
 
   const filteredGroups = useMemo(
     () => orderGroups.filter((group) => groupMatchesStaffFilter(group, activeFilter)),
     [orderGroups, activeFilter]
   );
+
+  const hasMore = Boolean(data?.hasMore);
+  const showInitialLoading = loading && page === 1 && items.length === 0;
 
   return (
     <View style={styles.container}>
@@ -157,7 +132,7 @@ export function StaffOrdersScreen({ variant = 'standard' }: StaffOrdersScreenPro
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.filterRow}>
-            {FILTERS.map((filter) => {
+            {STAFF_ORDER_FILTERS.map((filter) => {
               const active = filter.key === activeFilter;
               return (
                 <Pressable
@@ -173,16 +148,21 @@ export function StaffOrdersScreen({ variant = 'standard' }: StaffOrdersScreenPro
           </ScrollView>
         </View>
 
-        {loading ? (
+        {showInitialLoading ? (
           <View style={styles.centeredState}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>{isRx ? 'Loading RX orders...' : 'Loading orders...'}</Text>
           </View>
-        ) : error ? (
+        ) : error && items.length === 0 ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="error-outline" size={48} color={colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={loadOrders}>
+            <Text style={styles.errorText}>{error.message}</Text>
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                setPage(1);
+                void refetch();
+              }}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -193,20 +173,33 @@ export function StaffOrdersScreen({ variant = 'standard' }: StaffOrdersScreenPro
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
+                refreshing={refreshing && page === 1}
                 onRefresh={() => {
-                  setRefreshing(true);
-                  loadOrders();
+                  setPage(1);
+                  void refetch();
                 }}
                 tintColor={colors.primary}
               />
+            }
+            onEndReached={() => {
+              if (hasMore && !loading && !refreshing) {
+                setPage((p) => p + 1);
+              }
+            }}
+            onEndReachedThreshold={0.4}
+            ListFooterComponent={
+              hasMore && (loading || refreshing) && page > 1 ? (
+                <View style={styles.loadMoreFooter}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                </View>
+              ) : null
             }
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             ListEmptyComponent={
               <View style={styles.centeredState}>
                 <MaterialIcons name="receipt-long" size={48} color={colors.textMuted} />
                 <Text style={styles.emptyTitle}>
-                  {isRx ? 'No RX orders assigned to you' : 'No orders assigned to you'}
+                  {staffOrdersEmptyTitle(activeFilter, { isRx })}
                 </Text>
                 <Text style={styles.stateText}>Try switching filters or refresh the list.</Text>
               </View>
@@ -264,73 +257,60 @@ const createStyles = (c: BrandColorScheme) =>
     secondaryButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 10,
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
       borderWidth: 1,
-      borderColor: c.cardBorder,
+      borderColor: c.primary,
       backgroundColor: c.card,
     },
-    secondaryButtonText: { color: c.primary, fontSize: 12, fontWeight: '700' },
+    secondaryButtonText: { color: c.primary, fontWeight: '700', fontSize: 13 },
     newOrderButton: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 12,
       backgroundColor: c.primary,
     },
-    newOrderButtonText: { color: c.primaryText, fontSize: 12, fontWeight: '700' },
-    filterWrap: {
-      minHeight: 52,
-      marginTop: 8,
-      marginBottom: 10,
-      justifyContent: 'center',
-    },
-    filterRow: {
-      flexDirection: 'row',
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-      gap: 8,
-      alignItems: 'center',
-    },
+    newOrderButtonText: { color: c.primaryText, fontWeight: '700', fontSize: 13 },
+    filterWrap: { paddingBottom: 8 },
+    filterRow: { paddingHorizontal: 16, gap: 8 },
     filterChip: {
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: 40,
-      paddingVertical: 10,
       paddingHorizontal: 14,
-      borderRadius: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
       borderWidth: 1,
       borderColor: c.cardBorder,
       backgroundColor: c.card,
     },
     filterChipActive: {
       borderColor: c.primary,
-      backgroundColor: 'rgba(240, 161, 50, 0.15)',
+      backgroundColor: 'rgba(240, 161, 50, 0.14)',
     },
-    filterChipText: { color: c.textMuted, fontSize: 12, fontWeight: '600' },
-    filterChipTextActive: { color: c.primary, fontWeight: '700' },
+    filterChipText: { color: c.textMuted, fontWeight: '600', fontSize: 13 },
+    filterChipTextActive: { color: c.primary },
     listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
-    separator: { height: 12 },
+    loadMoreFooter: { paddingVertical: 16, alignItems: 'center' },
+    separator: { height: 10 },
     centeredState: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 48,
-      paddingHorizontal: 32,
-      gap: 8,
+      paddingHorizontal: 24,
+      paddingVertical: 40,
+      gap: 10,
     },
-    emptyTitle: { fontSize: 18, fontWeight: '700', color: c.text },
-    stateText: { fontSize: 15, color: c.textMuted, textAlign: 'center' },
-    errorText: { fontSize: 15, color: c.danger, textAlign: 'center' },
+    stateText: { color: c.textMuted, textAlign: 'center', fontSize: 14 },
+    emptyTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+    errorText: { color: c.danger, textAlign: 'center', fontSize: 14 },
     retryButton: {
-      paddingHorizontal: 20,
+      marginTop: 8,
+      paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 10,
-      marginTop: 8,
       backgroundColor: c.primary,
     },
     retryText: { color: c.primaryText, fontWeight: '700' },

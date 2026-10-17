@@ -5,15 +5,20 @@
 
 export const QUERY_REGISTRY = {
   getOrders: "getOrders",
+  getOrderGroup: "getOrderGroup",
+  getOrdersOverview: "getOrdersOverview",
   getProcurementOrders: "getProcurementOrders",
   getInvoices: "getInvoices",
   getInvoice: "getInvoice",
   getReturnRequests: "getReturnRequests",
   getReturnRequest: "getReturnRequest",
+  getOutstandingReceivables: "getOutstandingReceivables",
 } as const;
 
 export const MUTATION_REGISTRY = {
   createStockIntake: "createStockIntake",
+  submitPaymentClaim: "submitPaymentClaim",
+  submitNoBillExpense: "submitNoBillExpense",
 } as const;
 
 export type QueryRegistryKey =

@@ -15,9 +15,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QueryLoadMoreFooter } from '@/components/query-list-states';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
+import { usePaginatedListState } from '@/lib/hooks/use-paginated-list-state';
 import { useGetReturnRequests } from '@/lib/modules/returns/query/use-get-return-requests';
 import {
   formatReturnStatus,
@@ -26,6 +28,17 @@ import {
   type ReturnRequestType,
 } from '@/lib/returns-api';
 import { useBrandColors } from '@/lib/theme-provider';
+
+const PAGE_SIZE = 20;
+const ACTIVE_STATUS_CSV = [
+  'SUBMITTED',
+  'MORE_INFO_REQUIRED',
+  'ESCALATED_TO_ADMIN',
+  'AWAITING_MATERIAL',
+  'APPROVED_CREDIT',
+  'APPROVED_REPLACEMENT',
+].join(',');
+const HISTORY_STATUS_CSV = 'REJECTED,CLOSED';
 
 type CustomerFilterKey = 'ALL' | 'ACTIVE' | 'HISTORY' | ReturnRequestType;
 type StaffFilterKey =
@@ -50,17 +63,6 @@ const STAFF_FILTERS: { key: StaffFilterKey; label: string }[] = [
   { key: 'MORE_INFO_REQUIRED', label: 'More info' },
   { key: 'CLOSED', label: 'Closed' },
 ];
-
-const ACTIVE_STATUSES = new Set<ReturnRequestStatus>([
-  'SUBMITTED',
-  'MORE_INFO_REQUIRED',
-  'ESCALATED_TO_ADMIN',
-  'AWAITING_MATERIAL',
-  'APPROVED_CREDIT',
-  'APPROVED_REPLACEMENT',
-]);
-
-const HISTORY_STATUSES = new Set<ReturnRequestStatus>(['REJECTED', 'CLOSED']);
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -120,33 +122,39 @@ export default function ReturnsScreen() {
   const [customerFilter, setCustomerFilter] = useState<CustomerFilterKey>('ALL');
   const [staffFilter, setStaffFilter] = useState<StaffFilterKey>('ALL');
 
-  const {
-    data: requests = [],
-    loading,
-    refreshing,
-    error,
-    refetch,
-  } = useGetReturnRequests();
-
-  const filtered = useMemo(() => {
-    if (isStaff) {
-      if (staffFilter === 'ALL') return requests;
-      return requests.filter((request) => request.status === staffFilter);
-    }
-
-    return requests.filter((request) => {
-      if (customerFilter === 'ALL') return true;
-      if (customerFilter === 'ACTIVE') return ACTIVE_STATUSES.has(request.status);
-      if (customerFilter === 'HISTORY') return HISTORY_STATUSES.has(request.status);
-      if (customerFilter === 'RETURN' || customerFilter === 'REPLACEMENT') {
-        return request.requestType === customerFilter;
-      }
-      return true;
-    });
-  }, [customerFilter, isStaff, requests, staffFilter]);
-
   const filters = isStaff ? STAFF_FILTERS : CUSTOMER_FILTERS;
   const activeFilter = isStaff ? staffFilter : customerFilter;
+  const listResetKey = `${isStaff ? 'staff' : 'customer'}|${activeFilter}`;
+  const { page, setPage, items, onPageSuccess } =
+    usePaginatedListState<ReturnRequestRecord>(listResetKey);
+
+  const listParams = useMemo(() => {
+    const base = { page, limit: PAGE_SIZE };
+    if (isStaff) {
+      return {
+        ...base,
+        status: staffFilter === 'ALL' ? undefined : staffFilter,
+      };
+    }
+    if (customerFilter === 'ACTIVE') {
+      return { ...base, status: ACTIVE_STATUS_CSV };
+    }
+    if (customerFilter === 'HISTORY') {
+      return { ...base, status: HISTORY_STATUS_CSV };
+    }
+    if (customerFilter === 'RETURN' || customerFilter === 'REPLACEMENT') {
+      return { ...base, requestType: customerFilter };
+    }
+    return base;
+  }, [page, isStaff, staffFilter, customerFilter]);
+
+  const { data, loading, refreshing, error, refetch } = useGetReturnRequests(
+    listParams,
+    { onSuccess: onPageSuccess }
+  );
+
+  const hasMore = Boolean(data?.hasMore);
+  const showInitialLoading = loading && page === 1 && items.length === 0;
 
   return (
     <View style={styles.container}>
@@ -167,6 +175,7 @@ export default function ReturnsScreen() {
           </View>
           <Pressable
             onPress={() => {
+              setPage(1);
               void refetch();
             }}
             hitSlop={8}
@@ -207,7 +216,7 @@ export default function ReturnsScreen() {
           </ScrollView>
         </View>
 
-        {loading ? (
+        {showInitialLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
           </View>
@@ -218,6 +227,7 @@ export default function ReturnsScreen() {
             <Pressable
               style={styles.retryBtn}
               onPress={() => {
+                setPage(1);
                 void refetch();
               }}>
               <Text style={styles.retryBtnText}>Retry</Text>
@@ -225,16 +235,29 @@ export default function ReturnsScreen() {
           </View>
         ) : (
           <FlatList
-            data={filtered}
+            data={items}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
+                refreshing={refreshing && page === 1}
                 onRefresh={() => {
+                  setPage(1);
                   void refetch();
                 }}
                 tintColor={colors.primary}
+              />
+            }
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+              if (hasMore && !loading && !refreshing) {
+                setPage((p) => p + 1);
+              }
+            }}
+            ListFooterComponent={
+              <QueryLoadMoreFooter
+                hasMore={hasMore}
+                loading={hasMore && (loading || refreshing) && page > 1}
               />
             }
             ListEmptyComponent={

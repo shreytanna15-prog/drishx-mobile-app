@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     Pressable,
@@ -26,27 +26,18 @@ import {
     getCompanyDisplayName,
 } from '@/lib/home-greeting';
 import {
-    computeCustomerOrderOverview,
-    computeCustomerOverviewTrends,
     EMPTY_OVERVIEW_TRENDS,
     type OverviewTrend,
 } from '@/lib/home-order-stats';
-import {
-    getLastOrderSummary,
-    type LastOrderSummary,
-} from '@/lib/last-order-summary';
-import { computeMostOrderedProducts, type MostOrderedProduct } from '@/lib/most-ordered-products';
+import type { LastOrderSummary } from '@/lib/last-order-summary';
+import type { MostOrderedProduct } from '@/lib/most-ordered-products';
 import { fetchNotifications } from '@/lib/notifications-api';
 import { useOrderMode } from '@/lib/order-mode';
-import { normalizeOrderStatus } from '@/lib/order-tracking';
-import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
-import type { OrderRecord } from '@/lib/orders-api';
-import { fetchMyTasks, type TaskRecord } from '@/lib/tasks-api';
+import { useGetOrdersOverview } from '@/lib/modules/orders/query/use-get-orders-overview';
+import { formatTaskDueDate, isTaskOverdue } from '@/lib/task-due';
 import { useBrandColors, useResolvedColorScheme } from '@/lib/theme-provider';
 import type { FilterOption } from '@/lib/types/lens';
 import { filterToCatalogCategory } from '@/lib/wholesale-navigation';
-
-const STAFF_PENDING_STATUSES = ['PENDING', 'PICKING', 'PACKED', 'DISPATCHED', 'PARTIALLY_FULFILLED', 'AWAITING_PROCUREMENT'];
 
 function getDisplayNameFull(name: string | null | undefined, email: string): string {
   const trimmed = name?.trim();
@@ -105,53 +96,61 @@ export default function HomeScreen() {
   const { user, isStaff, getAuthHeaders } = useAuth();
   const { setMode } = useOrderMode();
 
-  // Customer and staff each mount one orders query (enabled by role).
   const {
-    data: customerOrders = [],
-    loading: ordersLoading,
-    refetch: refetchCustomerOrders,
-  } = useGetOrders({ enabled: Boolean(user) && !isStaff });
+    data: overviewData,
+    loading: overviewLoading,
+    refetch: refetchOverview,
+  } = useGetOrdersOverview({ enabled: Boolean(user) });
 
-  const {
-    data: staffOrders = [],
-    loading: staffOrdersLoading,
-  } = useGetOrders({ enabled: Boolean(user) && isStaff });
-
-  const [staffOverview, setStaffOverview] = useState({
-    tasksAssigned: '—',
-    tasksCompleted: '—',
-    ordersReceived: 0,
-    ordersPending: 0,
-  });
-  const [staffExtraLoading, setStaffExtraLoading] = useState(false);
-  const [staffPendingOrders, setStaffPendingOrders] = useState<OrderRecord[]>([]);
-  const [staffPendingTasks, setStaffPendingTasks] = useState<TaskRecord[]>([]);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [showPendingTasks, setShowPendingTasks] = useState(true);
   const [showPendingOrders, setShowPendingOrders] = useState(true);
 
+  const customer = overviewData && overviewData.role === 'CUSTOMER' ? overviewData : null;
+  const staff = overviewData && overviewData.role !== 'CUSTOMER' ? overviewData : null;
+
   // Preserve prior silent-failure UX for customer overview (empty stats on error).
+  const ordersLoading = overviewLoading;
   const orderCounts = useMemo(
     () =>
-      ordersLoading
+      ordersLoading || !customer
         ? { total: 0, inProgress: 0, readyToShip: 0, completed: 0 }
-        : computeCustomerOrderOverview(customerOrders),
-    [customerOrders, ordersLoading],
+        : customer.overview,
+    [customer, ordersLoading],
   );
   const overviewTrends = useMemo(
-    () => (ordersLoading ? EMPTY_OVERVIEW_TRENDS : computeCustomerOverviewTrends(customerOrders)),
-    [customerOrders, ordersLoading],
+    () => (ordersLoading || !customer ? EMPTY_OVERVIEW_TRENDS : customer.trends),
+    [customer, ordersLoading],
   );
   const mostOrderedProducts: MostOrderedProduct[] = useMemo(
-    () => (ordersLoading ? [] : computeMostOrderedProducts(customerOrders, 5)),
-    [customerOrders, ordersLoading],
+    () => (ordersLoading || !customer ? [] : customer.topProducts),
+    [customer, ordersLoading],
   );
   const lastOrderSummary: LastOrderSummary | null = useMemo(
-    () => (ordersLoading ? null : getLastOrderSummary(customerOrders)),
-    [customerOrders, ordersLoading],
+    () => (ordersLoading || !customer ? null : customer.lastOrder),
+    [customer, ordersLoading],
   );
 
-  const staffLoading = staffOrdersLoading || staffExtraLoading;
+  const staffLoading = overviewLoading;
+  const staffOverview = useMemo(
+    () =>
+      staffLoading || !staff
+        ? {
+            tasksAssigned: '—',
+            tasksCompleted: '—',
+            ordersReceived: 0,
+            ordersPending: 0,
+          }
+        : {
+            tasksAssigned: String(staff.tasksAssigned),
+            tasksCompleted: String(staff.tasksCompleted),
+            ordersReceived: staff.ordersReceived,
+            ordersPending: staff.ordersPending,
+          },
+    [staff, staffLoading],
+  );
+  const staffPendingOrders = staff?.pendingOrders ?? [];
+  const staffPendingTasks = staff?.pendingTasks ?? [];
 
   const refreshUnreadNotificationsCount = useCallback(async () => {
     if (!user) return;
@@ -166,84 +165,11 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshUnreadNotificationsCount();
-      if (!isStaff && user) {
-        void refetchCustomerOrders();
+      if (user) {
+        void refetchOverview();
       }
-    }, [refreshUnreadNotificationsCount, refetchCustomerOrders, isStaff, user]),
+    }, [refreshUnreadNotificationsCount, refetchOverview, user]),
   );
-
-  // Tasks + notifications after orders settle (orders via useGetOrders).
-  useEffect(() => {
-    if (!isStaff || !user) return;
-    if (staffOrdersLoading) return;
-
-    let cancelled = false;
-    const loadStaffExtras = async () => {
-      setStaffExtraLoading(true);
-      try {
-        const [tasks, notifications] = await Promise.all([
-          fetchMyTasks(getAuthHeaders()),
-          fetchNotifications(getAuthHeaders()),
-        ]);
-        const now = new Date();
-        const todayOrders = staffOrders.filter((order) => {
-          const d = new Date(order.createdAt);
-          return (
-            d.getFullYear() === now.getFullYear() &&
-            d.getMonth() === now.getMonth() &&
-            d.getDate() === now.getDate()
-          );
-        });
-        const pendingToday = todayOrders.filter(
-          (order) =>
-            STAFF_PENDING_STATUSES.includes(order.status) &&
-            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT',
-        ).length;
-        const pendingOrders = staffOrders.filter(
-          (order) =>
-            STAFF_PENDING_STATUSES.includes(order.status) &&
-            normalizeOrderStatus(order.status) !== 'AWAITING_PROCUREMENT',
-        );
-        const todayTasks = tasks.filter((task) => {
-          const d = new Date(task.dueDate);
-          return (
-            d.getFullYear() === now.getFullYear() &&
-            d.getMonth() === now.getMonth() &&
-            d.getDate() === now.getDate()
-          );
-        });
-        const pendingTasks = tasks.filter((task) => task.status === 'PENDING');
-        const completedTasksToday = todayTasks.filter((task) => task.status === 'COMPLETED').length;
-
-        if (!cancelled) {
-          setStaffOverview({
-            tasksAssigned: String(todayTasks.length),
-            tasksCompleted: String(completedTasksToday),
-            ordersReceived: todayOrders.length,
-            ordersPending: pendingToday,
-          });
-          setStaffPendingOrders(pendingOrders);
-          setStaffPendingTasks(pendingTasks);
-          setUnreadNotificationsCount(notifications.filter((item) => !item.isRead).length);
-        }
-      } catch {
-        if (!cancelled) {
-          setStaffOverview({ tasksAssigned: '0', tasksCompleted: '0', ordersReceived: 0, ordersPending: 0 });
-          setStaffPendingOrders([]);
-          setStaffPendingTasks([]);
-          setUnreadNotificationsCount(0);
-        }
-      } finally {
-        if (!cancelled) {
-          setStaffExtraLoading(false);
-        }
-      }
-    };
-    void loadStaffExtras();
-    return () => {
-      cancelled = true;
-    };
-  }, [getAuthHeaders, isStaff, user, staffOrders, staffOrdersLoading]);
 
   if (isStaff) {
     const staffDisplayName = user ? getDisplayNameFull(user.name, user.email) : 'Team';
@@ -290,8 +216,11 @@ export default function HomeScreen() {
                   nestedScrollEnabled
                   contentContainerStyle={styles.overviewScrollContent}
                 >
-                  <OverviewCell label="Task assigned" value={staffOverview.tasksAssigned} />
-                  <OverviewCell label="Task completed" value={staffOverview.tasksCompleted} />
+                  <OverviewCell label="Due today" value={staffOverview.tasksAssigned} />
+                  <OverviewCell
+                    label="Completed (due today)"
+                    value={staffOverview.tasksCompleted}
+                  />
                   <OverviewCell label="Orders received" value={String(staffOverview.ordersReceived)} />
                   <OverviewCell label="Orders pending" value={String(staffOverview.ordersPending)} highlight />
                 </ScrollView>
@@ -330,15 +259,56 @@ export default function HomeScreen() {
               <View style={styles.dropdownBody}>
                 {staffPendingTasks.length > 0 ? (
                   <View style={styles.pendingTaskList}>
-                    {staffPendingTasks.slice(0, 10).map((task) => (
-                      <View key={task.id} style={styles.pendingTaskRow}>
-                        <View style={styles.pendingTaskLeft}>
-                          <MaterialIcons name="pending-actions" size={16} color={colors.primary} />
-                          <Text style={styles.pendingTaskText}>{task.title}</Text>
+                    {staffPendingTasks.slice(0, 10).map((task) => {
+                      const overdue = isTaskOverdue(task);
+                      return (
+                        <View
+                          key={task.id}
+                          style={[
+                            styles.pendingTaskRow,
+                            overdue && styles.pendingTaskRowOverdue,
+                          ]}
+                          accessibilityLabel={
+                            overdue
+                              ? `${task.title}, overdue, due ${formatTaskDueDate(task.dueDate)}`
+                              : `${task.title}, due ${formatTaskDueDate(task.dueDate)}`
+                          }
+                        >
+                          <View style={styles.pendingTaskLeft}>
+                            <MaterialIcons
+                              name={overdue ? 'warning' : 'pending-actions'}
+                              size={16}
+                              color={overdue ? colors.danger : colors.primary}
+                            />
+                            <View style={styles.pendingTaskTextCol}>
+                              <Text
+                                style={[
+                                  styles.pendingTaskText,
+                                  overdue && styles.pendingTaskTextOverdue,
+                                ]}
+                                numberOfLines={2}
+                              >
+                                {task.title}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.pendingTaskDue,
+                                  overdue && styles.pendingTaskDueOverdue,
+                                ]}
+                              >
+                                Due: {formatTaskDueDate(task.dueDate)}
+                                {overdue ? ' · Overdue' : ''}
+                              </Text>
+                            </View>
+                          </View>
+                          <MaterialIcons
+                            name="chevron-right"
+                            size={18}
+                            color={overdue ? colors.danger : colors.textMuted}
+                          />
                         </View>
-                        <MaterialIcons name="chevron-right" size={18} color={colors.textMuted} />
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 ) : (
                   <Text style={styles.emptyDropdownText}>No pending tasks.</Text>
@@ -624,7 +594,9 @@ function OverviewCell({
         </View>
       ) : null}
       <Text style={[styles.overviewValue, highlight && styles.overviewValueHighlight]}>{value}</Text>
-      <Text style={styles.overviewLabel}>{label}</Text>
+      <Text style={styles.overviewLabel} numberOfLines={2}>
+        {label}
+      </Text>
       {trend ? (
         <Text style={[styles.overviewTrendText, { color: tint }]} numberOfLines={1}>
           {trend.direction === 'down' ? '↓' : '↑'} {trend.percent}% vs yesterday
@@ -772,7 +744,7 @@ const createStyles = (c: BrandColorScheme, isLight: boolean) =>
     paddingRight: 4,
   },
   overviewCell: {
-    width: 138,
+    width: 148,
     flexShrink: 0,
     backgroundColor: c.card,
     borderRadius: 16,
@@ -1051,7 +1023,15 @@ const createStyles = (c: BrandColorScheme, isLight: boolean) =>
     paddingVertical: 10,
   },
   pendingTaskLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, paddingRight: 8 },
+  pendingTaskTextCol: { flex: 1, minWidth: 0, gap: 2 },
   pendingTaskText: { color: c.text, fontSize: 13, fontWeight: '600' },
+  pendingTaskTextOverdue: { color: c.danger },
+  pendingTaskDue: { color: c.textMuted, fontSize: 11, fontWeight: '600' },
+  pendingTaskDueOverdue: { color: c.danger },
+  pendingTaskRowOverdue: {
+    borderColor: 'rgba(220, 38, 38, 0.35)',
+    backgroundColor: 'rgba(220, 38, 38, 0.06)',
+  },
   pendingOrderList: { gap: 8 },
   pendingOrderRow: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -16,11 +16,13 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { QueryLoadMoreFooter } from '@/components/query-list-states';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import {
   DEFAULT_INVOICE_SORT,
   filterAndSortInvoices,
+  invoiceDateFilterToRange,
   INVOICE_DATE_FILTERS,
   INVOICE_SORT_OPTIONS,
   INVOICE_STATUS_FILTERS,
@@ -29,8 +31,11 @@ import {
   type InvoiceSortOption,
   type InvoiceStatusFilter,
 } from '@/lib/invoices-api';
+import { usePaginatedListState } from '@/lib/hooks/use-paginated-list-state';
 import { useGetInvoices } from '@/lib/modules/invoices/query/use-get-invoices';
 import { useBrandColors } from '@/lib/theme-provider';
+
+const PAGE_SIZE = 20;
 
 function formatAmount(value: number | string): string {
   const num = Number(value);
@@ -78,22 +83,46 @@ export default function InvoicesScreen() {
   const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('ALL');
   const [dateFilter, setDateFilter] = useState<InvoiceDateFilter>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
   const [sort, setSort] = useState<InvoiceSortOption>(DEFAULT_INVOICE_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
 
-  const { data: invoices = [], loading, refreshing, error, refetch } = useGetInvoices();
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const serverStatus =
+    statusFilter === 'ALL' || statusFilter === 'UNPAID' ? undefined : statusFilter;
+  const dateRange = invoiceDateFilterToRange(dateFilter);
+
+  const listResetKey = `${statusFilter}|${dateFilter}|${debouncedQ}`;
+  const { page, setPage, items, onPageSuccess } =
+    usePaginatedListState<InvoiceRecord>(listResetKey);
+
+  const { data, loading, refreshing, error, refetch } = useGetInvoices(
+    {
+      page,
+      limit: PAGE_SIZE,
+      status: serverStatus,
+      q: debouncedQ || undefined,
+      dateFrom: dateRange.dateFrom,
+      dateTo: dateRange.dateTo,
+    },
+    { onSuccess: onPageSuccess }
+  );
 
   const filtered = useMemo(
     () =>
-      filterAndSortInvoices(invoices, {
-        status: statusFilter,
-        date: dateFilter,
-        search: searchQuery,
+      filterAndSortInvoices(items, {
+        status: statusFilter === 'UNPAID' ? 'UNPAID' : 'ALL',
+        date: 'ALL',
+        search: '',
         sort,
       }),
-    [invoices, statusFilter, dateFilter, searchQuery, sort]
+    [items, statusFilter, sort]
   );
 
   const dateLabel =
@@ -102,11 +131,13 @@ export default function InvoicesScreen() {
   const filtersActive =
     statusFilter !== 'ALL' || dateFilter !== 'ALL' || searchQuery.trim().length > 0;
   const emptyMessage =
-    invoices.length === 0
+    items.length === 0
       ? 'No invoices found.'
       : filtersActive || extraFilterCount > 0
         ? 'No invoices match these filters.'
         : 'No invoices found.';
+  const hasMore = Boolean(data?.hasMore);
+  const showInitialLoading = loading && page === 1 && items.length === 0;
 
   function resetExtraFilters() {
     setDateFilter('ALL');
@@ -177,11 +208,12 @@ export default function InvoicesScreen() {
             })}
           </View>
 
-          {!loading && !error ? (
+          {!showInitialLoading && !error ? (
             <View style={styles.metaRow}>
               <Text style={styles.countHint} numberOfLines={1}>
                 {filtered.length} invoice{filtered.length === 1 ? '' : 's'}
                 {dateFilter !== 'ALL' ? ` · ${dateLabel}` : ''}
+                {hasMore ? ' · load more' : ''}
               </Text>
               {extraFilterCount > 0 ? (
                 <Pressable onPress={resetExtraFilters} hitSlop={8}>
@@ -192,7 +224,7 @@ export default function InvoicesScreen() {
           ) : null}
         </View>
 
-        {loading ? (
+        {showInitialLoading ? (
           <View style={styles.centered}>
             <ActivityIndicator color={colors.primary} />
             <Text style={styles.helperText}>Loading invoices...</Text>
@@ -200,7 +232,12 @@ export default function InvoicesScreen() {
         ) : error ? (
           <View style={styles.centered}>
             <Text style={styles.errorText}>{error.message}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                setPage(1);
+                void refetch();
+              }}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
@@ -211,11 +248,24 @@ export default function InvoicesScreen() {
             contentContainerStyle={styles.listContent}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
+                refreshing={refreshing && page === 1}
                 onRefresh={() => {
+                  setPage(1);
                   void refetch();
                 }}
                 tintColor={colors.primary}
+              />
+            }
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+              if (hasMore && !loading && !refreshing) {
+                setPage((p) => p + 1);
+              }
+            }}
+            ListFooterComponent={
+              <QueryLoadMoreFooter
+                hasMore={hasMore}
+                loading={hasMore && (loading || refreshing) && page > 1}
               />
             }
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}

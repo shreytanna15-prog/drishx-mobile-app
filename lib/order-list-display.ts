@@ -181,6 +181,30 @@ function isProcurementLine(status: OrderTrackingStatus): boolean {
   return status === 'AWAITING_PROCUREMENT' || status === 'PARTIALLY_FULFILLED';
 }
 
+/**
+ * Lines that count toward the "Ready" fulfillment indicator.
+ * Completed (and cancelled / procurement-path) lines are excluded so finished
+ * orders do not show a misleading Ready pill / progress.
+ */
+export function isReadyFulfillmentStatus(status: OrderTrackingStatus): boolean {
+  const normalized = normalizeOrderStatus(status);
+  if (normalized === 'CANCELLED' || normalized === 'COMPLETED') {
+    return false;
+  }
+  return !isProcurementLine(normalized);
+}
+
+/** Whether employee/customer list cards should show Ready progress UI. */
+export function shouldShowOrderReadyProgress(group: OrderListGroup): boolean {
+  if (group.isPhotoOrder) {
+    return false;
+  }
+  if (group.status.variant === 'completed') {
+    return false;
+  }
+  return group.readyProductCount > 0 || group.procurementProductCount > 0;
+}
+
 /** Orders screen excludes lines that belong on the Procurement tab. */
 export function filterStaffFulfillmentOrders(orders: OrderRecord[]): OrderRecord[] {
   return orders.filter(
@@ -276,9 +300,8 @@ export function isCrossOrder(order: OrderRecord): boolean {
 
 /** Shop prescription photo upload — not a completed color-lens or RX configuration. */
 function isPhotoOrder(order: OrderRecord): boolean {
-  return (
-    Boolean(order.orderImageUrl?.trim()) && !isColorLensOrder(order) && !isRxOrder(order)
-  );
+  const hasImage = Boolean(order.hasOrderImage || order.orderImageUrl?.trim());
+  return hasImage && !isColorLensOrder(order) && !isRxOrder(order);
 }
 
 export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDisplay {
@@ -316,6 +339,13 @@ export function getGroupStatusDisplay(orders: OrderRecord[]): OrderCardStatusDis
   }
 
   if (active.some((status) => status === 'PARTIALLY_FULFILLED')) {
+    return { label: 'Partial', variant: 'partial' };
+  }
+
+  // Mixed statuses in one checkout batch — avoid labeling as a single line status
+  // (e.g. "Picking" when sibling lines are already packed).
+  const uniqueActive = new Set(active);
+  if (uniqueActive.size > 1) {
     return { label: 'Partial', variant: 'partial' };
   }
 
@@ -380,8 +410,8 @@ export function groupOrdersForList(
     const activeOrders = sorted.filter(
       (order) => normalizeOrderStatus(order.status) !== 'CANCELLED'
     );
-    const readyProductCount = activeOrders.filter(
-      (order) => !isProcurementLine(normalizeOrderStatus(order.status))
+    const readyProductCount = activeOrders.filter((order) =>
+      isReadyFulfillmentStatus(normalizeOrderStatus(order.status))
     ).length;
     const procurementProductCount = activeOrders.filter(
       (order) => normalizeOrderStatus(order.status) === 'AWAITING_PROCUREMENT'

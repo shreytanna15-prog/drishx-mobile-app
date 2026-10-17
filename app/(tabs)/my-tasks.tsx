@@ -18,6 +18,7 @@ import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useAuth } from '@/lib/auth';
 import { isOfflineQueuedError } from '@/lib/api-request';
 import { fetchMyTasks, updateTaskStatus, type TaskRecord } from '@/lib/tasks-api';
+import { formatTaskDueDate, isTaskOverdue } from '@/lib/task-due';
 import { useBrandColors } from '@/lib/theme-provider';
 
 type FilterKey = 'ALL' | 'PENDING' | 'COMPLETED';
@@ -27,12 +28,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'PENDING', label: 'Pending' },
   { key: 'COMPLETED', label: 'Completed' },
 ];
-
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return 'No date';
-  return d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
-}
 
 type MyTasksStyles = ReturnType<typeof createStyles>;
 
@@ -50,20 +45,61 @@ function TaskRow({
   colors: BrandColorScheme;
 }) {
   const isDone = task.status === 'COMPLETED';
+  const overdue = isTaskOverdue(task);
+  const dueLabel = formatTaskDueDate(task.dueDate);
+
   return (
-    <View style={styles.taskCard}>
+    <View
+      style={[styles.taskCard, overdue && styles.taskCardOverdue]}
+      accessibilityLabel={
+        overdue
+          ? `${task.title}, overdue, due ${dueLabel}`
+          : `${task.title}, ${isDone ? 'completed' : 'pending'}, due ${dueLabel}`
+      }
+    >
       <View style={styles.taskTopRow}>
         <View style={{ flex: 1, paddingRight: 10 }}>
-          <Text style={styles.taskTitle}>{task.title}</Text>
-          {task.details?.trim() ? <Text style={styles.taskDetails}>{task.details.trim()}</Text> : null}
+          <Text style={[styles.taskTitle, overdue && styles.taskTitleOverdue]}>
+            {task.title}
+          </Text>
+          {task.details?.trim() ? (
+            <Text style={styles.taskDetails}>{task.details.trim()}</Text>
+          ) : null}
         </View>
-        <Pressable style={[styles.checkbox, isDone && styles.checkboxChecked]} onPress={onToggleComplete} disabled={disabled}>
-          {isDone ? <MaterialIcons name="check" size={16} color={colors.primaryText} /> : null}
+        <Pressable
+          style={[styles.checkbox, isDone && styles.checkboxChecked]}
+          onPress={onToggleComplete}
+          disabled={disabled}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: isDone, disabled }}
+          accessibilityLabel={isDone ? 'Mark task pending' : 'Mark task completed'}
+        >
+          {isDone ? (
+            <MaterialIcons name="check" size={16} color={colors.primaryText} />
+          ) : null}
         </Pressable>
       </View>
       <View style={styles.taskMetaRow}>
-        <Text style={styles.taskMetaText}>Due: {formatDate(task.dueDate)}</Text>
-        <Text style={[styles.statusText, isDone && styles.statusDone]}>{isDone ? 'Completed' : 'Pending'}</Text>
+        <View style={styles.taskDueCol}>
+          <Text
+            style={[styles.taskMetaText, overdue && styles.taskMetaOverdue]}
+          >
+            Due: {dueLabel}
+          </Text>
+          {overdue ? (
+            <View
+              style={styles.overdueBadge}
+              accessibilityRole="text"
+              accessibilityLabel="Overdue"
+            >
+              <MaterialIcons name="warning" size={12} color={colors.danger} />
+              <Text style={styles.overdueBadgeText}>Overdue</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.statusText, isDone && styles.statusDone]}>
+          {isDone ? 'Completed' : 'Pending'}
+        </Text>
       </View>
     </View>
   );
@@ -228,8 +264,13 @@ const createStyles = (c: BrandColorScheme) =>
       padding: 12,
       backgroundColor: c.card,
     },
+    taskCardOverdue: {
+      borderColor: 'rgba(220, 38, 38, 0.35)',
+      backgroundColor: 'rgba(220, 38, 38, 0.06)',
+    },
     taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
     taskTitle: { color: c.text, fontSize: 15, fontWeight: '700' },
+    taskTitleOverdue: { color: c.danger },
     taskDetails: { color: c.textMuted, fontSize: 13, marginTop: 4, lineHeight: 18 },
     checkbox: {
       width: 24,
@@ -243,8 +284,29 @@ const createStyles = (c: BrandColorScheme) =>
     checkboxChecked: {
       backgroundColor: c.primary,
     },
-    taskMetaRow: { marginTop: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    taskMetaRow: {
+      marginTop: 10,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 8,
+    },
+    taskDueCol: { flex: 1, minWidth: 0, gap: 6 },
     taskMetaText: { color: c.textMuted, fontSize: 12 },
+    taskMetaOverdue: { color: c.danger, fontWeight: '700' },
+    overdueBadge: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: 'rgba(220, 38, 38, 0.4)',
+      backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    },
+    overdueBadgeText: { color: c.danger, fontSize: 11, fontWeight: '800' },
     statusText: { color: c.primary, fontSize: 12, fontWeight: '700' },
     statusDone: { color: c.success },
     center: {

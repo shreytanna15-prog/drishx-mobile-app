@@ -25,11 +25,14 @@ import {
   formatOrderDateTime,
   getStatusPillStyle,
   groupOrdersForList,
+  shouldShowOrderReadyProgress,
   type OrderCardStatusVariant,
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { normalizeOrderStatus } from '@/lib/order-tracking';
+import { usePaginatedListState } from '@/lib/hooks/use-paginated-list-state';
 import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
+import { useGetOrderGroup } from '@/lib/modules/orders/query/use-get-order-group';
 import type { OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
 import { appAlert } from '@/lib/app-alert';
@@ -136,9 +139,7 @@ function ListOrderRow({
   const readyCount = group.readyProductCount;
   const progress =
     group.isPhotoOrder || readyTotal <= 0 ? 0 : Math.min(1, readyCount / readyTotal);
-  const showProgress =
-    !group.isPhotoOrder &&
-    (group.readyProductCount > 0 || group.procurementProductCount > 0 || group.productCount > 0);
+  const showProgress = shouldShowOrderReadyProgress(group);
 
   return (
     <Pressable style={styles.listRow} onPress={onPress}>
@@ -263,6 +264,16 @@ function ListOrderRow({
   );
 }
 
+const IN_PROGRESS_STATUS =
+  'PENDING,PICKING,PACKED,DISPATCHED,PARTIALLY_FULFILLED,AWAITING_PROCUREMENT';
+
+function statusParamForFilter(filter: FilterKey): string | undefined {
+  if (filter === 'ALL') return undefined;
+  if (filter === 'COMPLETED') return 'COMPLETED';
+  if (filter === 'CANCELLED') return 'CANCELLED';
+  return IN_PROGRESS_STATUS;
+}
+
 export default function MyOrdersScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
@@ -271,38 +282,67 @@ export default function MyOrdersScreen() {
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQ, setDebouncedQ] = useState('');
 
-  const { data: orders = [], loading, refreshing, error, refetch } = useGetOrders();
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const listResetKey = `${activeFilter}|${debouncedQ}`;
+  const { page, setPage, items, setItems, onPageSuccess } =
+    usePaginatedListState<OrderRecord>(listResetKey);
+
+  const { data, loading, refreshing, error, refetch } = useGetOrders(
+    {
+      page,
+      limit: 20,
+      status: statusParamForFilter(activeFilter),
+      q: debouncedQ || undefined,
+    },
+    { onSuccess: onPageSuccess }
+  );
 
   const orderGroups = useMemo(
-    () => groupOrdersForList(orders, user?.businessName, 'Your company'),
-    [orders, user?.businessName]
+    () => groupOrdersForList(items, user?.businessName, 'Your company'),
+    [items, user?.businessName]
   );
+
+  const {
+    data: detailOrders = [],
+    loading: detailLoading,
+    refreshing: detailRefreshing,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useGetOrderGroup(selectedGroupKey ?? undefined);
 
   useEffect(() => {
     return onOfflineSyncComplete(() => {
+      setPage(1);
+      setItems([]);
       void refetch();
+      if (selectedGroupKey) void refetchDetail();
     });
-  }, [refetch]);
+  }, [refetch, refetchDetail, selectedGroupKey, setPage, setItems]);
 
-  const selectedGroup = useMemo(
-    () =>
-      selectedGroupKey ? orderGroups.find((entry) => entry.key === selectedGroupKey) ?? null : null,
-    [orderGroups, selectedGroupKey]
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupKey) return null;
+    if (detailOrders.length > 0) {
+      return (
+        groupOrdersForList(detailOrders, user?.businessName, 'Your company')[0] ?? null
+      );
+    }
+    return orderGroups.find((entry) => entry.key === selectedGroupKey) ?? null;
+  }, [selectedGroupKey, detailOrders, orderGroups, user?.businessName]);
+
+  // Server already filtered by status/q; keep group-level match for multi-line batches.
+  const filteredGroups = useMemo(
+    () => orderGroups.filter((group) => groupMatchesFilter(group, activeFilter)),
+    [orderGroups, activeFilter]
   );
 
-  const filteredGroups = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return orderGroups.filter((group) => {
-      if (!groupMatchesFilter(group, activeFilter)) return false;
-      if (!q) return true;
-      return (
-        group.displayOrderId.toLowerCase().includes(q) ||
-        group.companyName.toLowerCase().includes(q) ||
-        group.status.label.toLowerCase().includes(q)
-      );
-    });
-  }, [orderGroups, activeFilter, searchQuery]);
+  const hasMore = Boolean(data?.hasMore);
+  const showInitialLoading = loading && page === 1 && items.length === 0;
 
   return (
     <View style={styles.container}>
@@ -334,27 +374,51 @@ export default function MyOrdersScreen() {
           )}
         </View>
 
-        {loading ? (
+        {showInitialLoading ? (
           <View style={styles.centeredState}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading your orders...</Text>
           </View>
-        ) : error ? (
+        ) : error && items.length === 0 ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="error-outline" size={48} color={colors.danger} />
             <Text style={styles.errorText}>{error.message}</Text>
-            <Pressable style={styles.retryButton} onPress={() => void refetch()}>
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                setPage(1);
+                void refetch();
+              }}>
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
+          </View>
+        ) : selectedGroupKey && (detailLoading || detailError) && !selectedGroup ? (
+          <View style={styles.centeredState}>
+            {detailLoading ? (
+              <>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={styles.stateText}>Loading order…</Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="error-outline" size={48} color={colors.danger} />
+                <Text style={styles.errorText}>
+                  {detailError?.message ?? 'Failed to load order.'}
+                </Text>
+                <Pressable style={styles.retryButton} onPress={() => void refetchDetail()}>
+                  <Text style={styles.retryText}>Retry</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         ) : selectedGroup ? (
           <ScrollView
             contentContainerStyle={styles.detailContent}
             refreshControl={
               <RefreshControl
-                refreshing={refreshing}
+                refreshing={detailRefreshing}
                 onRefresh={() => {
-                  void refetch();
+                  void refetchDetail();
                 }}
                 tintColor={colors.primary}
               />
@@ -362,7 +426,11 @@ export default function MyOrdersScreen() {
             <CustomerOrderGroupDetail
               group={selectedGroup}
               getAuthHeaders={getAuthHeaders}
-              onAlternateChanged={() => void refetch()}
+              onAlternateChanged={() => {
+                void refetchDetail();
+                setPage(1);
+                void refetch();
+              }}
             />
           </ScrollView>
         ) : (
@@ -418,12 +486,26 @@ export default function MyOrdersScreen() {
               contentContainerStyle={styles.listContent}
               refreshControl={
                 <RefreshControl
-                  refreshing={refreshing}
+                  refreshing={refreshing && page === 1}
                   onRefresh={() => {
+                    setPage(1);
                     void refetch();
                   }}
                   tintColor={colors.primary}
                 />
+              }
+              onEndReached={() => {
+                if (hasMore && !loading && !refreshing) {
+                  setPage((p) => p + 1);
+                }
+              }}
+              onEndReachedThreshold={0.4}
+              ListFooterComponent={
+                hasMore && (loading || refreshing) && page > 1 ? (
+                  <View style={styles.loadMoreFooter}>
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  </View>
+                ) : null
               }
               ItemSeparatorComponent={() => <View style={styles.separator} />}
               ListEmptyComponent={
@@ -553,6 +635,7 @@ const createStyles = (c: BrandColorScheme) =>
       fontWeight: '700',
     },
     listContent: { paddingHorizontal: 16, paddingBottom: 24, flexGrow: 1 },
+    loadMoreFooter: { paddingVertical: 16, alignItems: 'center' },
     listRow: {
       padding: 14,
       borderRadius: 18,

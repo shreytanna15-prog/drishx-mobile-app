@@ -17,6 +17,7 @@ import {
   isCrossOrder,
   isRxOrder,
   orderPowerLineToLensItem,
+  shouldShowOrderReadyProgress,
   type OrderListGroup,
 } from '@/lib/order-list-display';
 import { formatPairQuantity, pairsFromPieces } from '@/lib/order-quantity';
@@ -221,7 +222,7 @@ export function EmployeeOrderListRow({
 
           {expanded ? productCards : null}
 
-          {!procurementOnly && group.readyProductCount > 0 ? (
+          {!procurementOnly && shouldShowOrderReadyProgress(group) && group.readyProductCount > 0 ? (
             <View style={styles.fulfillmentRow}>
               <View style={styles.readyPill}>
                 <Text style={styles.readyPillText}>{group.readyProductCount} Ready</Text>

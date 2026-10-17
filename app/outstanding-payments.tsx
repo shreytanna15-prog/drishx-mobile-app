@@ -2,7 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -18,117 +18,86 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import { useAuth } from '@/lib/auth';
-import { BACKEND_BASE_URL } from '@/lib/api-config';
-import { apiFetch } from '@/lib/api-request';
 import { appAlert } from '@/lib/app-alert';
-
-type OutstandingPayload = {
-  outstanding: number;
-  invoices: Array<{
-    id: string;
-    invoiceNumber: string;
-    amountOutstanding: number | string;
-  }>;
-};
+import { isOfflineQueuedFailure } from '@/lib/hooks/api-hook-utils';
+import { useGetOutstandingReceivables } from '@/lib/modules/finance/query/use-get-outstanding-receivables';
+import { useSubmitPaymentClaim } from '@/lib/modules/finance/mutation/use-submit-payment-claim';
+import { useSubmitNoBillExpense } from '@/lib/modules/finance/mutation/use-submit-no-bill-expense';
 
 export default function OutstandingPaymentsScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
-  const { getAuthHeaders, user } = useAuth();
-  const [data, setData] = useState<OutstandingPayload | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
-  const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/receivables`, {
-        headers: getAuthHeaders(),
-        authenticated: true,
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load');
-      setData(json);
-    } catch (err) {
-      appAlert('Error', err instanceof Error ? err.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, [getAuthHeaders]);
+  const { data, loading, refetch } = useGetOutstandingReceivables({
+    onError: (e) => appAlert('Error', e.message),
+  });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  function toggleInvoice(id: string) {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
-  async function submitClaim() {
-    setSubmitting(true);
-    try {
-      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/payments`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        authenticated: true,
-        body: JSON.stringify({
-          action: 'claim',
-          amount: Number(amount),
-          mode: 'UPI',
-          reference,
-          invoiceIds: selected.length ? selected : undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Claim failed');
+  const { mutate: submitClaim, pending: claimPending } = useSubmitPaymentClaim({
+    onSuccess: () => {
       appAlert('Submitted', 'Payment claim sent for admin confirmation.');
       setAmount('');
       setReference('');
       setSelected([]);
-      await load();
-    } catch (err) {
-      appAlert('Error', err instanceof Error ? err.message : 'Claim failed');
-    } finally {
-      setSubmitting(false);
-    }
+      void refetch();
+    },
+    onError: (e) => {
+      if (isOfflineQueuedFailure(e)) {
+        appAlert('Saved offline', e.message);
+        return;
+      }
+      appAlert('Error', e.message);
+    },
+  });
+
+  const { mutate: submitExpense, pending: expensePending } =
+    useSubmitNoBillExpense({
+      onSuccess: () => {
+        appAlert('Submitted', 'Expense sent for admin approval.');
+        setAmount('');
+        setReference('');
+      },
+      onError: (e) => {
+        if (isOfflineQueuedFailure(e)) {
+          appAlert('Saved offline', e.message);
+          return;
+        }
+        appAlert('Error', e.message);
+      },
+    });
+
+  const submitting = claimPending || expensePending;
+
+  function toggleInvoice(id: string) {
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
-  async function submitNoBillExpense() {
+  function onSubmitClaim() {
+    void submitClaim({
+      amount: Number(amount),
+      mode: 'UPI',
+      reference,
+      invoiceIds: selected.length ? selected : undefined,
+    });
+  }
+
+  function onSubmitNoBillExpense() {
     if (user?.role !== 'EMPLOYEE' && user?.role !== 'ADMIN') {
       appAlert('Info', 'Expense submit is for employees.');
       return;
     }
-    setSubmitting(true);
-    try {
-      const res = await apiFetch(`${BACKEND_BASE_URL}/api/finance/expenses`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        authenticated: true,
-        body: JSON.stringify({
-          category: 'Miscellaneous',
-          amount: Number(amount),
-          billAvailable: false,
-          noBillReason: reference || 'No bill available',
-          description: 'Mobile no-bill expense',
-          postingClass: 'OPERATING',
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Expense failed');
-      appAlert('Submitted', 'Expense sent for admin approval.');
-      setAmount('');
-      setReference('');
-    } catch (err) {
-      appAlert('Error', err instanceof Error ? err.message : 'Expense failed');
-    } finally {
-      setSubmitting(false);
-    }
+    void submitExpense({
+      amount: Number(amount),
+      noBillReason: reference || 'No bill available',
+      description: 'Mobile no-bill expense',
+      category: 'Miscellaneous',
+    });
   }
 
   return (
@@ -207,7 +176,7 @@ export default function OutstandingPaymentsScreen() {
               <Pressable
                 style={styles.btn}
                 disabled={submitting}
-                onPress={() => void submitClaim()}>
+                onPress={onSubmitClaim}>
                 <Text style={styles.btnText}>
                   {submitting ? 'Submitting…' : 'Submit claim'}
                 </Text>
@@ -216,7 +185,7 @@ export default function OutstandingPaymentsScreen() {
                 <Pressable
                   style={[styles.btn, styles.btnOutline]}
                   disabled={submitting}
-                  onPress={() => void submitNoBillExpense()}>
+                  onPress={onSubmitNoBillExpense}>
                   <Text style={[styles.btnText, { color: colors.primary }]}>
                     Submit no-bill expense
                   </Text>
