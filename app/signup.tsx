@@ -12,9 +12,16 @@ import type { BrandColorScheme } from '@/constants/brand-colors';
 import { useStatusBarStyle } from '@/hooks/use-status-bar-style';
 import { useSystemBrandColors, useSystemThemedStyles } from '@/hooks/use-system-themed-styles';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
+import { resolveAuthTokens, useAuth } from '@/lib/auth';
+import {
+  sendEmailOtp,
+  sendMobileOtp,
+  verifyEmailOtp,
+  verifyMobileOtp,
+} from '@/lib/otp-api';
 import { getDraftForUser, saveRegistrationDraft } from '@/lib/registration-draft';
 
-const SIGNUP_URL = `${BACKEND_BASE_URL}/api/auth/signup`;
+type Step = 'details' | 'otp' | 'email';
 
 export const options = {
   headerShown: false,
@@ -22,76 +29,167 @@ export const options = {
 
 export default function SignupScreen() {
   const router = useRouter();
+  const { signIn, updateUser } = useAuth();
+  const [step, setStep] = useState<Step>('details');
   const [name, setName] = useState('');
   const [businessName, setBusinessName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [alternateMobileNumber, setAlternateMobileNumber] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [providerSessionId, setProviderSessionId] = useState<string | null>(null);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailSessionId, setEmailSessionId] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [createdUserId, setCreatedUserId] = useState<string | null>(null);
+  const [createdEmail, setCreatedEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const colors = useSystemBrandColors();
   const statusBarStyle = useStatusBarStyle();
   const styles = useSystemThemedStyles(createStyles);
 
-  async function handleSignup() {
-    if (!name.trim() || !mobileNumber.trim() || !email.trim() || !password.trim()) {
-      appAlert('Missing fields', 'Full name, mobile, email, and password are required.');
+  async function goToWizard(userId: string, userEmail: string) {
+    await saveRegistrationDraft(await getDraftForUser(userId, userEmail));
+    router.replace({
+      pathname: '/business-info',
+      params: { userId, email: userEmail },
+    });
+  }
+
+  async function handleSendMobileOtp() {
+    if (!name.trim() || !mobileNumber.trim()) {
+      appAlert('Missing fields', 'Full name and mobile number are required.');
       return;
     }
-
-    if (password !== confirmPassword) {
-      appAlert('Password mismatch', 'Please make sure both passwords match.');
-      return;
-    }
-
     setLoading(true);
-
     try {
-      const normalizedEmail = email.trim().toLowerCase();
-      const response = await fetch(SIGNUP_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          businessName: businessName.trim() || undefined,
-          mobileNumber: mobileNumber.trim(),
-          alternateMobileNumber: alternateMobileNumber.trim() || undefined,
-          whatsappNumber: whatsappNumber.trim() || undefined,
-          email: normalizedEmail,
-          password,
-        }),
+      const sent = await sendMobileOtp({
+        mobileNumber,
+        purpose: 'SIGNUP',
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        appAlert('Signup failed', result?.error || 'Signup failed. Please try again.');
-        return;
-      }
-
-      const userId = result?.user?.id;
-      if (!userId) {
-        appAlert('Signup failed', 'Account was created but user id was missing.');
-        return;
-      }
-
-      await saveRegistrationDraft(await getDraftForUser(userId, normalizedEmail));
-
-      router.replace({
-        pathname: '/business-info',
-        params: { userId, email: normalizedEmail },
-      });
-    } catch {
+      setProviderSessionId(sent.providerSessionId);
+      setOtpCode('');
+      setStep('otp');
+    } catch (err) {
       appAlert(
-        'Network error',
-        `Unable to connect to the signup backend at ${SIGNUP_URL}. Make sure the Drishx-admin-and-backend server is running and reachable from this device.`
+        'Send OTP failed',
+        err instanceof Error
+          ? err.message
+          : `Unable to reach ${BACKEND_BASE_URL}. Is the backend running?`
       );
     } finally {
       setLoading(false);
     }
   }
+
+  async function handleVerifyMobileOtp() {
+    if (!otpCode.trim()) {
+      appAlert('Missing OTP', 'Enter the OTP sent to your mobile.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await verifyMobileOtp({
+        mobileNumber,
+        purpose: 'SIGNUP',
+        code: otpCode,
+        providerSessionId,
+        name,
+        businessName: businessName.trim() || undefined,
+        alternateMobileNumber: alternateMobileNumber.trim() || undefined,
+        whatsappNumber: whatsappNumber.trim() || undefined,
+      });
+      const { accessToken: token, refreshToken } = resolveAuthTokens(result);
+      if (!token || !result.user) {
+        appAlert('Signup failed', 'Account was created but session was missing. Please log in.');
+        return;
+      }
+      signIn(token, result.user, refreshToken);
+      setAccessToken(token);
+      setCreatedUserId(result.user.id);
+      setCreatedEmail(result.user.email);
+      setStep('email');
+    } catch (err) {
+      appAlert(
+        'Verify failed',
+        err instanceof Error ? err.message : 'OTP verification failed.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSendEmailOtp() {
+    if (!email.trim()) {
+      appAlert('Email required', 'Enter an email, or tap Skip.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const sent = await sendEmailOtp({
+        email,
+        purpose: 'SIGNUP',
+        accessToken,
+      });
+      setEmailSessionId(sent.providerSessionId);
+      setEmailOtp('');
+    } catch (err) {
+      appAlert(
+        'Send email OTP failed',
+        err instanceof Error ? err.message : 'Failed to send email OTP.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyEmailOtp() {
+    if (!emailOtp.trim()) {
+      appAlert('Missing OTP', 'Enter the email OTP, or tap Skip.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await verifyEmailOtp({
+        email,
+        purpose: 'SIGNUP',
+        code: emailOtp,
+        providerSessionId: emailSessionId,
+        accessToken,
+      });
+      if (result.user) {
+        updateUser(result.user);
+        await goToWizard(result.user.id, result.user.email);
+        return;
+      }
+      if (createdUserId) {
+        await goToWizard(createdUserId, email.trim().toLowerCase());
+      }
+    } catch (err) {
+      appAlert(
+        'Email verify failed',
+        err instanceof Error ? err.message : 'Email OTP failed.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSkipEmail() {
+    if (!createdUserId) {
+      appAlert('Signup incomplete', 'Please verify mobile OTP first.');
+      return;
+    }
+    await goToWizard(createdUserId, createdEmail);
+  }
+
+  const subtitle =
+    step === 'details'
+      ? 'Verify your mobile to create an account. Business and GST details are optional next.'
+      : step === 'otp'
+        ? 'Enter the OTP sent to your mobile.'
+        : 'Optional: verify an email now, or skip and continue registration.';
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -99,115 +197,162 @@ export default function SignupScreen() {
       <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
         <View style={styles.card}>
           <Text style={styles.heading}>Create account</Text>
-          <Text style={styles.subheading}>
-            Join DrishX to shop and track orders. Business and GST details are optional.
-          </Text>
+          <Text style={styles.subheading}>{subtitle}</Text>
           <View style={styles.steps}>
             <View style={[styles.step, styles.stepActive]} />
-            <View style={styles.step} />
+            <View style={[styles.step, step !== 'details' ? styles.stepActive : null]} />
             <View style={styles.step} />
             <View style={styles.step} />
             <View style={styles.step} />
           </View>
 
-          <Field label="Full name" colors={colors} styles={styles}>
-            <TextInput
-              value={name}
-              onChangeText={setName}
-              placeholder="John Doe"
-              placeholderTextColor={colors.placeholder}
-              style={styles.input}
-              autoCapitalize="words"
-            />
-          </Field>
+          {step === 'details' && (
+            <>
+              <Field label="Full name" colors={colors} styles={styles}>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="John Doe"
+                  placeholderTextColor={colors.placeholder}
+                  style={styles.input}
+                  autoCapitalize="words"
+                />
+              </Field>
 
-          <Field label="Business name (optional)" colors={colors} styles={styles}>
-            <TextInput
-              value={businessName}
-              onChangeText={setBusinessName}
-              placeholder="Your business name"
-              placeholderTextColor={colors.placeholder}
-              style={styles.input}
-            />
-          </Field>
+              <Field label="Business name (optional)" colors={colors} styles={styles}>
+                <TextInput
+                  value={businessName}
+                  onChangeText={setBusinessName}
+                  placeholder="Your business name"
+                  placeholderTextColor={colors.placeholder}
+                  style={styles.input}
+                />
+              </Field>
 
-          <Field label="Mobile number" colors={colors} styles={styles}>
-            <TextInput
-              value={mobileNumber}
-              onChangeText={setMobileNumber}
-              placeholder="10-digit mobile number"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="phone-pad"
-              style={styles.input}
-            />
-          </Field>
+              <Field label="Mobile number" colors={colors} styles={styles}>
+                <TextInput
+                  value={mobileNumber}
+                  onChangeText={setMobileNumber}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+              </Field>
 
-          <Field label="Alternate mobile number (optional)" colors={colors} styles={styles}>
-            <TextInput
-              value={alternateMobileNumber}
-              onChangeText={setAlternateMobileNumber}
-              placeholder="Alternate mobile number"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="phone-pad"
-              style={styles.input}
-            />
-          </Field>
+              <Field label="Alternate mobile number (optional)" colors={colors} styles={styles}>
+                <TextInput
+                  value={alternateMobileNumber}
+                  onChangeText={setAlternateMobileNumber}
+                  placeholder="Alternate mobile number"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+              </Field>
 
-          <Field label="WhatsApp number (optional)" colors={colors} styles={styles}>
-            <TextInput
-              value={whatsappNumber}
-              onChangeText={setWhatsappNumber}
-              placeholder="WhatsApp number"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="phone-pad"
-              style={styles.input}
-            />
-          </Field>
+              <Field label="WhatsApp number (optional)" colors={colors} styles={styles}>
+                <TextInput
+                  value={whatsappNumber}
+                  onChangeText={setWhatsappNumber}
+                  placeholder="WhatsApp number"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="phone-pad"
+                  style={styles.input}
+                />
+              </Field>
 
-          <Field label="Email" colors={colors} styles={styles}>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              style={styles.input}
-            />
-          </Field>
+              <Pressable style={styles.button} onPress={handleSendMobileOtp} disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color={colors.primaryText} />
+                ) : (
+                  <Text style={styles.buttonText}>Send mobile OTP</Text>
+                )}
+              </Pressable>
+            </>
+          )}
 
-          <Field label="Password" colors={colors} styles={styles}>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor={colors.placeholder}
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-            />
-          </Field>
+          {step === 'otp' && (
+            <>
+              <Text style={styles.hint}>Code sent to {mobileNumber}</Text>
+              <Field label="Mobile OTP" colors={colors} styles={styles}>
+                <TextInput
+                  value={otpCode}
+                  onChangeText={setOtpCode}
+                  placeholder="6-digit code"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="number-pad"
+                  style={styles.input}
+                  autoComplete="one-time-code"
+                />
+              </Field>
+              <Pressable style={styles.button} onPress={handleVerifyMobileOtp} disabled={loading}>
+                {loading ? (
+                  <ActivityIndicator color={colors.primaryText} />
+                ) : (
+                  <Text style={styles.buttonText}>Verify & continue</Text>
+                )}
+              </Pressable>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => {
+                  setStep('details');
+                  setOtpCode('');
+                }}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryButtonText}>Change mobile number</Text>
+              </Pressable>
+            </>
+          )}
 
-          <Field label="Confirm password" colors={colors} styles={styles}>
-            <TextInput
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              placeholder="Confirm password"
-              placeholderTextColor={colors.placeholder}
-              secureTextEntry
-              autoCapitalize="none"
-              style={styles.input}
-            />
-          </Field>
-
-          <Pressable style={styles.button} onPress={handleSignup} disabled={loading}>
-            {loading ? (
-              <ActivityIndicator color={colors.primaryText} />
-            ) : (
-              <Text style={styles.buttonText}>Continue</Text>
-            )}
-          </Pressable>
+          {step === 'email' && (
+            <>
+              <Field label="Email (optional)" colors={colors} styles={styles}>
+                <TextInput
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  style={styles.input}
+                />
+              </Field>
+              {emailSessionId ? (
+                <>
+                  <Field label="Email OTP" colors={colors} styles={styles}>
+                    <TextInput
+                      value={emailOtp}
+                      onChangeText={setEmailOtp}
+                      placeholder="6-digit code"
+                      placeholderTextColor={colors.placeholder}
+                      keyboardType="number-pad"
+                      style={styles.input}
+                      autoComplete="one-time-code"
+                    />
+                  </Field>
+                </>
+              ) : null}
+              <Pressable
+                style={styles.button}
+                onPress={emailSessionId ? handleVerifyEmailOtp : handleSendEmailOtp}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.primaryText} />
+                ) : (
+                  <Text style={styles.buttonText}>
+                    {emailSessionId ? 'Verify email & continue' : 'Send email OTP'}
+                  </Text>
+                )}
+              </Pressable>
+              <Pressable style={styles.secondaryButton} onPress={handleSkipEmail} disabled={loading}>
+                <Text style={styles.secondaryButtonText}>Skip email for now</Text>
+              </Pressable>
+            </>
+          )}
 
           <Link href="/login" style={styles.backLink}>
             <Text style={styles.linkText}>Already have an account? Log in</Text>
@@ -250,6 +395,7 @@ const createStyles = (c: BrandColorScheme) =>
     },
     heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
     subheading: { color: c.textMuted, fontSize: 14, marginBottom: 16 },
+    hint: { color: c.textMuted, fontSize: 13, marginBottom: 10 },
     steps: { flexDirection: 'row', gap: 8, marginBottom: 24 },
     step: {
       flex: 1,
@@ -279,6 +425,17 @@ const createStyles = (c: BrandColorScheme) =>
       backgroundColor: c.primary,
     },
     buttonText: { color: c.primaryText, fontSize: 16, fontWeight: '800' },
+    secondaryButton: {
+      marginTop: 10,
+      borderRadius: 16,
+      height: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: c.cardBorder,
+      backgroundColor: c.card,
+    },
+    secondaryButtonText: { color: c.link, fontSize: 15, fontWeight: '600' },
     backLink: { marginTop: 18, alignItems: 'center' },
     linkText: { color: c.link, fontSize: 15, fontWeight: '600' },
   });

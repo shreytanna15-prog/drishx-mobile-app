@@ -71,6 +71,15 @@ export default function OutstandingPaymentsScreen() {
     });
 
   const submitting = claimPending || expensePending;
+  const creditLimit =
+    user?.creditLimit != null && user.creditLimit !== ''
+      ? Number(user.creditLimit)
+      : null;
+  const outstanding = data?.outstanding ?? 0;
+  const availableCredit =
+    creditLimit != null && Number.isFinite(creditLimit)
+      ? Math.max(0, creditLimit - outstanding)
+      : null;
 
   function toggleInvoice(id: string) {
     setSelected((prev) =>
@@ -114,10 +123,35 @@ export default function OutstandingPaymentsScreen() {
           <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
         ) : (
           <ScrollView contentContainerStyle={styles.content}>
+            {user?.pricingTierCode ||
+            (user?.accountAction && user.accountAction !== 'NONE') ? (
+              <Text style={styles.muted}>
+                {user?.pricingTierCode
+                  ? `Pricing tier ${user.pricingTierCode}`
+                  : ''}
+                {user?.accountAction && user.accountAction !== 'NONE'
+                  ? `${user?.pricingTierCode ? ' · ' : ''}${user.accountAction.replace(/_/g, ' ')}`
+                  : ''}
+              </Text>
+            ) : null}
+            {creditLimit != null ? (
+              <View style={styles.card}>
+                <Text style={styles.label}>Credit limit</Text>
+                <Text style={styles.amount}>
+                  ₹{creditLimit.toLocaleString('en-IN')}
+                </Text>
+                <Text style={[styles.label, { marginTop: 10 }]}>
+                  Available credit
+                </Text>
+                <Text style={styles.amount}>
+                  ₹{(availableCredit ?? 0).toLocaleString('en-IN')}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.card}>
               <Text style={styles.label}>Total outstanding</Text>
               <Text style={styles.amount}>
-                ₹{(data?.outstanding ?? 0).toLocaleString('en-IN')}
+                ₹{outstanding.toLocaleString('en-IN')}
               </Text>
             </View>
             <View style={styles.card}>

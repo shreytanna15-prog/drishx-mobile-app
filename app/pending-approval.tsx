@@ -14,7 +14,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BrandColorScheme } from '@/constants/brand-colors';
-import { appAlert } from '@/lib/app-alert';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { fetchCurrentUser, mapApiUser } from '@/lib/auth-api';
 import { useAuth } from '@/lib/auth';
@@ -30,7 +29,7 @@ export default function PendingApprovalScreen() {
     rejected?: string;
     reason?: string;
   }>();
-  const { token, user, signIn, signOut, updateUser } = useAuth();
+  const { token, user, signIn, updateUser } = useAuth();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
@@ -63,19 +62,14 @@ export default function PendingApprovalScreen() {
         return;
       }
 
+      // Phase E: rejected customers stay signed in so they can edit & resubmit.
       if (mapped.approvalStatus === 'REJECTED') {
         stopPolling();
-        appAlert(
-          'Account rejected',
-          mapped.rejectionReason || 'Your account was rejected by admin.'
-        );
-        signOut();
-        router.replace('/login');
       }
     } catch {
       // Keep polling on transient network errors
     }
-  }, [token, updateUser, signIn, router, signOut, stopPolling]);
+  }, [token, updateUser, signIn, router, stopPolling]);
 
   useEffect(() => {
     if (isRejected) return;
@@ -104,7 +98,7 @@ export default function PendingApprovalScreen() {
             {isRejected
               ? rejectionReason ||
                 'Your account was rejected by admin. Contact support or sign up again.'
-              : 'Your registration details were submitted successfully. An admin must approve your account before you can use the app.'}
+              : 'Your account is pending admin approval. Self-serve orders stay frozen until you are approved.'}
           </Text>
 
           {email ? <Text style={styles.email}>Account: {email}</Text> : null}
@@ -115,9 +109,9 @@ export default function PendingApprovalScreen() {
               <Text style={styles.footerText}>
                 {token
                   ? user && !user.gstNumber
-                    ? 'Your account is incomplete (no GST yet). An admin can still review it, or you can add business details below.'
-                    : 'Checking approval... You will be signed in automatically when your account is ready.'
-                  : 'Open the app again and log in with your email to continue. Your account is waiting for admin approval.'}
+                    ? 'Your account is incomplete (no GST yet). An admin can still review it, or you can add business details below. Ordering stays frozen until approval.'
+                    : 'Checking approval… You will be signed in automatically when ready. Ordering stays frozen until then.'
+                  : 'Log in again to continue. Your account is waiting for admin approval — ordering stays frozen until then.'}
               </Text>
               {user && !user.gstNumber && user.id ? (
                 <Pressable
@@ -131,8 +125,33 @@ export default function PendingApprovalScreen() {
                   <Text style={styles.linkText}>Complete business / GST details</Text>
                 </Pressable>
               ) : null}
+              {token ? (
+                <Pressable onPress={() => router.push('/edit-profile')}>
+                  <Text style={styles.linkText}>Edit profile</Text>
+                </Pressable>
+              ) : null}
             </View>
           )}
+
+          {isRejected ? (
+            <View style={styles.footer}>
+              {token ? (
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => router.push('/edit-profile')}
+                >
+                  <Text style={styles.primaryButtonText}>Edit profile</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.primaryButton}
+                  onPress={() => router.replace('/login')}
+                >
+                  <Text style={styles.primaryButtonText}>Log in to edit profile</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -170,5 +189,19 @@ const createStyles = (c: BrandColorScheme) =>
       fontWeight: '600',
       textAlign: 'center',
       marginTop: 4,
+    },
+    primaryButton: {
+      marginTop: 8,
+      backgroundColor: c.primary,
+      borderRadius: 14,
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      alignItems: 'center',
+      alignSelf: 'stretch',
+    },
+    primaryButtonText: {
+      color: '#fff',
+      fontSize: 15,
+      fontWeight: '700',
     },
   });

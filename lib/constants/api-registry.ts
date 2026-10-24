@@ -19,6 +19,11 @@ export const MUTATION_REGISTRY = {
   createStockIntake: "createStockIntake",
   submitPaymentClaim: "submitPaymentClaim",
   submitNoBillExpense: "submitNoBillExpense",
+  sendMobileOtp: "sendMobileOtp",
+  verifyMobileOtp: "verifyMobileOtp",
+  sendEmailOtp: "sendEmailOtp",
+  verifyEmailOtp: "verifyEmailOtp",
+  updateCustomerProfile: "updateCustomerProfile",
 } as const;
 
 export type QueryRegistryKey =

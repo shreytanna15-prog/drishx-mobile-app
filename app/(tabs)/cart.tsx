@@ -29,6 +29,7 @@ import { useOrderMode } from '@/lib/order-mode';
 import {
   getQuantityStep,
 } from '@/lib/order-quantity';
+import { mapCheckoutErrorMessage } from '@/lib/checkout-errors';
 import { createOrder, ORDER_NOTES_MAX_LENGTH, wholesaleCheckout } from '@/lib/orders-api';
 import { DeliveryServicePicker } from '@/lib/delivery-api';
 
@@ -97,9 +98,11 @@ export default function CartTabScreen() {
         }
         procurementCount += wholesaleResult.procurementCount;
       } else {
-        failures.push(wholesaleResult.error);
+        failures.push(mapCheckoutErrorMessage(wholesaleResult.error));
         if (wholesaleResult.partialFailures?.length) {
-          failures.push(...wholesaleResult.partialFailures);
+          failures.push(
+            ...wholesaleResult.partialFailures.map(mapCheckoutErrorMessage)
+          );
         }
       }
     }
@@ -122,7 +125,9 @@ export default function CartTabScreen() {
           procurementCount += 1;
         }
       } else {
-        failures.push(`${item.lensType ?? 'Lens'} (SPH ${item.sph}): ${result.error}`);
+        failures.push(
+          `${item.lensType ?? 'Lens'} (SPH ${item.sph}): ${mapCheckoutErrorMessage(result.error)}`
+        );
       }
     }
 

@@ -39,14 +39,21 @@ export type AuthUser = {
   isActive?: boolean;
   isApproved?: boolean;
   approvalStatus?: AccountApprovalStatus;
+  accountAction?: string | null;
+  creditLimit?: string | null;
+  creditAllowed?: boolean;
+  pricingTierId?: string | null;
+  pricingTierCode?: string | null;
   gstNumber?: string | null;
   businessName?: string | null;
   businessAddress?: string | null;
   state?: string | null;
   pincode?: string | null;
   mobileNumber?: string | null;
+  mobileVerifiedAt?: string | null;
   alternateMobileNumber?: string | null;
   whatsappNumber?: string | null;
+  emailVerifiedAt?: string | null;
   shopName?: string | null;
   businessType?: string | null;
   addressLine1?: string | null;
@@ -80,7 +87,12 @@ export function isCustomerApproved(user: AuthUser | null | undefined): boolean {
   if (!user || user.role !== 'CUSTOMER') {
     return true;
   }
-  return Boolean(user.isApproved && user.approvalStatus === 'APPROVED');
+  // Suspended customers keep APPROVED with isActive=false.
+  return Boolean(
+    user.isApproved &&
+      user.approvalStatus === 'APPROVED' &&
+      user.isActive !== false
+  );
 }
 
 type AuthContextValue = {

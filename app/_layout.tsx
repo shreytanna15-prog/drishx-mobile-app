@@ -47,6 +47,7 @@ function RootNavigation() {
             <Stack.Screen name="cart" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ headerShown: false }} />
             <Stack.Screen name="company-profile" options={{ headerShown: false }} />
+            <Stack.Screen name="edit-profile" options={{ headerShown: false }} />
             <Stack.Screen name="profile-placeholder" options={{ headerShown: false }} />
             <Stack.Screen name="outstanding-payments" options={{ headerShown: false }} />
             <Stack.Screen name="invoices" options={{ headerShown: false }} />

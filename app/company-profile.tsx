@@ -62,7 +62,9 @@ export default function CompanyProfileScreen() {
             <MaterialIcons name="arrow-back" size={22} color={colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>Company Profile</Text>
-          <View style={{ width: 22 }} />
+          <Pressable onPress={() => router.push('/edit-profile')} hitSlop={8}>
+            <Text style={styles.editLink}>Edit</Text>
+          </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -136,6 +138,7 @@ const createStyles = (c: BrandColorScheme) =>
       borderBottomColor: c.cardBorder,
     },
     headerTitle: { color: c.text, fontSize: 18, fontWeight: '700' },
+    editLink: { color: c.primary, fontSize: 14, fontWeight: '700' },
     content: { padding: 16, gap: 12 },
     card: {
       backgroundColor: c.card,
