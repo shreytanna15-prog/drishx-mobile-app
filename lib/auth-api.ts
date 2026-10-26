@@ -89,6 +89,12 @@ export function mapApiUser(raw: Record<string, unknown>): AuthUser {
       raw.creditAllowed === undefined ? undefined : Boolean(raw.creditAllowed),
     pricingTierId: optionalString(raw.pricingTierId),
     pricingTierCode: optionalString(raw.pricingTierCode),
+    pricingTierDiscountPercent:
+      typeof raw.pricingTierDiscountPercent === 'number'
+        ? raw.pricingTierDiscountPercent
+        : raw.pricingTierDiscountPercent != null
+          ? Number(raw.pricingTierDiscountPercent)
+          : null,
     gstNumber: optionalString(raw.gstNumber),
     businessName: optionalString(raw.businessName),
     businessAddress: optionalString(raw.businessAddress),

@@ -2,7 +2,7 @@
 
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -31,6 +31,7 @@ import {
 } from '@/lib/order-quantity';
 import { mapCheckoutErrorMessage } from '@/lib/checkout-errors';
 import { createOrder, ORDER_NOTES_MAX_LENGTH, wholesaleCheckout } from '@/lib/orders-api';
+import { applyTierDiscountDisplay } from '@/lib/pricing-tier-display';
 import { DeliveryServicePicker } from '@/lib/delivery-api';
 
 export default function CartTabScreen() {
@@ -59,6 +60,11 @@ export default function CartTabScreen() {
   } | null>(null);
 
   const summary = getCartSummary(items, orderMode);
+  const tierBreakdown = useMemo(
+    () =>
+      applyTierDiscountDisplay(totalPrice, user?.pricingTierDiscountPercent ?? null),
+    [totalPrice, user?.pricingTierDiscountPercent]
+  );
 
   async function handlePlaceOrder() {
     if (items.length === 0) {
@@ -292,13 +298,28 @@ export default function CartTabScreen() {
             </ScrollView>
 
             <View style={styles.summaryBar}>
-              <View>
+              <View style={{ flex: 1, paddingRight: 8 }}>
                 <Text style={styles.summaryLabel}>
                   {summary.productCount} product{summary.productCount === 1 ? '' : 's'} ·{' '}
                   {summary.pairCount} {isWholesale ? 'pair' : 'pc'}
                   {summary.pairCount === 1 ? '' : 's'}
                 </Text>
-                <Text style={styles.summaryTotal}>₹{totalPrice.toLocaleString('en-IN')}</Text>
+                {tierBreakdown.discountAmount > 0 ? (
+                  <>
+                    <Text style={styles.summaryLabel}>
+                      Subtotal ₹{totalPrice.toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={styles.summaryLabel}>
+                      Tier {user?.pricingTierCode ?? ''} ({tierBreakdown.discountPercent}
+                      %) −₹{tierBreakdown.discountAmount.toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={styles.summaryTotal}>
+                      ₹{tierBreakdown.afterDiscount.toLocaleString('en-IN')}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.summaryTotal}>₹{totalPrice.toLocaleString('en-IN')}</Text>
+                )}
               </View>
               <Pressable
                 style={[styles.placeOrderButton, placingOrder && styles.buttonDisabled]}

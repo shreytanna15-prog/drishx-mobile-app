@@ -229,6 +229,10 @@ export default function LoginScreen() {
 
           {mode === 'otp' ? (
             <>
+              <Text style={styles.pathBHint}>
+                Admin-created or walk-in accounts: sign in with the registered mobile
+                number (OTP). No password required.
+              </Text>
               <View style={styles.field}>
                 <Text style={styles.label}>Mobile number</Text>
                 <TextInput
@@ -345,6 +349,12 @@ const createStyles = (c: BrandColorScheme) =>
     heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
     subheading: { color: c.textMuted, fontSize: 14, marginBottom: 8 },
     hint: { color: c.textMuted, fontSize: 13, marginBottom: 10 },
+    pathBHint: {
+      fontSize: 13,
+      color: c.textMuted,
+      marginBottom: 12,
+      lineHeight: 18,
+    },
     devApiHint: {
       color: c.textMuted,
       fontSize: 11,

@@ -33,6 +33,7 @@ import { setOnBehalfCustomOrderContext } from '@/lib/on-behalf-custom-order';
 import { createOrderFromLens, ORDER_NOTES_MAX_LENGTH } from '@/lib/orders-api';
 import { useBrandColors } from '@/lib/theme-provider';
 import type { FilterOption, LensItem } from '@/lib/types/lens';
+import { EmployeeWalkInCreatePanel } from '@/components/employee-walk-in-create-panel';
 
 type Step = 'customer' | 'shop';
 type SelectedLine = { lens: LensItem; quantity: number };
@@ -391,6 +392,17 @@ export default function EmployeeOrderOnBehalfScreen() {
             onEndReachedThreshold={0.4}
             ListHeaderComponent={
               <View style={styles.section}>
+                <EmployeeWalkInCreatePanel
+                  onCreated={(customer) => {
+                    setSelectedCustomerId(customer.id);
+                    setSelectedCustomerCache(customer);
+                    setCustomers((prev) => {
+                      if (prev.some((c) => c.id === customer.id)) return prev;
+                      return [customer, ...prev];
+                    });
+                    setStep('shop');
+                  }}
+                />
                 <Text style={styles.sectionTitle}>Choose company</Text>
                 <TextInput
                   value={customerSearch}

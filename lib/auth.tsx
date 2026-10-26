@@ -44,6 +44,7 @@ export type AuthUser = {
   creditAllowed?: boolean;
   pricingTierId?: string | null;
   pricingTierCode?: string | null;
+  pricingTierDiscountPercent?: number | null;
   gstNumber?: string | null;
   businessName?: string | null;
   businessAddress?: string | null;
