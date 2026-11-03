@@ -1,6 +1,4 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
-import { authFetch } from '@/lib/auth-fetch';
-
 export type PhotoOrderUploadResult = {
   order: {
     id: string;
@@ -19,29 +17,18 @@ export function resolvePhotoOrderImageUrl(imageUrl: string): string {
   return `${BACKEND_BASE_URL}${imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`}`;
 }
 
+/**
+ * RC-02: photo prescription orders are retired (POST /api/orders/photo → 410).
+ * Kept only so stale callers fail loudly instead of hitting the network.
+ * Legacy photo rows still display via `resolvePhotoOrderImageUrl`.
+ */
 export async function uploadPhotoOrder(
-  imageUri: string,
-  mimeType: string,
-  fileName: string,
+  _imageUri: string,
+  _mimeType: string,
+  _fileName: string,
   _headers: Record<string, string>
 ): Promise<PhotoOrderUploadResult> {
-  const formData = new FormData();
-  formData.append('photo', {
-    uri: imageUri,
-    name: fileName,
-    type: mimeType,
-  } as unknown as Blob);
-
-  // authFetch attaches the live Bearer token (ignore possibly stale headers).
-  const response = await authFetch(`${BACKEND_BASE_URL}/api/orders/photo`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(result?.error || 'Failed to upload photo order.');
-  }
-
-  return result as PhotoOrderUploadResult;
+  throw new Error(
+    'Photo prescription orders have been retired. Please place a prescription order using the RX form.'
+  );
 }
