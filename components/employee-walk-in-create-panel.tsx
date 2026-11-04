@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,13 +15,22 @@ import type { CustomerCompany } from '@/lib/customers-api';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   createWalkInCustomer,
+  fetchWalkInHistory,
+  lookupWalkInMobile,
   sendWalkInMobileOtp,
   verifyWalkInMobileOtp,
+  WalkInApiError,
 } from '@/lib/walk-in-customer-api';
 
 type Props = {
   onCreated: (customer: CustomerCompany) => void;
 };
+
+type Phase = 'idle' | 'need_otp' | 'need_create';
+
+function customerLabel(c: CustomerCompany): string {
+  return c.businessName || c.name || c.email || c.id;
+}
 
 export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
   const colors = useBrandColors();
@@ -32,21 +42,85 @@ export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
   const [shop, setShop] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [challengeId, setChallengeId] = useState<string | null>(null);
-  const [verified, setVerified] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<CustomerCompany[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHistoryLoading(true);
+    void fetchWalkInHistory({ page: 1, limit: 20 })
+      .then((page) => {
+        if (!cancelled) setHistory(page.items);
+      })
+      .catch(() => {
+        if (!cancelled) setHistory([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleLookup() {
+    setError(null);
+    setBusy(true);
+    setPhase('idle');
+    setChallengeId(null);
+    setSessionId(null);
+    setCode('');
+    try {
+      const result = await lookupWalkInMobile(mobile.trim());
+      setMobile(result.mobileNumber || mobile.trim());
+
+      if (result.kind === 'path_a') {
+        setError(
+          result.message ??
+            'This mobile is a self-signup customer. Use Order on behalf instead.'
+        );
+        return;
+      }
+      if (result.kind === 'staff_created' && !result.orderable) {
+        setError(result.message ?? 'This customer cannot be used for walk-in.');
+        return;
+      }
+      if (
+        result.kind === 'staff_created' &&
+        result.skipOtp &&
+        result.customer?.id
+      ) {
+        onCreated(result.customer);
+        return;
+      }
+      setPhase('need_otp');
+    } catch (err) {
+      setError(
+        err instanceof WalkInApiError || err instanceof Error
+          ? err.message
+          : 'Failed to look up mobile.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleSend() {
     setError(null);
     setBusy(true);
-    setVerified(false);
-    setChallengeId(null);
     try {
       const res = await sendWalkInMobileOtp(mobile.trim());
       setSessionId(res.providerSessionId);
       setMobile(res.mobileNumber);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send OTP.');
+      setError(
+        err instanceof WalkInApiError || err instanceof Error
+          ? err.message
+          : 'Failed to send OTP.'
+      );
     } finally {
       setBusy(false);
     }
@@ -62,11 +136,32 @@ export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
         providerSessionId: sessionId,
       });
       setChallengeId(res.challengeId);
-      setVerified(true);
       setMobile(res.mobileNumber);
-      if (res.user?.id) onCreated(res.user);
+
+      if (res.walkInKind === 'path_a' || res.code === 'WALK_IN_PATH_A') {
+        setError(
+          res.message ??
+            'This mobile is a self-signup customer. Use Order on behalf instead.'
+        );
+        setPhase('idle');
+        return;
+      }
+      if (res.code === 'WALK_IN_NOT_ORDERABLE') {
+        setError(res.message ?? 'This customer cannot be used for walk-in.');
+        setPhase('idle');
+        return;
+      }
+      if (res.user?.id) {
+        onCreated(res.user);
+        return;
+      }
+      setPhase('need_create');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to verify OTP.');
+      setError(
+        err instanceof WalkInApiError || err instanceof Error
+          ? err.message
+          : 'Failed to verify OTP.'
+      );
     } finally {
       setBusy(false);
     }
@@ -90,11 +185,13 @@ export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
       setCode('');
       setName('');
       setShop('');
-      setVerified(false);
+      setPhase('idle');
       setChallengeId(null);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Failed to create walk-in customer.'
+        err instanceof WalkInApiError || err instanceof Error
+          ? err.message
+          : 'Failed to create walk-in customer.'
       );
     } finally {
       setBusy(false);
@@ -103,50 +200,75 @@ export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
 
   return (
     <View style={styles.box}>
-      <Text style={styles.title}>Create walk-in customer</Text>
+      <Text style={styles.title}>Walk-in customer</Text>
       <Text style={styles.hint}>
-        Phone + OTP, then place order while Admin finishes setup.
+        Staff-created only. Verified mobiles skip OTP; new mobiles need OTP then
+        create.
       </Text>
 
       <TextInput
         value={mobile}
-        onChangeText={setMobile}
+        onChangeText={(v) => {
+          setMobile(v);
+          if (phase !== 'idle') setPhase('idle');
+        }}
         placeholder="10-digit mobile"
         placeholderTextColor={colors.placeholder}
         keyboardType="phone-pad"
-        editable={!busy && !verified}
+        editable={!busy && phase !== 'need_create'}
         style={styles.input}
       />
       <Pressable
-        style={[styles.secondaryBtn, (busy || !mobile.trim() || verified) && styles.disabled]}
-        disabled={busy || !mobile.trim() || verified}
-        onPress={() => void handleSend()}
+        style={[
+          styles.secondaryBtn,
+          (busy || !mobile.trim() || phase === 'need_create') && styles.disabled,
+        ]}
+        disabled={busy || !mobile.trim() || phase === 'need_create'}
+        onPress={() => void handleLookup()}
       >
-        {busy ? (
+        {busy && phase === 'idle' ? (
           <ActivityIndicator color={colors.primary} />
         ) : (
-          <Text style={styles.secondaryBtnText}>Send OTP</Text>
+          <Text style={styles.secondaryBtnText}>Continue</Text>
         )}
       </Pressable>
 
-      <TextInput
-        value={code}
-        onChangeText={setCode}
-        placeholder="OTP code"
-        placeholderTextColor={colors.placeholder}
-        keyboardType="number-pad"
-        editable={!busy && !verified}
-        style={styles.input}
-      />
-      <Pressable
-        style={[styles.secondaryBtn, (busy || !code.trim() || verified) && styles.disabled]}
-        disabled={busy || !code.trim() || verified}
-        onPress={() => void handleVerify()}
-      >
-        <Text style={styles.secondaryBtnText}>{verified ? 'Verified' : 'Verify'}</Text>
-      </Pressable>
+      {phase === 'need_otp' || phase === 'need_create' ? (
+        <>
+          <Pressable
+            style={[
+              styles.secondaryBtn,
+              (busy || phase === 'need_create') && styles.disabled,
+            ]}
+            disabled={busy || phase === 'need_create'}
+            onPress={() => void handleSend()}
+          >
+            <Text style={styles.secondaryBtnText}>Send OTP</Text>
+          </Pressable>
+          <TextInput
+            value={code}
+            onChangeText={setCode}
+            placeholder="OTP code"
+            placeholderTextColor={colors.placeholder}
+            keyboardType="number-pad"
+            editable={!busy && phase !== 'need_create'}
+            style={styles.input}
+          />
+          <Pressable
+            style={[
+              styles.secondaryBtn,
+              (busy || !code.trim() || phase === 'need_create') &&
+                styles.disabled,
+            ]}
+            disabled={busy || !code.trim() || phase === 'need_create'}
+            onPress={() => void handleVerify()}
+          >
+            <Text style={styles.secondaryBtnText}>Verify</Text>
+          </Pressable>
+        </>
+      ) : null}
 
-      {verified ? (
+      {phase === 'need_create' ? (
         <>
           <TextInput
             value={name}
@@ -179,6 +301,28 @@ export function EmployeeWalkInCreatePanel({ onCreated }: Props) {
       ) : null}
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <View style={styles.historyBox}>
+        <Text style={styles.historyTitle}>Recent staff-created</Text>
+        {historyLoading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : history.length === 0 ? (
+          <Text style={styles.hint}>No prior walk-in customers yet.</Text>
+        ) : (
+          <ScrollView style={styles.historyList} nestedScrollEnabled>
+            {history.map((c) => (
+              <Pressable
+                key={c.id}
+                style={styles.historyItem}
+                disabled={busy}
+                onPress={() => onCreated(c)}
+              >
+                <Text style={styles.historyItemText}>{customerLabel(c)}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
@@ -223,5 +367,24 @@ function createStyles(colors: BrandColorScheme) {
     primaryBtnText: { color: colors.primaryText, fontWeight: '800' },
     disabled: { opacity: 0.55 },
     error: { color: colors.danger, fontSize: 12, fontWeight: '600' },
+    historyBox: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.inputBorder,
+      paddingTop: 10,
+      marginTop: 4,
+      gap: 6,
+    },
+    historyTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textMuted,
+    },
+    historyList: { maxHeight: 140 },
+    historyItem: {
+      paddingVertical: 8,
+      paddingHorizontal: 6,
+      borderRadius: 8,
+    },
+    historyItemText: { fontSize: 12, fontWeight: '600', color: colors.text },
   });
 }

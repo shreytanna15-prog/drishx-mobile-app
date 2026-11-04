@@ -1,6 +1,18 @@
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { authFetch } from '@/lib/auth-fetch';
 import type { CustomerCompany } from '@/lib/customers-api';
+import { fetchCustomerCompanies } from '@/lib/customers-api';
+
+export type WalkInLookupKind = 'none' | 'path_a' | 'staff_created';
+
+export type WalkInLookupResult = {
+  kind: WalkInLookupKind;
+  mobileNumber: string;
+  customer: CustomerCompany | null;
+  skipOtp: boolean;
+  orderable: boolean;
+  message: string | null;
+};
 
 export type WalkInOtpSendResult = {
   challengeId: string;
@@ -13,6 +25,9 @@ export type WalkInOtpVerifyResult = {
   challengeId: string;
   mobileNumber: string;
   user: CustomerCompany | null;
+  walkInKind?: WalkInLookupKind;
+  code?: string;
+  message?: string | null;
 };
 
 export type CreateWalkInPayload = {
@@ -24,14 +39,57 @@ export type CreateWalkInPayload = {
   email?: string;
 };
 
-async function parseError(res: Response, fallback: string): Promise<string> {
-  try {
-    const data = (await res.json()) as { error?: string; details?: string };
-    if (data.error && data.details) return `${data.error} (${data.details})`;
-    return data.error ?? fallback;
-  } catch {
-    return fallback;
+export class WalkInApiError extends Error {
+  status: number;
+  code: string | null;
+  customer: CustomerCompany | null;
+
+  constructor(
+    message: string,
+    status: number,
+    code: string | null = null,
+    customer: CustomerCompany | null = null
+  ) {
+    super(message);
+    this.name = 'WalkInApiError';
+    this.status = status;
+    this.code = code;
+    this.customer = customer;
   }
+}
+
+async function parseWalkInError(res: Response, fallback: string): Promise<never> {
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    message?: string;
+    code?: string;
+    details?: string;
+    customer?: CustomerCompany | null;
+  };
+  const message =
+    data.error && data.details
+      ? `${data.error} (${data.details})`
+      : (data.error ?? data.message ?? fallback);
+  throw new WalkInApiError(
+    message,
+    res.status,
+    typeof data.code === 'string' ? data.code : null,
+    data.customer ?? null
+  );
+}
+
+export async function lookupWalkInMobile(
+  mobile: string
+): Promise<WalkInLookupResult> {
+  const qs = new URLSearchParams({ mobile: mobile.trim() });
+  const res = await authFetch(
+    `${BACKEND_BASE_URL}/api/users/customers/walk-in/lookup?${qs.toString()}`,
+    { method: 'GET' }
+  );
+  if (!res.ok) {
+    await parseWalkInError(res, 'Failed to look up mobile.');
+  }
+  return res.json() as Promise<WalkInLookupResult>;
 }
 
 export async function sendWalkInMobileOtp(
@@ -42,7 +100,7 @@ export async function sendWalkInMobileOtp(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mobileNumber, purpose: 'WALK_IN' }),
   });
-  if (!res.ok) throw new Error(await parseError(res, 'Failed to send OTP.'));
+  if (!res.ok) await parseWalkInError(res, 'Failed to send OTP.');
   return res.json() as Promise<WalkInOtpSendResult>;
 }
 
@@ -61,7 +119,7 @@ export async function verifyWalkInMobileOtp(input: {
       providerSessionId: input.providerSessionId ?? undefined,
     }),
   });
-  if (!res.ok) throw new Error(await parseError(res, 'Failed to verify OTP.'));
+  if (!res.ok) await parseWalkInError(res, 'Failed to verify OTP.');
   return res.json() as Promise<WalkInOtpVerifyResult>;
 }
 
@@ -73,9 +131,37 @@ export async function createWalkInCustomer(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    throw new Error(await parseError(res, 'Failed to create walk-in customer.'));
+  const data = (await res.json().catch(() => ({}))) as {
+    customer?: CustomerCompany;
+    error?: string;
+    code?: string;
+  };
+  if (res.ok && data.customer) return data.customer;
+  if (
+    res.status === 409 &&
+    data.code === 'WALK_IN_EXISTS' &&
+    data.customer?.id
+  ) {
+    return data.customer;
   }
-  const data = (await res.json()) as { customer: CustomerCompany };
-  return data.customer;
+  throw new WalkInApiError(
+    data.error ?? 'Failed to create walk-in customer.',
+    res.status,
+    typeof data.code === 'string' ? data.code : null,
+    data.customer ?? null
+  );
+}
+
+export async function fetchWalkInHistory(params?: {
+  page?: number;
+  limit?: number;
+  q?: string;
+}) {
+  return fetchCustomerCompanies({
+    status: 'staff-created',
+    activeOnly: false,
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+    q: params?.q,
+  });
 }

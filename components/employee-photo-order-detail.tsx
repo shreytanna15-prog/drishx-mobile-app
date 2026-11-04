@@ -54,7 +54,7 @@ export function EmployeePhotoOrderDetail({
       if (isUpdating || updatingTracking) return;
 
       const stepLabel = MAIN_TRACKING_STEPS.find((item) => item.key === step)?.label ?? step;
-      appAlert('Update order tracking', `Set this photo order to "${stepLabel}"?`, [
+      appAlert('Update order tracking', `Set this order to "${stepLabel}"?`, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Update',
