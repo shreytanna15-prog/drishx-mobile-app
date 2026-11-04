@@ -457,7 +457,7 @@ export function EmployeeOrderGroupDetail({
                     borderColor: 'rgba(240, 161, 50, 0.35)',
                   },
                 ]}>
-                <Text style={[styles.typeBadgeText, { color: '#f0a132' }]}>Photo order</Text>
+                <Text style={[styles.typeBadgeText, { color: '#f0a132' }]}>Image attached</Text>
               </View>
             ) : null}
             {hasCrossOrder ? (

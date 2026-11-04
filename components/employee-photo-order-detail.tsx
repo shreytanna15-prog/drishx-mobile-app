@@ -89,7 +89,7 @@ export function EmployeePhotoOrderDetail({
         <Text style={styles.companyName}>{group.companyName}</Text>
         {order.user?.email ? <Text style={styles.customerEmail}>{order.user.email}</Text> : null}
         <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
-        <Text style={styles.photoHint}>Product details are in the prescription photo below.</Text>
+        <Text style={styles.photoHint}>Product details are in the attached image below.</Text>
       </View>
 
       {photoUri && !photoLoadFailed ? (
@@ -103,7 +103,7 @@ export function EmployeePhotoOrderDetail({
         <View style={styles.photoMissing}>
           <MaterialIcons name="image-not-supported" size={40} color={colors.textMuted} />
           <Text style={styles.photoMissingText}>
-            {photoUri ? 'Could not load prescription photo' : 'Photo unavailable'}
+            {photoUri ? 'Could not load attached image' : 'Image unavailable'}
           </Text>
         </View>
       )}

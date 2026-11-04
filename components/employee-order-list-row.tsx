@@ -95,7 +95,7 @@ export function EmployeeOrderListRow({
       <View style={styles.typeBadgeRow}>
         {group.isPhotoOrder ? (
           <OrderTypeBadge
-            label="Photo order"
+            label="Image attached"
             backgroundColor="rgba(240, 161, 50, 0.14)"
             borderColor="rgba(240, 161, 50, 0.35)"
             color="#f0a132"
@@ -200,7 +200,7 @@ export function EmployeeOrderListRow({
 
       {group.isPhotoOrder ? (
         <Pressable onPress={onPress} disabled={!onPress}>
-          <Text style={styles.photoOrderNote}>Prescription photo order · details in image</Text>
+          <Text style={styles.photoOrderNote}>Image attached · details in image</Text>
           {photoUri ? (
             <Image source={{ uri: photoUri }} style={styles.photoThumb} contentFit="cover" />
           ) : null}

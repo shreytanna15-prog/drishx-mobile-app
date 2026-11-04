@@ -298,7 +298,7 @@ export function isCrossOrder(order: OrderRecord): boolean {
   return false;
 }
 
-/** Shop prescription photo upload — not a completed color-lens or RX configuration. */
+/** Legacy image-only row (RC-02 retired create) — not color-lens or RX. */
 function isPhotoOrder(order: OrderRecord): boolean {
   const hasImage = Boolean(order.hasOrderImage || order.orderImageUrl?.trim());
   return hasImage && !isColorLensOrder(order) && !isRxOrder(order);
@@ -383,7 +383,7 @@ export function groupOrdersForList(
         totalAmount: 0,
         readyProductCount: 0,
         procurementProductCount: 0,
-        status: { label: 'Photo order', variant: 'progress' },
+        status: getGroupStatusDisplay([order]),
         isPhotoOrder: true,
         photoUrl: order.orderImageUrl?.trim() || null,
       });

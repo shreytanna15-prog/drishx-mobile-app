@@ -339,7 +339,9 @@ export function CustomerOrderGroupDetail({
           <Text style={styles.companyName}>{group.companyName}</Text>
           <Text style={styles.dateTime}>{formatOrderDateTime(group.createdAt)}</Text>
           <ExpectedDispatchNote orders={group.orders} />
-          <Text style={styles.photoHint}>Your order will be placed soon. Details are in your photo.</Text>
+          <Text style={styles.photoHint}>
+            Image attached · our team will follow up. Details are in your image.
+          </Text>
         </View>
 
         {photoUri && !photoLoadFailed ? (
@@ -353,7 +355,7 @@ export function CustomerOrderGroupDetail({
           <View style={styles.photoMissing}>
             <MaterialIcons name="image-not-supported" size={40} color={colors.textMuted} />
             <Text style={styles.photoMissingText}>
-              {photoUri ? 'Could not load prescription photo' : 'Photo unavailable'}
+              {photoUri ? 'Could not load attached image' : 'Image unavailable'}
             </Text>
           </View>
         )}

@@ -216,7 +216,12 @@ export async function authFetch(
     return response;
   }
 
-  const outcome = await refreshAccessToken();
+  let outcome = await refreshAccessToken();
+  // RW-01: one short backoff + second refresh before surfacing 401 (no logout).
+  if (outcome.status === 'transient') {
+    await new Promise((r) => setTimeout(r, 400));
+    outcome = await refreshAccessToken();
+  }
   if (outcome.status === 'transient') {
     return response;
   }

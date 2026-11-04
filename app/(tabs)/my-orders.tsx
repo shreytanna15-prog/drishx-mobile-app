@@ -197,7 +197,7 @@ function ListOrderRow({
 
       {group.isPhotoOrder ? (
         <Text style={styles.photoOrderNote}>
-          Photo order submitted · your order will be placed soon
+          Image attached · our team will follow up
         </Text>
       ) : (
         <View style={styles.metaRow}>
