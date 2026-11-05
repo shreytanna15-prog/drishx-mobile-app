@@ -26,15 +26,20 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 
+# Local QA screenshots / screen recordings (never commit)
+/screenshots/
+**/screenshots/
+*.screenshot.png
+*.screenshot.jpg
+page-*.png
+page-*.jpg
+
 # macOS
 .DS_Store
 *.pem
 
 # local env files
-.env
-.env.*
 !.env.example
-.env.local
 .env.*.local
 
 # typescript
