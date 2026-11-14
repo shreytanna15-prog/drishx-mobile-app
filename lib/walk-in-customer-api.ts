@@ -157,11 +157,14 @@ export async function fetchWalkInHistory(params?: {
   limit?: number;
   q?: string;
 }) {
-  return fetchCustomerCompanies({
-    status: 'staff-created',
-    activeOnly: false,
-    page: params?.page ?? 1,
-    limit: params?.limit ?? 20,
-    q: params?.q,
-  });
+  return fetchCustomerCompanies(
+    {},
+    {
+      status: 'staff-created',
+      activeOnly: false,
+      page: params?.page ?? 1,
+      limit: params?.limit ?? 20,
+      q: params?.q,
+    }
+  );
 }

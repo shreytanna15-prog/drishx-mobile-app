@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -15,6 +15,12 @@ import { getCustomerNextRoute, mapApiUser } from '@/lib/auth-api';
 import { isStaffRole, resolveAuthTokens, useAuth, type AuthUser } from '@/lib/auth';
 import { BACKEND_BASE_URL } from '@/lib/api-config';
 import { sendMobileOtp, verifyMobileOtp } from '@/lib/otp-api';
+import {
+  authLoginBodySchema,
+  otpCodeSchema,
+  otpLoginMobileSchema,
+} from '@/lib/validation/auth-login';
+import { safeParseMessage } from '@/lib/validation/parse';
 
 const LOGIN_URL = `${BACKEND_BASE_URL}/api/auth/login`;
 
@@ -75,10 +81,12 @@ export default function LoginScreen() {
   }
 
   async function handlePasswordLogin() {
-    if (!email.trim() || !password.trim()) {
-      appAlert('Missing fields', 'Email and password are required.');
+    const loginError = safeParseMessage(authLoginBodySchema, { email, password });
+    if (loginError) {
+      appAlert('Missing fields', loginError);
       return;
     }
+    const parsed = authLoginBodySchema.parse({ email, password });
 
     setLoading(true);
     try {
@@ -88,7 +96,7 @@ export default function LoginScreen() {
           'Content-Type': 'application/json',
           'X-Client': 'mobile',
         },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+        body: JSON.stringify({ email: parsed.email, password: parsed.password }),
       });
 
       const result = await response.json();
@@ -102,7 +110,7 @@ export default function LoginScreen() {
           router.replace({
             pathname: '/pending-approval',
             params: {
-              email: email.trim().toLowerCase(),
+              email: parsed.email,
               rejected: '1',
               reason: result?.rejectionReason || '',
             },
@@ -130,14 +138,16 @@ export default function LoginScreen() {
   }
 
   async function handleSendOtp() {
-    if (!mobileNumber.trim()) {
-      appAlert('Missing mobile', 'Enter your mobile number.');
+    const mobileError = safeParseMessage(otpLoginMobileSchema, mobileNumber);
+    if (mobileError) {
+      appAlert('Missing mobile', mobileError);
       return;
     }
+    const normalizedMobile = otpLoginMobileSchema.parse(mobileNumber);
     setLoading(true);
     try {
       const sent = await sendMobileOtp({
-        mobileNumber,
+        mobileNumber: normalizedMobile,
         purpose: 'LOGIN',
       });
       setProviderSessionId(sent.providerSessionId);
@@ -154,16 +164,23 @@ export default function LoginScreen() {
   }
 
   async function handleVerifyOtp() {
-    if (!otpCode.trim()) {
-      appAlert('Missing OTP', 'Enter the OTP code.');
+    const mobileError = safeParseMessage(otpLoginMobileSchema, mobileNumber);
+    if (mobileError) {
+      appAlert('Missing mobile', mobileError);
       return;
     }
+    const codeError = safeParseMessage(otpCodeSchema, otpCode);
+    if (codeError) {
+      appAlert('Missing OTP', codeError);
+      return;
+    }
+    const normalizedMobile = otpLoginMobileSchema.parse(mobileNumber);
     setLoading(true);
     try {
       const result = await verifyMobileOtp({
-        mobileNumber,
+        mobileNumber: normalizedMobile,
         purpose: 'LOGIN',
-        code: otpCode,
+        code: otpCode.trim(),
         providerSessionId,
       });
       const { accessToken, refreshToken } = resolveAuthTokens(result);
@@ -325,9 +342,15 @@ export default function LoginScreen() {
             </>
           )}
 
-          <Link href="/signup" style={styles.backLink}>
+          <Pressable
+            style={styles.backLink}
+            hitSlop={12}
+            accessibilityRole="link"
+            accessibilityLabel="Create account"
+            onPress={() => router.push('/signup')}
+          >
             <Text style={styles.linkText}>Create account</Text>
-          </Link>
+          </Pressable>
         </View>
       </KeyboardAwareScroll>
     </SafeAreaView>
@@ -338,7 +361,7 @@ const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: c.background },
     root: { flex: 1, backgroundColor: c.background },
-    container: { padding: 24, minHeight: '100%' },
+    container: { padding: 24, paddingBottom: 32 },
     card: {
       borderRadius: 20,
       padding: 24,

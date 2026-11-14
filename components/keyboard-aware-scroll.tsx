@@ -33,7 +33,9 @@ export function KeyboardAwareScroll({
   return (
     <KeyboardAvoidingView
       style={[styles.flex, style]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      // Android `height` behavior shrinks the view and can invert bottom-link
+      // hit targets inside ScrollView. Prefer padding / default inset handling.
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={offset}>
       <ScrollView
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}

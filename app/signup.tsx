@@ -1,6 +1,6 @@
 'use client';
 
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -354,9 +354,15 @@ export default function SignupScreen() {
             </>
           )}
 
-          <Link href="/login" style={styles.backLink}>
+          <Pressable
+            style={styles.backLink}
+            hitSlop={12}
+            accessibilityRole="link"
+            accessibilityLabel="Already have an account? Log in"
+            onPress={() => router.push('/login')}
+          >
             <Text style={styles.linkText}>Already have an account? Log in</Text>
-          </Link>
+          </Pressable>
         </View>
       </KeyboardAwareScroll>
     </SafeAreaView>
@@ -385,7 +391,7 @@ const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: c.background },
     root: { flex: 1, backgroundColor: c.background },
-    container: { padding: 24, minHeight: '100%' },
+    container: { padding: 24, paddingBottom: 32 },
     card: {
       borderRadius: 20,
       padding: 24,
