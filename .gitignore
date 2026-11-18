@@ -39,8 +39,30 @@ page-*.jpg
 *.pem
 
 # local env files
+.env*
 !.env.example
-.env.*.local
+
+# local credentials and private signing material
+.npmrc
+.netrc
+.pypirc
+.ssh/
+id_rsa
+id_ed25519
+*.pfx
+*.keystore
+*service-account*.json
+*credentials*.json
+google-services.json
+GoogleService-Info.plist
+secrets.json
+secrets.*.json
+*.secret.*
+/backups/
+*.dump
+*.backup
+*.sqlite
+*.sqlite3
 
 # typescript
 *.tsbuildinfo
