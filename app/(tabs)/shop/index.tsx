@@ -116,6 +116,12 @@ export default function ShopScreen() {
           <CatalogSearchBar />
         </View>
 
+        <Pressable
+          style={[styles.iconButton, { alignSelf: 'stretch', marginBottom: 16 }]}
+          onPress={() => router.push('/shop/catalog')}>
+          <Text style={{ color: colors.primary, fontWeight: '700' }}>Shop catalog stock →</Text>
+        </Pressable>
+
         <View style={styles.sectionHeader}>
           <View>
             <Text style={styles.sectionTitle}>Categories</Text>

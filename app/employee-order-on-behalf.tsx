@@ -42,6 +42,12 @@ const FILTER_OPTIONS: FilterOption[] = ['All', 'Kryptok', 'Progressive', 'Single
 
 const CUSTOM_ORDER_OPTIONS = [
   {
+    id: 'catalog',
+    label: 'Catalog stock',
+    description: 'Order by variant + power (live / non-live)',
+    path: '/shop/on-behalf-catalog' as const,
+  },
+  {
     id: 'rx',
     label: 'Rx',
     description: 'Custom prescription order',

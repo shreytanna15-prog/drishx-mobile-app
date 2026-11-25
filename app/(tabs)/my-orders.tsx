@@ -2,6 +2,7 @@
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Clipboard from 'expo-clipboard';
+import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,9 +34,11 @@ import { normalizeOrderStatus } from '@/lib/order-tracking';
 import { usePaginatedListState } from '@/lib/hooks/use-paginated-list-state';
 import { useGetOrders } from '@/lib/modules/orders/query/use-get-orders';
 import { useGetOrderGroup } from '@/lib/modules/orders/query/use-get-order-group';
-import type { OrderRecord } from '@/lib/orders-api';
+import { cancelOrder, type OrderRecord } from '@/lib/orders-api';
 import { onOfflineSyncComplete } from '@/lib/offline-sync';
 import { appAlert } from '@/lib/app-alert';
+
+const CUSTOMER_CANCEL_STATUSES = new Set(['PENDING', 'AWAITING_PROCUREMENT']);
 
 type FilterKey = 'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 
@@ -275,6 +278,7 @@ function statusParamForFilter(filter: FilterKey): string | undefined {
 }
 
 export default function MyOrdersScreen() {
+  const router = useRouter();
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const { getAuthHeaders, user } = useAuth();
@@ -432,6 +436,42 @@ export default function MyOrdersScreen() {
                 void refetch();
               }}
             />
+            {selectedGroup.orders.filter((order) => CUSTOMER_CANCEL_STATUSES.has(order.status)).map((order) => {
+              const label = String(order.orderNumber ?? order.id.slice(-8));
+              return (
+                <Pressable
+                  key={`cancel-${order.id}`}
+                  style={styles.retryButton}
+                  onPress={() => {
+                    appAlert('Cancel this order?', `Order #${label} will be cancelled and reserved stock released.`, [
+                      { text: 'Keep order', style: 'cancel' },
+                      {
+                        text: 'Cancel order',
+                        style: 'destructive',
+                        onPress: () => {
+                          void (async () => {
+                            try {
+                              await cancelOrder(order.id, getAuthHeaders());
+                              void refetchDetail();
+                              setPage(1);
+                              void refetch();
+                            } catch (err) {
+                              appAlert('Cancel failed', err instanceof Error ? err.message : 'Could not cancel order.');
+                            }
+                          })();
+                        },
+                      },
+                    ]);
+                  }}>
+                  <Text style={[styles.retryText, { color: colors.danger }]}>Cancel order #{label}</Text>
+                </Pressable>
+              );
+            })}
+            {selectedGroup.orders.filter((order) => order.lensProductPowerId && !['CANCELLED', 'COMPLETED', 'DISPATCHED'].includes(order.status)).map((order) => (
+              <Pressable key={order.id} style={styles.retryButton} onPress={() => router.push({ pathname: '/shop/change-order', params: { id: order.id } })}>
+                <Text style={styles.retryText}>Request change to order #{order.orderNumber ?? order.id.slice(-8)}</Text>
+              </Pressable>
+            ))}
           </ScrollView>
         ) : (
           <>
