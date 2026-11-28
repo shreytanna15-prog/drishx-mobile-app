@@ -1,8 +1,8 @@
 'use client';
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -80,13 +80,16 @@ export default function ShopItemsScreen() {
   const [catalogImages, setCatalogImages] = useState<CatalogImagesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setMode('retail');
-  }, [setMode]);
+  const hasLoadedRef = useRef(false);
+  const categoryRef = useRef(category);
+  if (categoryRef.current !== category) {
+    categoryRef.current = category;
+    hasLoadedRef.current = false;
+  }
 
   const loadItems = useCallback(async () => {
-    setLoading(true);
+    const showBlockingLoader = !hasLoadedRef.current;
+    if (showBlockingLoader) setLoading(true);
     setError(null);
     try {
       const [data, images] = await Promise.all([
@@ -95,6 +98,7 @@ export default function ShopItemsScreen() {
       ]);
       setItems(data);
       setCatalogImages(images);
+      hasLoadedRef.current = true;
     } catch (err) {
       setItems([]);
       const detail = err instanceof Error ? err.message : 'Network request failed';
@@ -104,13 +108,16 @@ export default function ShopItemsScreen() {
           : 'Unable to load items from the backend.'
       );
     } finally {
-      setLoading(false);
+      if (showBlockingLoader) setLoading(false);
     }
   }, [category]);
 
-  useEffect(() => {
-    void loadItems();
-  }, [loadItems]);
+  useFocusEffect(
+    useCallback(() => {
+      setMode('retail');
+      void loadItems();
+    }, [setMode, loadItems])
+  );
 
   return (
     <View style={styles.root}>
@@ -143,7 +150,7 @@ export default function ShopItemsScreen() {
         ) : (
           <FlatList
             data={items}
-            keyExtractor={(entry) => entry.name}
+            keyExtractor={(entry) => entry.id ?? entry.name}
             numColumns={2}
             columnWrapperStyle={styles.row}
             contentContainerStyle={styles.listContent}
@@ -163,6 +170,7 @@ export default function ShopItemsScreen() {
                     params: {
                       category,
                       item: item.name,
+                      ...(item.id ? { cardId: item.id } : {}),
                     },
                   })
                 }

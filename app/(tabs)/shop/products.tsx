@@ -20,12 +20,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { BrandColorScheme } from '@/constants/brand-colors';
 import { CoatingDot } from '@/components/coating-dot';
 import { LensProductListCard } from '@/components/lens-product-list-card';
+import { StorefrontProductCard } from '@/components/storefront-product-card';
 import { useThemedStyles } from '@/hooks/use-themed-styles';
 import { useBrandColors } from '@/lib/theme-provider';
 import {
   DEFAULT_LENS_SORT,
   fetchLensFacets,
   fetchLensesPage,
+  fetchStorefrontFacets,
+  fetchStorefrontProducts,
   LENS_SORT_OPTIONS,
   LOAD_MORE_AT_INDEX,
   mapApiLens,
@@ -33,6 +36,7 @@ import {
   POWER_SHAPE_OPTIONS,
   type LensSortOption,
   type PowerShapeFilter,
+  type StorefrontShopProduct,
 } from '@/lib/lenses-api';
 import { useOrderMode } from '@/lib/order-mode';
 import type { LensItem } from '@/lib/types/lens';
@@ -45,22 +49,60 @@ function LensRow({ item, onPress }: { item: LensItem; onPress: () => void }) {
   return <LensProductListCard item={item} onPress={onPress} />;
 }
 
+function filterStorefrontProducts(
+  items: StorefrontShopProduct[],
+  search: string,
+  coating: string
+): StorefrontShopProduct[] {
+  const q = search.trim().toLowerCase();
+  const coatingFilter = coating.trim().toLowerCase();
+  return items.filter((row) => {
+    if (coatingFilter) {
+      const rowCoating = (row.coatingName || row.coating || '').toLowerCase();
+      if (rowCoating !== coatingFilter) return false;
+    }
+    if (!q) return true;
+    const haystack = [
+      row.name,
+      row.summary,
+      row.baseCode,
+      row.coatingName,
+      row.coating,
+      row.familyName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
 export default function ShopProductsScreen() {
   const colors = useBrandColors();
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const { setMode } = useOrderMode();
-  const params = useLocalSearchParams<{ category?: string; item?: string }>();
+  const params = useLocalSearchParams<{
+    category?: string;
+    item?: string;
+    cardId?: string;
+  }>();
 
   const category = useMemo(() => parseWholesaleCategory(params.category), [params.category]);
   const selectedItem = useMemo(() => {
     const raw = Array.isArray(params.item) ? params.item[0] : params.item;
     return raw?.trim() ?? '';
   }, [params.item]);
+  const cardId = useMemo(() => {
+    const raw = Array.isArray(params.cardId) ? params.cardId[0] : params.cardId;
+    return raw?.trim() ?? '';
+  }, [params.cardId]);
+  const useStorefront = Boolean(cardId);
 
   const filter = useMemo(() => wholesaleCategoryToFilter(category), [category]);
 
   const [lenses, setLenses] = useState<LensItem[]>([]);
+  const [storefrontProducts, setStorefrontProducts] = useState<StorefrontShopProduct[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -89,10 +131,19 @@ export default function ShopProductsScreen() {
   coatingRef.current = selectedCoating;
   powerShapeRef.current = selectedPowerShape;
 
-  const usePowerFilters = coatings.length === 0 && powerShapes.length > 0;
+  const usePowerFilters =
+    !useStorefront && coatings.length === 0 && powerShapes.length > 0;
 
   const sortLabel =
     LENS_SORT_OPTIONS.find((option) => option.value === sort)?.label ?? 'Sort';
+
+  const visibleStorefrontProducts = useMemo(
+    () =>
+      useStorefront
+        ? filterStorefrontProducts(storefrontProducts, debouncedSearch, selectedCoating)
+        : [],
+    [useStorefront, storefrontProducts, debouncedSearch, selectedCoating]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -112,11 +163,20 @@ export default function ShopProductsScreen() {
     powerShapeRef.current = '';
     setCoatings([]);
     setPowerShapes([]);
-    if (!selectedItem) return;
+    if (!selectedItem && !cardId) return;
 
     let cancelled = false;
     void (async () => {
       try {
+        if (cardId) {
+          const facets = await fetchStorefrontFacets(cardId);
+          if (!cancelled) {
+            setCoatings(facets.map((facet) => facet.name));
+            setPowerShapes([]);
+          }
+          return;
+        }
+
         const facets = await fetchLensFacets({
           type: filter,
           item: selectedItem,
@@ -136,10 +196,44 @@ export default function ShopProductsScreen() {
     return () => {
       cancelled = true;
     };
-  }, [filter, selectedItem]);
+  }, [filter, selectedItem, cardId]);
+
+  const loadStorefront = useCallback(async () => {
+    if (!cardId) return;
+    const currentRequestId = ++requestIdRef.current;
+    setInitialLoading(true);
+    setIsRefreshing(true);
+    hasMoreRef.current = false;
+
+    try {
+      const items = await fetchStorefrontProducts(cardId);
+      if (currentRequestId !== requestIdRef.current) return;
+      setStorefrontProducts(items);
+      setLenses([]);
+      setTotalCount(items.length);
+      setError(null);
+    } catch (err) {
+      if (currentRequestId !== requestIdRef.current) return;
+      setStorefrontProducts([]);
+      setLenses([]);
+      setTotalCount(0);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to load product data from the backend.'
+      );
+    } finally {
+      if (currentRequestId === requestIdRef.current) {
+        setLoadingMore(false);
+        setIsRefreshing(false);
+        setInitialLoading(false);
+      }
+    }
+  }, [cardId]);
 
   const loadPage = useCallback(
     async (pageToLoad: number, replace: boolean) => {
+      if (cardId) return;
       if (pageToLoad > 1) {
         if (loadingMoreRef.current || !hasMoreRef.current) return;
         loadingMoreRef.current = true;
@@ -166,6 +260,7 @@ export default function ShopProductsScreen() {
 
         if (currentRequestId !== requestIdRef.current) return;
         const mapped = data.items.map(mapApiLens);
+        setStorefrontProducts([]);
         setLenses((current) => (replace ? mapped : [...current, ...mapped]));
         setTotalCount(data.total);
         pageRef.current = data.page;
@@ -186,20 +281,37 @@ export default function ShopProductsScreen() {
         }
       }
     },
-    [filter, selectedItem]
+    [filter, selectedItem, cardId]
   );
 
   useEffect(() => {
+    if (!cardId) return;
+    setInitialLoading(true);
+    void loadStorefront();
+  }, [cardId, loadStorefront]);
+
+  useEffect(() => {
+    if (cardId) return;
     pageRef.current = 1;
     hasMoreRef.current = true;
     setInitialLoading(true);
-    loadPage(1, true);
-  }, [filter, selectedItem, debouncedSearch, sort, selectedCoating, selectedPowerShape, loadPage]);
+    void loadPage(1, true);
+  }, [
+    filter,
+    selectedItem,
+    cardId,
+    debouncedSearch,
+    sort,
+    selectedCoating,
+    selectedPowerShape,
+    loadPage,
+  ]);
 
   const loadNextPage = useCallback(() => {
+    if (useStorefront) return;
     if (!hasMoreRef.current || loadingMoreRef.current || isRefreshing) return;
     loadPage(pageRef.current + 1, false);
-  }, [isRefreshing, loadPage]);
+  }, [isRefreshing, loadPage, useStorefront]);
 
   const loadNextPageRef = useRef(loadNextPage);
   const lensesLengthRef = useRef(0);
@@ -224,11 +336,16 @@ export default function ShopProductsScreen() {
 
   const title = selectedItem || 'Products';
 
+  const listCount = useStorefront ? visibleStorefrontProducts.length : totalCount;
   const emptyMessage = selectedPowerShape
     ? 'No products found for this power filter.'
     : selectedCoating
       ? 'No products found for this coating.'
-      : 'No products found.';
+      : debouncedSearch
+        ? 'No products found for this search.'
+        : useStorefront
+          ? 'No products match this card yet.'
+          : 'No products found.';
 
   return (
     <View style={styles.root}>
@@ -248,7 +365,11 @@ export default function ShopProductsScreen() {
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search brand, coating, power, plano..."
+            placeholder={
+              useStorefront
+                ? 'Search product, coating…'
+                : 'Search brand, coating, power, plano...'
+            }
             placeholderTextColor={colors.placeholder}
             style={styles.searchInput}
             autoCorrect={false}
@@ -265,13 +386,15 @@ export default function ShopProductsScreen() {
           ) : null}
         </View>
 
-        <Pressable style={styles.sortButton} onPress={() => setSortOpen(true)}>
-          <MaterialIcons name="sort" size={18} color={colors.primary} />
-          <Text style={styles.sortButtonText} numberOfLines={1}>
-            {sortLabel}
-          </Text>
-          <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
-        </Pressable>
+        {!useStorefront ? (
+          <Pressable style={styles.sortButton} onPress={() => setSortOpen(true)}>
+            <MaterialIcons name="sort" size={18} color={colors.primary} />
+            <Text style={styles.sortButtonText} numberOfLines={1}>
+              {sortLabel}
+            </Text>
+            <MaterialIcons name="expand-more" size={20} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
 
         {usePowerFilters ? (
           <View style={styles.coatingWrap}>
@@ -366,19 +489,46 @@ export default function ShopProductsScreen() {
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={styles.stateText}>Loading products…</Text>
           </View>
-        ) : error && lenses.length === 0 ? (
+        ) : error &&
+          (useStorefront ? storefrontProducts.length === 0 : lenses.length === 0) ? (
           <View style={styles.centeredState}>
             <MaterialIcons name="cloud-off" size={32} color={colors.danger} />
             <Text style={styles.errorText}>{error}</Text>
-            <Pressable style={styles.retryButton} onPress={() => loadPage(1, true)}>
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                if (cardId) {
+                  void loadStorefront();
+                } else {
+                  void loadPage(1, true);
+                }
+              }}
+            >
               <Text style={styles.retryText}>Retry</Text>
             </Pressable>
           </View>
         ) : (
           <View style={styles.listSection}>
             <Text style={styles.countHint}>
-              {totalCount} product{totalCount === 1 ? '' : 's'}
+              {listCount} product{listCount === 1 ? '' : 's'}
             </Text>
+            {useStorefront ? (
+              <FlatList
+                style={styles.list}
+                data={visibleStorefrontProducts}
+                keyExtractor={(item) => item.productId}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                ItemSeparatorComponent={() => <View style={styles.separator} />}
+                renderItem={({ item }) => <StorefrontProductCard item={item} />}
+                ListEmptyComponent={
+                  <View style={styles.centeredState}>
+                    <MaterialIcons name="search-off" size={40} color={colors.textMuted} />
+                    <Text style={styles.stateText}>{emptyMessage}</Text>
+                  </View>
+                }
+              />
+            ) : (
             <FlatList
               style={styles.list}
               data={lenses}
@@ -418,6 +568,7 @@ export default function ShopProductsScreen() {
                 </View>
               }
             />
+            )}
           </View>
         )}
       </SafeAreaView>

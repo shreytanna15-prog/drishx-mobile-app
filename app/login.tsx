@@ -209,7 +209,7 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar style={statusBarStyle} />
-      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container} centerContent>
+      <KeyboardAwareScroll style={styles.root} contentContainerStyle={styles.container}>
         <View style={styles.card}>
           <Text style={styles.heading}>Login</Text>
           <Text style={styles.subheading}>
@@ -217,11 +217,6 @@ export default function LoginScreen() {
               ? 'Sign in with your registered mobile number'
               : 'Email & password (customers or staff)'}
           </Text>
-          {__DEV__ ? (
-            <Text style={styles.devApiHint} selectable>
-              API: {BACKEND_BASE_URL}
-            </Text>
-          ) : null}
 
           <View style={styles.modeRow}>
             <Pressable
@@ -361,7 +356,7 @@ const createStyles = (c: BrandColorScheme) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: c.background },
     root: { flex: 1, backgroundColor: c.background },
-    container: { padding: 24, paddingBottom: 32 },
+    container: { padding: 24, paddingTop: 48, paddingBottom: 48 },
     card: {
       borderRadius: 20,
       padding: 24,
@@ -370,19 +365,13 @@ const createStyles = (c: BrandColorScheme) =>
       borderColor: c.cardBorder,
     },
     heading: { color: c.text, fontSize: 28, fontWeight: '800', marginBottom: 6 },
-    subheading: { color: c.textMuted, fontSize: 14, marginBottom: 8 },
+    subheading: { color: c.textMuted, fontSize: 14, marginBottom: 16 },
     hint: { color: c.textMuted, fontSize: 13, marginBottom: 10 },
     pathBHint: {
       fontSize: 13,
       color: c.textMuted,
       marginBottom: 12,
       lineHeight: 18,
-    },
-    devApiHint: {
-      color: c.textMuted,
-      fontSize: 11,
-      marginBottom: 16,
-      fontFamily: 'monospace',
     },
     modeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
     modeButton: {

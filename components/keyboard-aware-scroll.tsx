@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   type ScrollViewProps,
@@ -33,9 +32,9 @@ export function KeyboardAwareScroll({
   return (
     <KeyboardAvoidingView
       style={[styles.flex, style]}
-      // Android `height` behavior shrinks the view and can invert bottom-link
-      // hit targets inside ScrollView. Prefer padding / default inset handling.
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      // Prefer padding on both platforms. Avoid Android `height` — it can
+      // invert bottom-link hit targets inside ScrollView.
+      behavior="padding"
       keyboardVerticalOffset={offset}>
       <ScrollView
         keyboardShouldPersistTaps={keyboardShouldPersistTaps}
